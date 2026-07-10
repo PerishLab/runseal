@@ -9,9 +9,17 @@ exclude = [
   "**/target/**",
 ]
 
+[module]
+roots = [
+  ".runseal",
+  "app/src",
+  "app/tests",
+  "docs",
+]
+
 [limit]
-block = 3
-path = 3
+block = 4
+path = 4
 
 [comment]
 allow = false
