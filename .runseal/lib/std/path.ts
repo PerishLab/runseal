@@ -22,12 +22,12 @@ function dirname(path: string): string {
   return trimmed.slice(0, slash);
 }
 
-function listSeparator(): string {
+function separator(): string {
   return Deno.build.os === "windows" ? ";" : ":";
 }
 
 export const path = {
   join,
   dirname,
-  listSeparator,
+  listSeparator: separator,
 };

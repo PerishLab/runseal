@@ -1,7 +1,7 @@
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
-export type CommandOptions = {
+export type Options = {
   cwd?: string;
   env?: Record<string, string>;
   stdin?: "inherit" | "null" | "piped";
@@ -9,7 +9,7 @@ export type CommandOptions = {
   stderr?: "inherit" | "null" | "piped";
 };
 
-const blockedInheritedEnv = new Set([
+const blocked = new Set([
   "DYLD_FALLBACK_LIBRARY_PATH",
   "DYLD_INSERT_LIBRARIES",
   "DYLD_LIBRARY_PATH",
@@ -17,44 +17,46 @@ const blockedInheritedEnv = new Set([
   "LD_LIBRARY_PATH",
 ]);
 
-function hasBlockedInheritedEnv(): boolean {
-  for (const key of blockedInheritedEnv) {
-    if (Deno.env.get(key) !== undefined) {
-      return true;
+class Inherited {
+  static present(): boolean {
+    for (const key of blocked) {
+      if (Deno.env.get(key) !== undefined) {
+        return true;
+      }
     }
+    return false;
   }
-  return false;
+
+  static sanitize(extra: Record<string, string> | undefined): Record<string, string> {
+    const env = Deno.env.toObject();
+    for (const key of blocked) {
+      delete env[key];
+    }
+    return { ...env, ...(extra ?? {}) };
+  }
+
+  static options(
+    extra: Record<string, string> | undefined,
+  ): Pick<Deno.CommandOptions, "clearEnv" | "env"> {
+    if (this.present()) {
+      return { clearEnv: true, env: this.sanitize(extra) };
+    }
+    return extra === undefined ? {} : { env: extra };
+  }
 }
 
-function sanitizedEnv(extra: Record<string, string> | undefined): Record<string, string> {
-  const env = Deno.env.toObject();
-  for (const key of blockedInheritedEnv) {
-    delete env[key];
-  }
-  return { ...env, ...(extra ?? {}) };
-}
-
-function envOptions(
-  extra: Record<string, string> | undefined,
-): Pick<Deno.CommandOptions, "clearEnv" | "env"> {
-  if (hasBlockedInheritedEnv()) {
-    return { clearEnv: true, env: sanitizedEnv(extra) };
-  }
-  return extra === undefined ? {} : { env: extra };
-}
-
-async function run(command: string, args: string[] = [], options: CommandOptions = {}) {
+async function run(command: string, args: string[] = [], options: Options = {}) {
   const code = await status(command, args, options);
   if (code !== 0) {
     Deno.exit(code);
   }
 }
 
-async function status(command: string, args: string[] = [], options: CommandOptions = {}) {
+async function status(command: string, args: string[] = [], options: Options = {}) {
   const status = await new Deno.Command(command, {
     args,
     cwd: options.cwd,
-    ...envOptions(options.env),
+    ...Inherited.options(options.env),
     stdin: options.stdin ?? "inherit",
     stdout: options.stdout ?? "inherit",
     stderr: options.stderr ?? "inherit",
@@ -65,12 +67,12 @@ async function status(command: string, args: string[] = [], options: CommandOpti
 async function text(
   command: string,
   args: string[] = [],
-  options: Omit<CommandOptions, "stdout"> = {},
+  options: Omit<Options, "stdout"> = {},
 ): Promise<string> {
   const output = await new Deno.Command(command, {
     args,
     cwd: options.cwd,
-    ...envOptions(options.env),
+    ...Inherited.options(options.env),
     stdin: options.stdin ?? "null",
     stdout: "piped",
     stderr: options.stderr ?? "inherit",
@@ -85,12 +87,12 @@ async function input(
   command: string,
   args: string[],
   input: string,
-  options: Omit<CommandOptions, "stdin"> = {},
+  options: Omit<Options, "stdin"> = {},
 ): Promise<string> {
   const child = new Deno.Command(command, {
     args,
     cwd: options.cwd,
-    ...envOptions(options.env),
+    ...Inherited.options(options.env),
     stdin: "piped",
     stdout: options.stdout ?? "piped",
     stderr: options.stderr ?? "inherit",
@@ -109,7 +111,7 @@ async function exists(name: string): Promise<boolean> {
   try {
     await new Deno.Command(name, {
       args: ["--version"],
-      ...envOptions(undefined),
+      ...Inherited.options(undefined),
       stdin: "null",
       stdout: "null",
       stderr: "null",

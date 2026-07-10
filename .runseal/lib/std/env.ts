@@ -4,7 +4,7 @@ function get(name: string, fallback = ""): string {
   return Deno.env.get(name) ?? fallback;
 }
 
-function requireValue(name: string): string {
+function required(name: string): string {
   const value = Deno.env.get(name);
   if (value === undefined || value === "") {
     return io.fail(`missing required env: ${name}`);
@@ -14,5 +14,5 @@ function requireValue(name: string): string {
 
 export const env = {
   get,
-  require: requireValue,
+  require: required,
 };

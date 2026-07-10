@@ -1,4 +1,4 @@
-import { helpRequested, parseArgs, requireNoPositionals } from "@/lib/cli.ts";
+import { cli } from "@/lib/cli.ts";
 import { cmd } from "@/lib/std/cmd.ts";
 import { fs } from "@/lib/std/fs.ts";
 import { io } from "@/lib/std/io.ts";
@@ -27,9 +27,9 @@ function usage(): void {
   io.print("Validate the repository and install versioned git hooks.");
 }
 
-const args = parseArgs(Deno.args, { boolean: ["help", "h"] });
-requireNoPositionals(args, "init", { allowHelp: true });
-if (helpRequested(args)) {
+const args = cli.parse(Deno.args, { boolean: ["help", "h"] });
+cli.positionals(args, "init", { allowHelp: true });
+if (cli.help(args)) {
   usage();
   Deno.exit(0);
 }

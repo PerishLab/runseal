@@ -1,10 +1,4 @@
-import {
-  booleanOption,
-  helpRequested,
-  parseArgs as parseCliArgs,
-  requireNoPositionals,
-  stringOption,
-} from "@/lib/cli.ts";
+import { cli } from "@/lib/cli.ts";
 import { cmd } from "@/lib/std/cmd.ts";
 import { io } from "@/lib/std/io.ts";
 import { json } from "@/lib/std/json.ts";
@@ -46,19 +40,19 @@ function usage(): void {
 }
 
 function parse(args: string[]): Options & { help: boolean; argc: number } {
-  const parsed = parseCliArgs(args, {
+  const parsed = cli.parse(args, {
     string: ["channel", "repo", "ref", "version"],
     boolean: ["watch", "dry-run", "help", "h"],
   });
-  requireNoPositionals(parsed, "release", { allowHelp: true });
+  cli.positionals(parsed, "release", { allowHelp: true });
   return {
-    channel: stringOption(parsed, "channel"),
-    repo: stringOption(parsed, "repo"),
-    ref: stringOption(parsed, "ref", "main"),
-    version: stringOption(parsed, "version"),
-    watch: booleanOption(parsed, "watch"),
-    dryRun: booleanOption(parsed, "dry-run"),
-    help: helpRequested(parsed),
+    channel: cli.string(parsed, "channel"),
+    repo: cli.string(parsed, "repo"),
+    ref: cli.string(parsed, "ref", "main"),
+    version: cli.string(parsed, "version"),
+    watch: cli.boolean(parsed, "watch"),
+    dryRun: cli.boolean(parsed, "dry-run"),
+    help: cli.help(parsed),
     argc: args.length,
   };
 }

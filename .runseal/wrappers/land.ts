@@ -1,10 +1,4 @@
-import {
-  booleanOption,
-  helpRequested,
-  parseArgs as parseCliArgs,
-  requireNoPositionals,
-  stringOption,
-} from "@/lib/cli.ts";
+import { cli } from "@/lib/cli.ts";
 import { cmd } from "@/lib/std/cmd.ts";
 import { io } from "@/lib/std/io.ts";
 import { json } from "@/lib/std/json.ts";
@@ -34,18 +28,18 @@ function usage(): void {
 }
 
 function parse(args: string[]): Options & { help: boolean } {
-  const parsed = parseCliArgs(args, {
+  const parsed = cli.parse(args, {
     string: ["base", "body", "repo"],
     boolean: ["dry-run", "no-delete", "help", "h"],
   });
-  requireNoPositionals(parsed, "land", { allowHelp: true });
+  cli.positionals(parsed, "land", { allowHelp: true });
   return {
-    base: stringOption(parsed, "base", "main"),
-    body: stringOption(parsed, "body"),
-    repo: stringOption(parsed, "repo"),
-    dryRun: booleanOption(parsed, "dry-run"),
-    deleteBranch: !booleanOption(parsed, "no-delete"),
-    help: helpRequested(parsed),
+    base: cli.string(parsed, "base", "main"),
+    body: cli.string(parsed, "body"),
+    repo: cli.string(parsed, "repo"),
+    dryRun: cli.boolean(parsed, "dry-run"),
+    deleteBranch: !cli.boolean(parsed, "no-delete"),
+    help: cli.help(parsed),
   };
 }
 

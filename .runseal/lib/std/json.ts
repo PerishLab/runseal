@@ -1,16 +1,70 @@
-type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
 
 type Picked = {
-  current: JsonValue;
+  current: Value;
   input: string;
 };
 
-function parseInput(json: string | JsonValue): JsonValue {
-  return typeof json === "string" ? JSON.parse(json) as JsonValue : json;
+class Source {
+  static parse(json: string | Value): Value {
+    return typeof json === "string" ? JSON.parse(json) as Value : json;
+  }
+
+  static array(json: string | Value): Value[] {
+    const value = this.parse(json);
+    if (!Array.isArray(value)) {
+      throw new Error("expected JSON array");
+    }
+    return value;
+  }
 }
 
-function get(json: string | JsonValue, path: string): string {
-  const selected = selectPath(parseInput(json), path);
+class Field {
+  static string(value: Value, field: string): string | undefined {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    const selected = value[field];
+    if (selected === undefined) {
+      return undefined;
+    }
+    if (selected === null) {
+      return "null";
+    }
+    if (typeof selected === "string") {
+      return selected;
+    }
+    if (typeof selected === "boolean" || typeof selected === "number") {
+      return String(selected);
+    }
+    return JSON.stringify(selected);
+  }
+}
+
+class Path {
+  static select(value: Value, path: string): Value {
+    let input = path.startsWith(".") ? path.slice(1) : path;
+    if (input === "") {
+      throw new Error("json path cannot be empty");
+    }
+    let current = value;
+    while (input !== "") {
+      if (input.startsWith("[")) {
+        const picked = index(current, input, path);
+        current = picked.current;
+        input = picked.input;
+        continue;
+      }
+      const picked = field(current, input);
+      current = picked.current;
+      input = picked.input;
+    }
+    return current;
+  }
+}
+
+function get(json: string | Value, path: string): string {
+  const selected = Path.select(Source.parse(json), path);
   if (selected === null) {
     return "";
   }
@@ -25,9 +79,9 @@ function get(json: string | JsonValue, path: string): string {
   }
 }
 
-function has(json: string | JsonValue, path: string): boolean {
+function has(json: string | Value, path: string): boolean {
   try {
-    selectPath(parseInput(json), path);
+    Path.select(Source.parse(json), path);
     return true;
   } catch (err) {
     if (err instanceof Error && err.message === "json path missing") {
@@ -37,8 +91,8 @@ function has(json: string | JsonValue, path: string): boolean {
   }
 }
 
-function empty(json: string | JsonValue): boolean {
-  const value = parseInput(json);
+function empty(json: string | Value): boolean {
+  const value = Source.parse(json);
   if (value === null) {
     return true;
   }
@@ -51,8 +105,8 @@ function empty(json: string | JsonValue): boolean {
   return false;
 }
 
-function len(json: string | JsonValue): number {
-  const value = parseInput(json);
+function len(json: string | Value): number {
+  const value = Source.parse(json);
   if (value === null) {
     return 0;
   }
@@ -65,74 +119,26 @@ function len(json: string | JsonValue): number {
   return 1;
 }
 
-function find(json: string | JsonValue, field: string, expected: string): string {
-  const array = parseArray(json);
-  const found = array.find((item) => fieldString(item, field) === expected);
+function find(json: string | Value, field: string, expected: string): string {
+  const array = Source.array(json);
+  const found = array.find((item) => Field.string(item, field) === expected);
   return found === undefined ? "" : JSON.stringify(found);
 }
 
-function filter(json: string | JsonValue, field: string, expected: string[]): string {
-  const array = parseArray(json);
+function filter(json: string | Value, field: string, expected: string[]): string {
+  const array = Source.array(json);
   const filtered = array.filter((item) => {
-    const actual = fieldString(item, field);
+    const actual = Field.string(item, field);
     return actual !== undefined && expected.includes(actual);
   });
   return JSON.stringify(filtered);
 }
 
-function pretty(json: string | JsonValue): string {
-  return JSON.stringify(parseInput(json), null, 2);
+function pretty(json: string | Value): string {
+  return JSON.stringify(Source.parse(json), null, 2);
 }
 
-function parseArray(json: string | JsonValue): JsonValue[] {
-  const value = parseInput(json);
-  if (!Array.isArray(value)) {
-    throw new Error("expected JSON array");
-  }
-  return value;
-}
-
-function fieldString(value: JsonValue, field: string): string | undefined {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-  const fieldValue = value[field];
-  if (fieldValue === undefined) {
-    return undefined;
-  }
-  if (fieldValue === null) {
-    return "null";
-  }
-  if (typeof fieldValue === "string") {
-    return fieldValue;
-  }
-  if (typeof fieldValue === "boolean" || typeof fieldValue === "number") {
-    return String(fieldValue);
-  }
-  return JSON.stringify(fieldValue);
-}
-
-function selectPath(value: JsonValue, path: string): JsonValue {
-  let input = path.startsWith(".") ? path.slice(1) : path;
-  if (input === "") {
-    throw new Error("json path cannot be empty");
-  }
-  let current = value;
-  while (input !== "") {
-    if (input.startsWith("[")) {
-      const picked = index(current, input, path);
-      current = picked.current;
-      input = picked.input;
-      continue;
-    }
-    const picked = field(current, input);
-    current = picked.current;
-    input = picked.input;
-  }
-  return current;
-}
-
-function index(current: JsonValue, input: string, path: string): Picked {
+function index(current: Value, input: string, path: string): Picked {
   const end = input.indexOf("]");
   if (end === -1) {
     throw new Error(`unsupported json path: ${path}`);
@@ -147,7 +153,7 @@ function index(current: JsonValue, input: string, path: string): Picked {
   return { current: current[slot], input: rest(input, end + 1) };
 }
 
-function field(current: JsonValue, input: string): Picked {
+function field(current: Value, input: string): Picked {
   const dot = input.indexOf(".");
   const bracket = input.indexOf("[");
   const choices = [dot, bracket].filter((at) => at >= 0);

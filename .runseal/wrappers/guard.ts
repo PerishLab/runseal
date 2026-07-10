@@ -1,4 +1,4 @@
-import { helpRequested, parseArgs, requireNoPositionals } from "@/lib/cli.ts";
+import { cli } from "@/lib/cli.ts";
 import { cmd } from "@/lib/std/cmd.ts";
 import { env } from "@/lib/std/env.ts";
 import { io } from "@/lib/std/io.ts";
@@ -18,9 +18,9 @@ function usage(): void {
 }
 
 let mode = "full";
-const args = parseArgs(Deno.args, { boolean: ["help", "h"] });
-if (helpRequested(args)) {
-  requireNoPositionals(args, "guard", { allowHelp: true });
+const args = cli.parse(Deno.args, { boolean: ["help", "h"] });
+if (cli.help(args)) {
+  cli.positionals(args, "guard", { allowHelp: true });
   usage();
   Deno.exit(0);
 }

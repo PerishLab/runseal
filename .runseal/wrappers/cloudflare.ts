@@ -1,4 +1,4 @@
-import { booleanOption, parseArgs, requireNoPositionals } from "@/lib/cli.ts";
+import { cli } from "@/lib/cli.ts";
 import { env } from "@/lib/std/env.ts";
 import { fs } from "@/lib/std/fs.ts";
 import { io } from "@/lib/std/io.ts";
@@ -308,12 +308,12 @@ async function upsert(
 }
 
 async function ensure(rest: string[]): Promise<void> {
-  const args = parseArgs(rest, {
+  const args = cli.parse(rest, {
     boolean: ["dry-run"],
     unknownOptionMessage: (arg) => `cloudflare: unknown manage-ensure-redirect argument: ${arg}`,
   });
-  requireNoPositionals(args, "cloudflare: manage-ensure-redirect");
-  const dry = booleanOption(args, "dry-run");
+  cli.positionals(args, "cloudflare: manage-ensure-redirect");
+  const dry = cli.boolean(args, "dry-run");
   const rules = await load();
   const zone = await runseal.text([
     "@tool",

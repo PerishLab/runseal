@@ -17,3 +17,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   module namespaces; no vocabulary entries were added.
 - Init checks and specification compounds moved into type and module
   namespaces; no vocabulary entries were added.
+- TypeScript CLI and standard-library compounds moved into object and type
+  namespaces; no vocabulary entries were added.
