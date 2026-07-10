@@ -15,3 +15,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   namespaces; no vocabulary entries were added.
 - Guard policy, hash, version, and test compounds moved into object, type, and
   module namespaces; no vocabulary entries were added.
+- Init checks and specification compounds moved into type and module
+  namespaces; no vocabulary entries were added.

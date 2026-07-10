@@ -5,24 +5,26 @@ import { io } from "@/lib/std/io.ts";
 import { negentropy } from "@/lib/negentropy.ts";
 import { path } from "@/lib/std/path.ts";
 
-const HOOKS_PATH = ".runseal/hooks";
+const hooks = ".runseal/hooks";
+
+class Check {
+  static async tool(name: string): Promise<void> {
+    if (!(await cmd.exists(name))) {
+      io.fail(`init: missing required tool: ${name}`);
+    }
+  }
+
+  static async path(root: string, relative: string): Promise<void> {
+    if (!(await fs.file.exists(path.join(root, relative)))) {
+      io.fail(`init: missing required path: ${relative}`);
+    }
+  }
+}
 
 function usage(): void {
   io.print("Usage: runseal :init");
   io.print("");
   io.print("Validate the repository and install versioned git hooks.");
-}
-
-async function requireTool(name: string): Promise<void> {
-  if (!(await cmd.exists(name))) {
-    io.fail(`init: missing required tool: ${name}`);
-  }
-}
-
-async function requirePath(root: string, relPath: string): Promise<void> {
-  if (!(await fs.file.exists(path.join(root, relPath)))) {
-    io.fail(`init: missing required path: ${relPath}`);
-  }
 }
 
 const args = parseArgs(Deno.args, { boolean: ["help", "h"] });
@@ -49,7 +51,7 @@ for (
     "grep",
   ]
 ) {
-  await requireTool(tool);
+  await Check.tool(tool);
 }
 await negentropy.verify();
 io.print("ok: git, deno, cargo, runseal, negentropy, sh, bash, sed, grep");
@@ -102,12 +104,12 @@ for (
     ".forgejo/scripts/release/smoke/smoke.sh",
   ]
 ) {
-  await requirePath(root, path);
+  await Check.path(root, path);
 }
 io.print("ok: repository entrypoints");
 
 io.print("==> installing git hooks");
-await cmd.run("git", ["config", "core.hooksPath", HOOKS_PATH], { cwd: root });
+await cmd.run("git", ["config", "core.hooksPath", hooks], { cwd: root });
 const current = await cmd.text("git", ["config", "--get", "core.hooksPath"], { cwd: root });
 io.print(`core.hooksPath = ${current}`);
 
