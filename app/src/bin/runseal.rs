@@ -12,7 +12,7 @@ use runseal::run;
 #[derive(Debug, Parser)]
 #[command(
     name = "runseal",
-    version = build_version(),
+    version = version(),
     about = "Run a command inside an env, symlink, argv, and wrapper profile.",
     after_help = "\
 Command model:
@@ -50,41 +50,41 @@ struct Cli {
 
 fn main() -> Result<()> {
     let mut cli = Cli::parse();
-    cli.command = normalize_command(cli.command);
+    cli.command = normalize(cli.command);
     if cli.command.is_empty() {
         Cli::command().print_help()?;
         println!();
         return Ok(());
     }
-    if print_internal_help(&cli.command)? {
+    if help(&cli.command)? {
         return Ok(());
     }
-    if run_early_internal(&cli.command)? {
+    if early(&cli.command)? {
         return Ok(());
     }
 
-    let config = build_runtime_config(cli)?;
+    let config = config(cli)?;
     let app = App::new(config);
     let result = run(&app)?;
-    if let Some(code) = result.exit_code {
+    if let Some(code) = result.code {
         process::exit(code);
     }
     Ok(())
 }
 
-fn build_runtime_config(cli: Cli) -> Result<Config> {
+fn config(cli: Cli) -> Result<Config> {
     let cwd = std::env::current_dir().context("failed to read current directory")?;
     Config::build(
         Input {
             profile: cli.profile,
-            command: normalize_command(cli.command),
+            command: normalize(cli.command),
         },
         Env::process(),
         &cwd,
     )
 }
 
-fn run_early_internal(command: &[String]) -> Result<bool> {
+fn early(command: &[String]) -> Result<bool> {
     match command.first().map(String::as_str) {
         Some("@tool") => {
             tool::run(&command[1..])?;
@@ -94,7 +94,7 @@ fn run_early_internal(command: &[String]) -> Result<bool> {
     }
 }
 
-fn print_internal_help(command: &[String]) -> Result<bool> {
+fn help(command: &[String]) -> Result<bool> {
     let Some(name) = command[0].strip_prefix('@') else {
         return Ok(false);
     };
@@ -108,13 +108,13 @@ fn print_internal_help(command: &[String]) -> Result<bool> {
     Ok(true)
 }
 
-fn normalize_command(mut command: Vec<String>) -> Vec<String> {
+fn normalize(mut command: Vec<String>) -> Vec<String> {
     if command.len() > 1 && command.get(1).map(String::as_str) == Some("--") {
         command.remove(1);
     }
     command
 }
 
-fn build_version() -> &'static str {
+fn version() -> &'static str {
     option_env!("RUNSEAL_BUILD_VERSION").unwrap_or(concat!("v", env!("CARGO_PKG_VERSION")))
 }

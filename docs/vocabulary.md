@@ -23,3 +23,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   type and module namespaces; no vocabulary entries were added.
 - Application context, runtime configuration, and profile schema compounds
   moved into module and type namespaces; no vocabulary entries were added.
+- Runtime parsing, internal commands, process execution, and wrapper discovery
+  moved into type and module namespaces; no vocabulary entries were added.

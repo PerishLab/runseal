@@ -8,6 +8,7 @@ use anyhow::{Context, Result, bail};
 use path_absolutize::Absolutize;
 
 use crate::core::config::Config;
+use crate::core::symbol;
 
 #[derive(Debug)]
 pub(super) struct Listed {
@@ -17,9 +18,9 @@ pub(super) struct Listed {
 }
 
 pub(super) fn resolve(config: &Config, name: &str) -> Result<PathBuf> {
-    let searched = search_paths(config, name);
+    let searched = paths(config, name);
     for candidate in &searched {
-        if is_runnable(candidate) {
+        if runnable(candidate) {
             return candidate
                 .absolutize()
                 .with_context(|| format!("failed to absolutize wrapper: {}", candidate.display()))
@@ -36,11 +37,11 @@ pub(super) fn resolve(config: &Config, name: &str) -> Result<PathBuf> {
 }
 
 pub(super) fn effective(config: &Config) -> Result<Vec<Listed>> {
-    let dirs = search_dirs(config);
+    let dirs = dirs(config);
     let mut names = BTreeSet::new();
 
     for dir in &dirs {
-        collect_names(dir, &mut names)?;
+        collect(dir, &mut names)?;
     }
 
     let mut wrappers = Vec::new();
@@ -52,7 +53,7 @@ pub(super) fn effective(config: &Config) -> Result<Vec<Listed>> {
     Ok(wrappers)
 }
 
-fn collect_names(dir: &Path, names: &mut BTreeSet<String>) -> Result<()> {
+fn collect(dir: &Path, names: &mut BTreeSet<String>) -> Result<()> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Ok(());
     };
@@ -68,10 +69,10 @@ fn collect_names(dir: &Path, names: &mut BTreeSet<String>) -> Result<()> {
 
 fn listed(entry: std::fs::DirEntry) -> Option<String> {
     let file = entry.path();
-    if !is_runnable(&file) {
+    if !runnable(&file) {
         return None;
     }
-    listed_name(&file)
+    label(&file)
 }
 
 fn source(file: &Path, profile: &Path) -> &'static str {
@@ -82,39 +83,37 @@ fn source(file: &Path, profile: &Path) -> &'static str {
     }
 }
 
-pub(super) fn path_env(config: &Config) -> Result<std::ffi::OsString> {
-    env::join_paths(search_dirs(config)).context("failed to build RUNSEAL_WRAPPER_PATH")
+pub(super) fn env(config: &Config) -> Result<std::ffi::OsString> {
+    env::join_paths(dirs(config)).context("failed to build RUNSEAL_WRAPPER_PATH")
 }
 
-pub(super) fn is_deno(path: &Path) -> bool {
+pub(super) fn deno(path: &Path) -> bool {
     path.extension().and_then(std::ffi::OsStr::to_str) == Some("ts")
 }
 
-fn is_runnable(path: &Path) -> bool {
-    if is_deno(path) {
+fn runnable(path: &Path) -> bool {
+    if deno(path) {
         return path.is_file();
     }
-    is_executable(path)
+    executable(path)
 }
 
-fn search_paths(config: &Config, name: &str) -> Vec<PathBuf> {
-    search_dirs(config)
+fn paths(config: &Config, name: &str) -> Vec<PathBuf> {
+    dirs(config)
         .into_iter()
         .flat_map(|dir| candidates(&dir, name))
         .collect()
 }
 
-fn search_dirs(config: &Config) -> Vec<PathBuf> {
+fn dirs(config: &Config) -> Vec<PathBuf> {
     vec![
-        profile_root(&config.profile)
-            .join(".runseal")
-            .join("wrappers"),
+        root(&config.profile).join(".runseal").join("wrappers"),
         config.home.join("wrappers"),
     ]
 }
 
-fn profile_root(profile_path: &Path) -> &Path {
-    profile_path.parent().unwrap_or(Path::new("."))
+fn root(profile: &Path) -> &Path {
+    profile.parent().unwrap_or(Path::new("."))
 }
 
 #[cfg(unix)]
@@ -145,7 +144,7 @@ fn candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
 }
 
 #[cfg(unix)]
-fn is_executable(path: &Path) -> bool {
+fn executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
 
     path.is_file()
@@ -156,56 +155,43 @@ fn is_executable(path: &Path) -> bool {
 }
 
 #[cfg(windows)]
-fn is_executable(path: &Path) -> bool {
+fn executable(path: &Path) -> bool {
     path.is_file()
 }
 
 #[cfg(unix)]
-fn listed_name(path: &Path) -> Option<String> {
+fn label(path: &Path) -> Option<String> {
     if path.extension().and_then(std::ffi::OsStr::to_str) != Some("sh") {
         if path.extension().and_then(std::ffi::OsStr::to_str) == Some("ts") {
             let stem = path.file_stem()?.to_str()?;
-            validate_symbol_name(stem).ok()?;
+            symbol::valid(stem).ok()?;
             return Some(stem.to_string());
         }
         return None;
     }
     let stem = path.file_stem()?.to_str()?;
-    validate_symbol_name(stem).ok()?;
+    symbol::valid(stem).ok()?;
     Some(stem.to_string())
 }
 
 #[cfg(windows)]
-fn listed_name(path: &Path) -> Option<String> {
-    let file_name = path.file_name()?.to_str()?;
+fn label(path: &Path) -> Option<String> {
+    let file = path.file_name()?.to_str()?;
     if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str)
-        && matches_ignore_ascii_case(ext, &["ts", "exe", "cmd", "bat"])
+        && matches(ext, &["ts", "exe", "cmd", "bat"])
     {
         let stem = path.file_stem()?.to_str()?;
-        validate_symbol_name(stem).ok()?;
+        symbol::valid(stem).ok()?;
         return Some(stem.to_string());
     }
 
-    validate_symbol_name(file_name).ok()?;
-    Some(file_name.to_string())
+    symbol::valid(file).ok()?;
+    Some(file.to_string())
 }
 
 #[cfg(windows)]
-fn matches_ignore_ascii_case(value: &str, expected: &[&str]) -> bool {
+fn matches(value: &str, expected: &[&str]) -> bool {
     expected
         .iter()
         .any(|candidate| value.eq_ignore_ascii_case(candidate))
-}
-
-fn validate_symbol_name(name: &str) -> Result<()> {
-    if name == "." || name == ".." {
-        bail!("reserved name");
-    }
-    if !name
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
-    {
-        bail!("expected only ASCII letters, numbers, '.', '_', and '-'");
-    }
-    Ok(())
 }

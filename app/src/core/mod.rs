@@ -7,5 +7,6 @@ pub(crate) mod key;
 pub mod profile;
 #[path = "../runtime.rs"]
 pub mod runtime;
+pub(crate) mod symbol;
 #[path = "../tool/mod.rs"]
 pub mod tool;

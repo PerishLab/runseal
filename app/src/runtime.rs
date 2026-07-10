@@ -7,409 +7,412 @@ use super::config::Config;
 use super::internal_help;
 use super::key;
 use super::profile::{Deno, Injection, Profile};
+use super::symbol;
 use super::{injections, profile};
 
-mod wrapper_paths;
+mod wrappers;
 
-pub struct RunResult {
-    pub exit_code: Option<i32>,
+pub struct Outcome {
+    pub code: Option<i32>,
 }
 
-enum InternalCommand {
+enum Internal {
     Help(&'static str),
     Profile,
-    ResolveResource(Vec<String>),
+    Resolve(Vec<String>),
     Resources,
     Wrappers,
-    WhichWrapper(String),
+    Which(String),
 }
 
-struct ResolvedCommand {
+struct Resolved {
     argv: Vec<String>,
-    wrapper: Option<ResolvedWrapper>,
+    wrapper: Option<Wrapper>,
 }
 
-struct ResolvedWrapper {
+struct Wrapper {
     name: String,
     file: PathBuf,
 }
 
-pub fn run(app: &dyn App) -> Result<RunResult> {
+pub fn run(app: &dyn App) -> Result<Outcome> {
     let config = app.config();
-    if let Some(command) = resolve_internal_dispatch(config)? {
-        run_internal(config, command)?;
-        return Ok(RunResult { exit_code: Some(0) });
+    if let Some(command) = Parser::dispatch(config)? {
+        command.run(config)?;
+        return Ok(Outcome { code: Some(0) });
     }
 
     let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
-    let command = resolve_command(config, &profile)?;
-    let run_result = injections::Lifecycle::with(app, profile.injections.clone(), |exports| {
-        let env = to_env_map(exports.to_vec())?;
-        let run_exports: Vec<(String, String)> = env.into_iter().collect();
-        let code = run_command(config, &profile, &command, &run_exports)?;
-        Ok(RunResult {
-            exit_code: Some(code),
-        })
+    let command = Parser::command(config, &profile)?;
+    let outcome = injections::Lifecycle::with(app, profile.injections.clone(), |exports| {
+        let env = Exports::map(exports.to_vec())?;
+        let exports: Vec<(String, String)> = env.into_iter().collect();
+        let code = Runner::run(config, &profile, &command, &exports)?;
+        Ok(Outcome { code: Some(code) })
     })?;
-    Ok(run_result)
+    Ok(outcome)
 }
 
-fn resolve_internal_dispatch(config: &Config) -> Result<Option<InternalCommand>> {
-    if config.command.is_empty() {
-        bail!("command mode requires at least one command token");
-    }
-    let Some(name) = internal_name(&config.command[0])? else {
-        return Ok(None);
-    };
-    Ok(Some(resolve_internal_command(&name, &config.command[1..])?))
-}
+struct Parser;
 
-fn resolve_command(config: &Config, profile: &Profile) -> Result<ResolvedCommand> {
-    if config.command.is_empty() {
-        bail!("command mode requires at least one command token");
-    }
-    if let Some(name) = wrapper_name(&config.command[0])? {
-        let file = wrapper_paths::resolve(config, &name)?;
-        let mut argv = Vec::with_capacity(config.command.len());
-        argv.push(file.to_string_lossy().into_owned());
-        argv.extend_from_slice(&config.command[1..]);
-        return Ok(ResolvedCommand {
-            argv,
-            wrapper: Some(ResolvedWrapper { name, file }),
-        });
-    }
-
-    Ok(ResolvedCommand {
-        argv: apply_argv_injections(&config.command, &profile.injections)?,
-        wrapper: None,
-    })
-}
-
-fn internal_name(token: &str) -> Result<Option<String>> {
-    let Some(name) = token.strip_prefix('@') else {
-        return Ok(None);
-    };
-    if name.is_empty() {
-        bail!("internal command name must not be empty");
-    }
-    validate_symbol_name(name)
-        .with_context(|| format!("invalid internal command name: @{name}"))?;
-    Ok(Some(name.to_string()))
-}
-
-fn resolve_internal_command(name: &str, args: &[String]) -> Result<InternalCommand> {
-    if let Some(help) = internal_help::resolve(name, args)? {
-        return Ok(InternalCommand::Help(help));
-    }
-
-    match name {
-        "profile" => no_internal_args(args, "@profile").map(|()| InternalCommand::Profile),
-        "resolve" => resolve(args),
-        "resources" => no_internal_args(args, "@resources").map(|()| InternalCommand::Resources),
-        "wrappers" => no_internal_args(args, "@wrappers").map(|()| InternalCommand::Wrappers),
-        "which" => which(args),
-        _ => bail!("unknown internal command: @{name}"),
-    }
-}
-
-fn resolve(args: &[String]) -> Result<InternalCommand> {
-    if args.is_empty() {
-        bail!("@resolve requires at least one resource:// URI argument");
-    }
-    Ok(InternalCommand::ResolveResource(args.to_vec()))
-}
-
-fn which(args: &[String]) -> Result<InternalCommand> {
-    if args.len() != 1 {
-        bail!("@which requires exactly one :wrapper argument");
-    }
-    let Some(name) = wrapper_name(&args[0])? else {
-        bail!("@which currently supports only :wrapper arguments");
-    };
-    Ok(InternalCommand::WhichWrapper(name))
-}
-
-fn no_internal_args(args: &[String], name: &str) -> Result<()> {
-    if !args.is_empty() {
-        bail!("{name} does not accept arguments");
-    }
-    Ok(())
-}
-
-fn wrapper_name(token: &str) -> Result<Option<String>> {
-    let Some(name) = token.strip_prefix(':') else {
-        return Ok(None);
-    };
-    if name.is_empty() {
-        bail!("wrapper name must not be empty");
-    }
-    validate_symbol_name(name).with_context(|| format!("invalid wrapper name: :{name}"))?;
-    Ok(Some(name.to_string()))
-}
-
-fn validate_symbol_name(name: &str) -> Result<()> {
-    if name == "." || name == ".." {
-        bail!("reserved name");
-    }
-    if !name
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
-    {
-        bail!("expected only ASCII letters, numbers, '.', '_', and '-'");
-    }
-    Ok(())
-}
-
-fn run_internal(config: &Config, command: InternalCommand) -> Result<()> {
-    match command {
-        InternalCommand::Help(help) => print!("{help}"),
-        InternalCommand::Profile => print_profile(config)?,
-        InternalCommand::ResolveResource(uris) => print_resolve_resources(config, &uris)?,
-        InternalCommand::Resources => print_resources(config)?,
-        InternalCommand::Wrappers => print_wrappers(config)?,
-        InternalCommand::WhichWrapper(name) => print_which_wrapper(config, &name)?,
-    }
-
-    Ok(())
-}
-
-fn print_profile(config: &Config) -> Result<()> {
-    println!("RUNSEAL_HOME={}", config.home.display());
-    println!("RUNSEAL_PROFILE_HOME={}", config.profiles.display());
-    println!("RUNSEAL_PROFILE_PATH={}", config.profile.display());
-    if let Ok(Some(resources)) = profile::resources(&config.profile)
-        && let Ok(root) = profile::root(&config.profile, Some(&resources))
-    {
-        println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
-    }
-    println!(
-        "RUNSEAL_WRAPPER_PATH={}",
-        wrapper_paths::path_env(config)?.to_string_lossy()
-    );
-    Ok(())
-}
-
-fn print_wrappers(config: &Config) -> Result<()> {
-    for wrapper in wrapper_paths::effective(config)? {
-        println!(
-            ":{:<20} {}\t{}",
-            wrapper.name,
-            wrapper.source,
-            wrapper.file.display()
-        );
-    }
-    Ok(())
-}
-
-fn print_resolve_resources(config: &Config, uris: &[String]) -> Result<()> {
-    let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
-    for uri in uris {
-        let path = profile::resolve(&config.profile, profile.resources.as_ref(), uri)?;
-        println!("{}", path.display());
-    }
-    Ok(())
-}
-
-fn print_resources(config: &Config) -> Result<()> {
-    let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
-    let root = profile::root(&config.profile, profile.resources.as_ref())?;
-    println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
-    Ok(())
-}
-
-fn print_which_wrapper(config: &Config, name: &str) -> Result<()> {
-    let file = wrapper_paths::resolve(config, name)?;
-    println!("{}", file.display());
-    Ok(())
-}
-
-fn apply_argv_injections(command: &[String], injections: &[Injection]) -> Result<Vec<String>> {
-    if command.is_empty() {
-        bail!("command mode requires at least one command token");
-    }
-
-    let mut prefix_args = Vec::new();
-    for injection in injections {
-        let Injection::Argv(spec) = injection else {
-            continue;
+impl Parser {
+    fn dispatch(config: &Config) -> Result<Option<Internal>> {
+        if config.command.is_empty() {
+            bail!("command mode requires at least one command token");
+        }
+        let Some(name) = Self::internal(&config.command[0])? else {
+            return Ok(None);
         };
-        if !spec.enabled {
-            continue;
+        Ok(Some(Self::resolve(&name, &config.command[1..])?))
+    }
+
+    fn command(config: &Config, profile: &Profile) -> Result<Resolved> {
+        if config.command.is_empty() {
+            bail!("command mode requires at least one command token");
         }
-        if spec.command.trim().is_empty() {
-            bail!("argv command must not be empty");
+        if let Some(name) = Self::wrapper(&config.command[0])? {
+            let file = wrappers::resolve(config, &name)?;
+            let mut argv = Vec::with_capacity(config.command.len());
+            argv.push(file.to_string_lossy().into_owned());
+            argv.extend_from_slice(&config.command[1..]);
+            return Ok(Resolved {
+                argv,
+                wrapper: Some(Wrapper { name, file }),
+            });
         }
-        if spec.args.is_empty() {
-            bail!("argv args must not be empty");
-        }
-        if spec.command == command[0] {
-            prefix_args.extend(spec.args.clone());
-        }
-    }
-    if prefix_args.is_empty() {
-        return Ok(command.to_vec());
-    }
 
-    let mut rewritten = Vec::with_capacity(command.len() + prefix_args.len());
-    rewritten.push(command[0].clone());
-    rewritten.extend(prefix_args);
-    rewritten.extend_from_slice(&command[1..]);
-    Ok(rewritten)
-}
-
-fn to_env_map(exports: Vec<(String, String)>) -> Result<BTreeMap<String, String>> {
-    let mut env = BTreeMap::new();
-    for (key, value) in exports {
-        if !key::valid(&key) {
-            bail!("invalid exported key: {}", key);
-        }
-        env.insert(key, value);
-    }
-    Ok(env)
-}
-
-fn run_command(
-    config: &Config,
-    profile: &Profile,
-    resolved: &ResolvedCommand,
-    exports: &[(String, String)],
-) -> Result<i32> {
-    let command = &resolved.argv;
-    if command.is_empty() {
-        bail!("command mode requires at least one command token");
-    }
-    if let Some(wrapper) = &resolved.wrapper
-        && wrapper_paths::is_deno(&wrapper.file)
-    {
-        return run_deno_wrapper(config, profile.deno.as_ref(), resolved, exports);
-    }
-
-    let mut child = child_command(resolved);
-    child.env_remove("RUNSEAL_WRAPPER_NAME");
-    child.env_remove("RUNSEAL_WRAPPER_FILE");
-    child.envs(run_env(config, resolved, exports)?);
-
-    wait_for_child(child)
-}
-
-fn run_deno_wrapper(
-    config: &Config,
-    deno: Option<&Deno>,
-    resolved: &ResolvedCommand,
-    exports: &[(String, String)],
-) -> Result<i32> {
-    let deno =
-        deno.ok_or_else(|| anyhow::anyhow!("deno wrapper requires a [deno] profile policy"))?;
-    let wrapper = resolved
-        .wrapper
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("deno wrapper execution requires a resolved wrapper"))?;
-    let mut child = Command::new("deno");
-    child.arg("run").arg("--no-prompt");
-    if let Some(config) = &deno.config {
-        child.arg("--config").arg(config);
-    }
-    if let Some(lock) = &deno.lock {
-        child.arg("--lock").arg(lock);
-        child.arg("--frozen=true");
-    }
-    child.args(expand_deno_permissions(&deno.permissions)?);
-    child.arg(&wrapper.file);
-    if resolved.argv.len() > 1 {
-        child.args(&resolved.argv[1..]);
-    }
-    child.env_remove("RUNSEAL_WRAPPER_NAME");
-    child.env_remove("RUNSEAL_WRAPPER_FILE");
-    child.envs(run_env(config, resolved, exports)?);
-    wait_for_child(child).context("failed to execute deno wrapper")
-}
-
-fn expand_deno_permissions(permissions: &[String]) -> Result<Vec<String>> {
-    permissions
-        .iter()
-        .map(|permission| {
-            shellexpand::env(permission)
-                .map(|expanded| expanded.into_owned())
-                .with_context(|| format!("unable to expand deno permission: {permission}"))
+        Ok(Resolved {
+            argv: Args::apply(&config.command, &profile.injections)?,
+            wrapper: None,
         })
-        .collect()
-}
-
-fn wait_for_child(mut child: Command) -> Result<i32> {
-    let status = child.status().context("failed to execute child command")?;
-    if let Some(code) = status.code() {
-        return Ok(code);
     }
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::ExitStatusExt;
-        if let Some(signal) = status.signal() {
-            return Ok(128 + signal);
+    fn internal(token: &str) -> Result<Option<String>> {
+        let Some(name) = token.strip_prefix('@') else {
+            return Ok(None);
+        };
+        if name.is_empty() {
+            bail!("internal command name must not be empty");
+        }
+        symbol::valid(name).with_context(|| format!("invalid internal command name: @{name}"))?;
+        Ok(Some(name.to_string()))
+    }
+
+    fn resolve(name: &str, args: &[String]) -> Result<Internal> {
+        if let Some(help) = internal_help::resolve(name, args)? {
+            return Ok(Internal::Help(help));
+        }
+
+        match name {
+            "profile" => Self::empty(args, "@profile").map(|()| Internal::Profile),
+            "resolve" => Self::uris(args),
+            "resources" => Self::empty(args, "@resources").map(|()| Internal::Resources),
+            "wrappers" => Self::empty(args, "@wrappers").map(|()| Internal::Wrappers),
+            "which" => Self::which(args),
+            _ => bail!("unknown internal command: @{name}"),
         }
     }
 
-    Ok(1)
-}
-
-fn run_env(
-    config: &Config,
-    resolved: &ResolvedCommand,
-    exports: &[(String, String)],
-) -> Result<Vec<(String, String)>> {
-    let mut env = exports.to_vec();
-    env.push((
-        "RUNSEAL_HOME".to_string(),
-        config.home.to_string_lossy().into_owned(),
-    ));
-    env.push((
-        "RUNSEAL_PROFILE_HOME".to_string(),
-        config.profiles.to_string_lossy().into_owned(),
-    ));
-    env.push((
-        "RUNSEAL_PROFILE_PATH".to_string(),
-        config.profile.to_string_lossy().into_owned(),
-    ));
-    env.push((
-        "RUNSEAL_WRAPPER_PATH".to_string(),
-        wrapper_paths::path_env(config)?
-            .to_string_lossy()
-            .into_owned(),
-    ));
-    if let Some(wrapper) = &resolved.wrapper {
-        env.push(("RUNSEAL_WRAPPER_NAME".to_string(), wrapper.name.clone()));
-        env.push((
-            "RUNSEAL_WRAPPER_FILE".to_string(),
-            wrapper.file.to_string_lossy().into_owned(),
-        ));
+    fn uris(args: &[String]) -> Result<Internal> {
+        if args.is_empty() {
+            bail!("@resolve requires at least one resource:// URI argument");
+        }
+        Ok(Internal::Resolve(args.to_vec()))
     }
-    Ok(env)
+
+    fn which(args: &[String]) -> Result<Internal> {
+        if args.len() != 1 {
+            bail!("@which requires exactly one :wrapper argument");
+        }
+        let Some(name) = Self::wrapper(&args[0])? else {
+            bail!("@which currently supports only :wrapper arguments");
+        };
+        Ok(Internal::Which(name))
+    }
+
+    fn empty(args: &[String], name: &str) -> Result<()> {
+        if !args.is_empty() {
+            bail!("{name} does not accept arguments");
+        }
+        Ok(())
+    }
+
+    fn wrapper(token: &str) -> Result<Option<String>> {
+        let Some(name) = token.strip_prefix(':') else {
+            return Ok(None);
+        };
+        if name.is_empty() {
+            bail!("wrapper name must not be empty");
+        }
+        symbol::valid(name).with_context(|| format!("invalid wrapper name: :{name}"))?;
+        Ok(Some(name.to_string()))
+    }
 }
 
-fn child_command(resolved: &ResolvedCommand) -> Command {
-    #[cfg(windows)]
-    if let Some(wrapper) = &resolved.wrapper
-        && wrapper_uses_cmd(&wrapper.file)
-    {
-        let mut child = Command::new("cmd");
-        child.arg("/C").arg(&wrapper.file);
+impl Internal {
+    fn run(self, config: &Config) -> Result<()> {
+        match self {
+            Self::Help(help) => print!("{help}"),
+            Self::Profile => Self::profile(config)?,
+            Self::Resolve(uris) => Self::resolve(config, &uris)?,
+            Self::Resources => Self::resources(config)?,
+            Self::Wrappers => Self::wrappers(config)?,
+            Self::Which(name) => Self::which(config, &name)?,
+        }
+        Ok(())
+    }
+
+    fn profile(config: &Config) -> Result<()> {
+        println!("RUNSEAL_HOME={}", config.home.display());
+        println!("RUNSEAL_PROFILE_HOME={}", config.profiles.display());
+        println!("RUNSEAL_PROFILE_PATH={}", config.profile.display());
+        if let Ok(Some(resources)) = profile::resources(&config.profile)
+            && let Ok(root) = profile::root(&config.profile, Some(&resources))
+        {
+            println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
+        }
+        println!(
+            "RUNSEAL_WRAPPER_PATH={}",
+            wrappers::env(config)?.to_string_lossy()
+        );
+        Ok(())
+    }
+
+    fn wrappers(config: &Config) -> Result<()> {
+        for wrapper in wrappers::effective(config)? {
+            println!(
+                ":{:<20} {}\t{}",
+                wrapper.name,
+                wrapper.source,
+                wrapper.file.display()
+            );
+        }
+        Ok(())
+    }
+
+    fn resolve(config: &Config, uris: &[String]) -> Result<()> {
+        let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
+        for uri in uris {
+            let path = profile::resolve(&config.profile, profile.resources.as_ref(), uri)?;
+            println!("{}", path.display());
+        }
+        Ok(())
+    }
+
+    fn resources(config: &Config) -> Result<()> {
+        let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
+        let root = profile::root(&config.profile, profile.resources.as_ref())?;
+        println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
+        Ok(())
+    }
+
+    fn which(config: &Config, name: &str) -> Result<()> {
+        let file = wrappers::resolve(config, name)?;
+        println!("{}", file.display());
+        Ok(())
+    }
+}
+
+struct Args;
+
+impl Args {
+    fn apply(command: &[String], injections: &[Injection]) -> Result<Vec<String>> {
+        if command.is_empty() {
+            bail!("command mode requires at least one command token");
+        }
+
+        let mut prefix = Vec::new();
+        for injection in injections {
+            let Injection::Argv(spec) = injection else {
+                continue;
+            };
+            if !spec.enabled {
+                continue;
+            }
+            if spec.command.trim().is_empty() {
+                bail!("argv command must not be empty");
+            }
+            if spec.args.is_empty() {
+                bail!("argv args must not be empty");
+            }
+            if spec.command == command[0] {
+                prefix.extend(spec.args.clone());
+            }
+        }
+        if prefix.is_empty() {
+            return Ok(command.to_vec());
+        }
+
+        let mut rewritten = Vec::with_capacity(command.len() + prefix.len());
+        rewritten.push(command[0].clone());
+        rewritten.extend(prefix);
+        rewritten.extend_from_slice(&command[1..]);
+        Ok(rewritten)
+    }
+}
+
+struct Exports;
+
+impl Exports {
+    fn map(exports: Vec<(String, String)>) -> Result<BTreeMap<String, String>> {
+        let mut env = BTreeMap::new();
+        for (key, value) in exports {
+            if !key::valid(&key) {
+                bail!("invalid exported key: {}", key);
+            }
+            env.insert(key, value);
+        }
+        Ok(env)
+    }
+}
+
+struct Runner;
+
+impl Runner {
+    fn run(
+        config: &Config,
+        profile: &Profile,
+        resolved: &Resolved,
+        exports: &[(String, String)],
+    ) -> Result<i32> {
+        let command = &resolved.argv;
+        if command.is_empty() {
+            bail!("command mode requires at least one command token");
+        }
+        if let Some(wrapper) = &resolved.wrapper
+            && wrappers::deno(&wrapper.file)
+        {
+            return Self::deno(config, profile.deno.as_ref(), resolved, exports);
+        }
+
+        let mut child = Self::child(resolved);
+        child.env_remove("RUNSEAL_WRAPPER_NAME");
+        child.env_remove("RUNSEAL_WRAPPER_FILE");
+        child.envs(Self::env(config, resolved, exports)?);
+        Self::wait(child)
+    }
+
+    fn deno(
+        config: &Config,
+        deno: Option<&Deno>,
+        resolved: &Resolved,
+        exports: &[(String, String)],
+    ) -> Result<i32> {
+        let deno =
+            deno.ok_or_else(|| anyhow::anyhow!("deno wrapper requires a [deno] profile policy"))?;
+        let wrapper = resolved
+            .wrapper
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("deno wrapper execution requires a resolved wrapper"))?;
+        let mut child = Command::new("deno");
+        child.arg("run").arg("--no-prompt");
+        if let Some(config) = &deno.config {
+            child.arg("--config").arg(config);
+        }
+        if let Some(lock) = &deno.lock {
+            child.arg("--lock").arg(lock);
+            child.arg("--frozen=true");
+        }
+        child.args(Permissions::expand(&deno.permissions)?);
+        child.arg(&wrapper.file);
         if resolved.argv.len() > 1 {
             child.args(&resolved.argv[1..]);
         }
-        return child;
+        child.env_remove("RUNSEAL_WRAPPER_NAME");
+        child.env_remove("RUNSEAL_WRAPPER_FILE");
+        child.envs(Self::env(config, resolved, exports)?);
+        Self::wait(child).context("failed to execute deno wrapper")
     }
 
-    let mut child = Command::new(&resolved.argv[0]);
-    if resolved.argv.len() > 1 {
-        child.args(&resolved.argv[1..]);
+    fn wait(mut child: Command) -> Result<i32> {
+        let status = child.status().context("failed to execute child command")?;
+        if let Some(code) = status.code() {
+            return Ok(code);
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            if let Some(signal) = status.signal() {
+                return Ok(128 + signal);
+            }
+        }
+
+        Ok(1)
     }
-    child
+
+    fn env(
+        config: &Config,
+        resolved: &Resolved,
+        exports: &[(String, String)],
+    ) -> Result<Vec<(String, String)>> {
+        let mut env = exports.to_vec();
+        env.push((
+            "RUNSEAL_HOME".to_string(),
+            config.home.to_string_lossy().into_owned(),
+        ));
+        env.push((
+            "RUNSEAL_PROFILE_HOME".to_string(),
+            config.profiles.to_string_lossy().into_owned(),
+        ));
+        env.push((
+            "RUNSEAL_PROFILE_PATH".to_string(),
+            config.profile.to_string_lossy().into_owned(),
+        ));
+        env.push((
+            "RUNSEAL_WRAPPER_PATH".to_string(),
+            wrappers::env(config)?.to_string_lossy().into_owned(),
+        ));
+        if let Some(wrapper) = &resolved.wrapper {
+            env.push(("RUNSEAL_WRAPPER_NAME".to_string(), wrapper.name.clone()));
+            env.push((
+                "RUNSEAL_WRAPPER_FILE".to_string(),
+                wrapper.file.to_string_lossy().into_owned(),
+            ));
+        }
+        Ok(env)
+    }
+
+    fn child(resolved: &Resolved) -> Command {
+        #[cfg(windows)]
+        if let Some(wrapper) = &resolved.wrapper
+            && Self::cmd(&wrapper.file)
+        {
+            let mut child = Command::new("cmd");
+            child.arg("/C").arg(&wrapper.file);
+            if resolved.argv.len() > 1 {
+                child.args(&resolved.argv[1..]);
+            }
+            return child;
+        }
+
+        let mut child = Command::new(&resolved.argv[0]);
+        if resolved.argv.len() > 1 {
+            child.args(&resolved.argv[1..]);
+        }
+        child
+    }
+
+    #[cfg(windows)]
+    fn cmd(path: &std::path::Path) -> bool {
+        matches!(
+            path.extension().and_then(|ext| ext.to_str()),
+            Some(ext) if ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
+        )
+    }
 }
 
-#[cfg(windows)]
-fn wrapper_uses_cmd(path: &std::path::Path) -> bool {
-    matches!(
-        path.extension().and_then(|ext| ext.to_str()),
-        Some(ext) if ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat")
-    )
+struct Permissions;
+
+impl Permissions {
+    fn expand(permissions: &[String]) -> Result<Vec<String>> {
+        permissions
+            .iter()
+            .map(|permission| {
+                shellexpand::env(permission)
+                    .map(|expanded| expanded.into_owned())
+                    .with_context(|| format!("unable to expand deno permission: {permission}"))
+            })
+            .collect()
+    }
 }

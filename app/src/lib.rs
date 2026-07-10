@@ -1,3 +1,3 @@
 pub mod core;
 
-pub use core::runtime::{RunResult, run};
+pub use core::runtime::{Outcome, run};
