@@ -5,11 +5,11 @@ use anyhow::{Result, bail};
 use crate::core::app::AppContext;
 use crate::core::profile::{EnvOpProfile, EnvProfile};
 
-pub(crate) struct EnvInjection {
+pub(crate) struct Env {
     cfg: EnvProfile,
 }
 
-impl EnvInjection {
+impl Env {
     pub(crate) fn new(cfg: EnvProfile) -> Self {
         Self { cfg }
     }
@@ -20,10 +20,10 @@ impl EnvInjection {
 
     pub(crate) fn validate(&self) -> Result<()> {
         for key in self.cfg.vars.keys() {
-            validate_key(key)?;
+            Check::key(key)?;
         }
         for op in &self.cfg.ops {
-            validate_op(op)?;
+            Check::op(op)?;
         }
         Ok(())
     }
@@ -39,7 +39,7 @@ impl EnvInjection {
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        apply_ops(app, &mut env, &self.cfg.ops)?;
+        Editor { app, env: &mut env }.apply(&self.cfg.ops);
         Ok(env.into_iter().collect())
     }
 
@@ -48,152 +48,139 @@ impl EnvInjection {
     }
 }
 
-fn validate_op(op: &EnvOpProfile) -> Result<()> {
-    match op {
-        EnvOpProfile::Set { key, value } | EnvOpProfile::SetIfAbsent { key, value } => {
-            validate_key_value(key, value)
+struct Check;
+
+impl Check {
+    fn op(op: &EnvOpProfile) -> Result<()> {
+        match op {
+            EnvOpProfile::Set { key, value } | EnvOpProfile::SetIfAbsent { key, value } => {
+                Self::value(key, value)
+            }
+            EnvOpProfile::Prepend {
+                key,
+                value,
+                separator,
+                ..
+            }
+            | EnvOpProfile::Append {
+                key,
+                value,
+                separator,
+                ..
+            } => Self::merge(key, value, separator),
+            EnvOpProfile::Unset { key } => Self::key(key),
         }
-        EnvOpProfile::Prepend {
-            key,
-            value,
-            separator,
-            ..
+    }
+
+    fn key(key: &str) -> Result<()> {
+        if key.trim().is_empty() {
+            bail!("env var key must not be empty");
         }
-        | EnvOpProfile::Append {
-            key,
-            value,
-            separator,
-            ..
-        } => validate_merge(key, value, separator),
-        EnvOpProfile::Unset { key } => validate_key(key),
+        Ok(())
+    }
+
+    fn value(key: &str, value: &str) -> Result<()> {
+        Self::key(key)?;
+        if value.trim().is_empty() {
+            bail!("env var value must not be empty");
+        }
+        Ok(())
+    }
+
+    fn merge(key: &str, value: &str, separator: &Option<String>) -> Result<()> {
+        Self::value(key, value)?;
+        if matches!(separator.as_deref(), Some("")) {
+            bail!("separator must not be empty");
+        }
+        Ok(())
     }
 }
 
-fn validate_key(key: &str) -> Result<()> {
-    if key.trim().is_empty() {
-        bail!("env var key must not be empty");
+struct Editor<'a> {
+    app: &'a dyn AppContext,
+    env: &'a mut BTreeMap<String, String>,
+}
+
+impl Editor<'_> {
+    fn apply(&mut self, ops: &[EnvOpProfile]) {
+        for op in ops {
+            self.op(op);
+        }
     }
-    Ok(())
-}
 
-fn validate_key_value(key: &str, value: &str) -> Result<()> {
-    validate_key(key)?;
-    if value.trim().is_empty() {
-        bail!("env var value must not be empty");
+    fn op(&mut self, op: &EnvOpProfile) {
+        match op {
+            EnvOpProfile::Set { key, value } => self.set(key, value),
+            EnvOpProfile::SetIfAbsent { key, value } => self.absent(key, value),
+            EnvOpProfile::Prepend {
+                key,
+                value,
+                separator,
+                dedup,
+            } => self.merge(key, value, separator, *dedup, true),
+            EnvOpProfile::Append {
+                key,
+                value,
+                separator,
+                dedup,
+            } => self.merge(key, value, separator, *dedup, false),
+            EnvOpProfile::Unset { key } => self.unset(key),
+        }
     }
-    Ok(())
-}
 
-fn validate_merge(key: &str, value: &str, separator: &Option<String>) -> Result<()> {
-    validate_key_value(key, value)?;
-    validate_separator(separator)
-}
-
-fn validate_separator(separator: &Option<String>) -> Result<()> {
-    if matches!(separator.as_deref(), Some("")) {
-        bail!("separator must not be empty");
+    fn set(&mut self, key: &str, value: &str) {
+        self.env.insert(key.to_string(), value.to_string());
     }
-    Ok(())
-}
 
-fn apply_ops(
-    app: &dyn AppContext,
-    env: &mut BTreeMap<String, String>,
-    ops: &[EnvOpProfile],
-) -> Result<()> {
-    for op in ops {
-        apply_op(app, env, op);
+    fn absent(&mut self, key: &str, value: &str) {
+        if !self.env.contains_key(key) && self.app.env().var(key).is_none() {
+            self.set(key, value);
+        }
     }
-    Ok(())
-}
 
-fn apply_op(app: &dyn AppContext, env: &mut BTreeMap<String, String>, op: &EnvOpProfile) {
-    match op {
-        EnvOpProfile::Set { key, value } => set(env, key, value),
-        EnvOpProfile::SetIfAbsent { key, value } => set_absent(app, env, key, value),
-        EnvOpProfile::Prepend {
-            key,
-            value,
-            separator,
-            dedup,
-        } => set_merged(app, env, key, value, separator, *dedup, true),
-        EnvOpProfile::Append {
-            key,
-            value,
-            separator,
-            dedup,
-        } => set_merged(app, env, key, value, separator, *dedup, false),
-        EnvOpProfile::Unset { key } => unset(env, key),
+    fn merge(
+        &mut self,
+        key: &str,
+        value: &str,
+        delimiter: &Option<String>,
+        dedup: bool,
+        prepend: bool,
+    ) {
+        let delimiter = separator(delimiter);
+        let base = self
+            .env
+            .get(key)
+            .cloned()
+            .or_else(|| self.app.env().var(key))
+            .unwrap_or_default();
+        let merged = if prepend {
+            merge(value, &base, delimiter, dedup)
+        } else {
+            merge(&base, value, delimiter, dedup)
+        };
+        self.env.insert(key.to_string(), merged);
     }
-}
 
-fn set(env: &mut BTreeMap<String, String>, key: &str, value: &str) {
-    env.insert(key.to_string(), value.to_string());
-}
-
-fn set_absent(app: &dyn AppContext, env: &mut BTreeMap<String, String>, key: &str, value: &str) {
-    if !env.contains_key(key) && app.env().var(key).is_none() {
-        set(env, key, value);
-    }
-}
-
-fn set_merged(
-    app: &dyn AppContext,
-    env: &mut BTreeMap<String, String>,
-    key: &str,
-    value: &str,
-    separator: &Option<String>,
-    dedup: bool,
-    prepend: bool,
-) {
-    let merged = merge_env_op(app, env, key, value, separator, dedup, prepend);
-    env.insert(key.to_string(), merged);
-}
-
-fn unset(env: &mut BTreeMap<String, String>, key: &str) {
-    env.remove(key);
-}
-
-fn merge_env_op(
-    app: &dyn AppContext,
-    env: &BTreeMap<String, String>,
-    key: &str,
-    value: &str,
-    separator: &Option<String>,
-    dedup: bool,
-    prepend: bool,
-) -> String {
-    let sep = separator_value(separator);
-    let base = env
-        .get(key)
-        .cloned()
-        .or_else(|| app.env().var(key))
-        .unwrap_or_default();
-    if prepend {
-        merge_values(value, &base, sep, dedup)
-    } else {
-        merge_values(&base, value, sep, dedup)
+    fn unset(&mut self, key: &str) {
+        self.env.remove(key);
     }
 }
 
-fn separator_value(separator: &Option<String>) -> &str {
-    match separator.as_deref() {
-        None | Some("os") => os_separator(),
+fn separator(value: &Option<String>) -> &str {
+    match value.as_deref() {
+        None | Some("os") => os(),
         Some(custom) => custom,
     }
 }
 
-fn os_separator() -> &'static str {
+fn os() -> &'static str {
     if cfg!(windows) { ";" } else { ":" }
 }
 
-fn merge_values(left: &str, right: &str, separator: &str, dedup: bool) -> String {
+fn merge(left: &str, right: &str, separator: &str, dedup: bool) -> String {
     let mut out = Vec::new();
-    let left_parts = split_parts(left, separator);
-    let right_parts = split_parts(right, separator);
-
-    out.extend(left_parts);
-    out.extend(right_parts);
+    out.extend(split(left, separator));
+    out.extend(split(right, separator));
 
     if dedup {
         return unique(out).join(separator);
@@ -215,7 +202,7 @@ fn push(out: &mut Vec<String>, entry: String) {
     }
 }
 
-fn split_parts(value: &str, separator: &str) -> Vec<String> {
+fn split(value: &str, separator: &str) -> Vec<String> {
     value
         .split(separator)
         .filter(|part| !part.is_empty())

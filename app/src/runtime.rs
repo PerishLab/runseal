@@ -43,15 +43,14 @@ pub fn run(app: &dyn AppContext) -> Result<RunResult> {
 
     let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
     let command = resolve_command(config, &profile)?;
-    let run_result =
-        injections::with_registered_exports(app, profile.injections.clone(), |exports| {
-            let env = to_env_map(exports.to_vec())?;
-            let run_exports: Vec<(String, String)> = env.into_iter().collect();
-            let code = run_command(config, &profile, &command, &run_exports)?;
-            Ok(RunResult {
-                exit_code: Some(code),
-            })
-        })?;
+    let run_result = injections::Lifecycle::with(app, profile.injections.clone(), |exports| {
+        let env = to_env_map(exports.to_vec())?;
+        let run_exports: Vec<(String, String)> = env.into_iter().collect();
+        let code = run_command(config, &profile, &command, &run_exports)?;
+        Ok(RunResult {
+            exit_code: Some(code),
+        })
+    })?;
     Ok(run_result)
 }
 

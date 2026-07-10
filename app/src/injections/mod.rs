@@ -2,61 +2,56 @@ mod env;
 mod symlink;
 
 use anyhow::{Context, Result, anyhow};
-use std::collections::BTreeMap;
 
 use crate::core::app::AppContext;
-use crate::core::profile::{EnvProfile, InjectionProfile, SymlinkProfile};
-use env::EnvInjection;
-use symlink::SymlinkInjection;
+use crate::core::profile::InjectionProfile;
+use env::Env;
+use symlink::Symlink;
 
-pub fn execute_lifecycle(
-    app: &dyn AppContext,
-    specs: Vec<InjectionProfile>,
-) -> Result<Vec<(String, String)>> {
-    with_registered_exports(app, specs, |exports| Ok(exports.to_vec()))
-}
+pub struct Lifecycle;
 
-pub fn with_registered_exports<T, F>(
-    app: &dyn AppContext,
-    specs: Vec<InjectionProfile>,
-    work: F,
-) -> Result<T>
-where
-    F: FnOnce(&[(String, String)]) -> Result<T>,
-{
-    let mut injections = build_injections(specs);
-
-    for injection in &injections {
-        injection
-            .validate()
-            .with_context(|| format!("{} validation failed", injection.name()))?;
+impl Lifecycle {
+    pub fn execute(
+        app: &dyn AppContext,
+        specs: Vec<InjectionProfile>,
+    ) -> Result<Vec<(String, String)>> {
+        Self::with(app, specs, |exports| Ok(exports.to_vec()))
     }
 
-    let (registered, register_result) = register_injections(&mut injections);
-    if let Err(register_err) = register_result {
-        let shutdown_result = shutdown_registered(&mut injections, registered);
-        return match shutdown_result {
-            Ok(()) => Err(register_err),
-            Err(shutdown_err) => Err(anyhow!(
-                "{register_err}; also failed shutdown: {shutdown_err}"
-            )),
-        };
-    }
+    pub fn with<T, F>(app: &dyn AppContext, specs: Vec<InjectionProfile>, task: F) -> Result<T>
+    where
+        F: FnOnce(&[(String, String)]) -> Result<T>,
+    {
+        let mut injections = build(specs);
 
-    let work_result = run_export_and_work(app, &injections, work);
-    let shutdown_result = shutdown_registered(&mut injections, registered);
+        for injection in &injections {
+            injection
+                .validate()
+                .with_context(|| format!("{} validation failed", injection.name()))?;
+        }
 
-    match (work_result, shutdown_result) {
-        (Ok(result), Ok(())) => Ok(result),
-        (Err(primary), Ok(())) => Err(primary),
-        (Ok(_), Err(shutdown_err)) => Err(shutdown_err),
-        (Err(primary), Err(shutdown_err)) => {
-            Err(anyhow!("{primary}; also failed shutdown: {shutdown_err}"))
+        let (registered, registration) = register(&mut injections);
+        if let Err(error) = registration {
+            let closed = shutdown(&mut injections, registered);
+            return match closed {
+                Ok(()) => Err(error),
+                Err(fault) => Err(anyhow!("{error}; also failed shutdown: {fault}")),
+            };
+        }
+
+        let result = exports(app, &injections).and_then(|exports| task(&exports));
+        let closed = shutdown(&mut injections, registered);
+
+        match (result, closed) {
+            (Ok(result), Ok(())) => Ok(result),
+            (Err(primary), Ok(())) => Err(primary),
+            (Ok(_), Err(error)) => Err(error),
+            (Err(primary), Err(error)) => Err(anyhow!("{primary}; also failed shutdown: {error}")),
         }
     }
 }
 
-fn register_injections(injections: &mut [RuntimeInjection]) -> (usize, Result<()>) {
+fn register(injections: &mut [Injection]) -> (usize, Result<()>) {
     let mut registered = 0usize;
     for injection in injections {
         if let Err(err) = injection.register() {
@@ -70,37 +65,18 @@ fn register_injections(injections: &mut [RuntimeInjection]) -> (usize, Result<()
     (registered, Ok(()))
 }
 
-fn run_export_and_work<T, F>(
-    app: &dyn AppContext,
-    injections: &[RuntimeInjection],
-    work: F,
-) -> Result<T>
-where
-    F: FnOnce(&[(String, String)]) -> Result<T>,
-{
-    let exports = collect_exports(app, injections)?;
-    work(&exports)
-}
-
-fn collect_exports(
-    app: &dyn AppContext,
-    injections: &[RuntimeInjection],
-) -> Result<Vec<(String, String)>> {
+fn exports(app: &dyn AppContext, injections: &[Injection]) -> Result<Vec<(String, String)>> {
     let mut exports = Vec::new();
-    let mut inherited = BTreeMap::new();
     for injection in injections {
         let exported = injection
-            .export(app, &inherited)
+            .export(app)
             .with_context(|| format!("{} export failed", injection.name()))?;
-        for (key, value) in &exported {
-            inherited.insert(key.clone(), value.clone());
-        }
         exports.extend(exported);
     }
     Ok(exports)
 }
 
-fn shutdown_registered(injections: &mut [RuntimeInjection], registered: usize) -> Result<()> {
+fn shutdown(injections: &mut [Injection], registered: usize) -> Result<()> {
     for idx in (0..registered).rev() {
         injections[idx]
             .shutdown()
@@ -109,36 +85,29 @@ fn shutdown_registered(injections: &mut [RuntimeInjection], registered: usize) -
     Ok(())
 }
 
-fn build_injections(specs: Vec<InjectionProfile>) -> Vec<RuntimeInjection> {
+fn build(specs: Vec<InjectionProfile>) -> Vec<Injection> {
     let mut injections = Vec::new();
     for spec in specs {
         match spec {
-            InjectionProfile::Env(cfg) => push_env(&mut injections, cfg),
-            InjectionProfile::Symlink(cfg) => push_symlink(&mut injections, cfg),
-            InjectionProfile::Argv(_) => continue,
+            InjectionProfile::Env(cfg) if cfg.enabled => {
+                injections.push(Injection::Env(Env::new(cfg)))
+            }
+            InjectionProfile::Symlink(cfg) if cfg.enabled => {
+                injections.push(Injection::Symlink(Symlink::new(cfg)))
+            }
+            InjectionProfile::Env(_) | InjectionProfile::Symlink(_) | InjectionProfile::Argv(_) => {
+            }
         }
     }
     injections
 }
 
-fn push_env(injections: &mut Vec<RuntimeInjection>, cfg: EnvProfile) {
-    if cfg.enabled {
-        injections.push(RuntimeInjection::Env(EnvInjection::new(cfg)));
-    }
+enum Injection {
+    Env(Env),
+    Symlink(Symlink),
 }
 
-fn push_symlink(injections: &mut Vec<RuntimeInjection>, cfg: SymlinkProfile) {
-    if cfg.enabled {
-        injections.push(RuntimeInjection::Symlink(SymlinkInjection::new(cfg)));
-    }
-}
-
-enum RuntimeInjection {
-    Env(EnvInjection),
-    Symlink(SymlinkInjection),
-}
-
-impl RuntimeInjection {
+impl Injection {
     fn name(&self) -> &'static str {
         match self {
             Self::Env(inner) => inner.name(),
@@ -160,11 +129,7 @@ impl RuntimeInjection {
         }
     }
 
-    fn export(
-        &self,
-        app: &dyn AppContext,
-        _inherited: &BTreeMap<String, String>,
-    ) -> Result<Vec<(String, String)>> {
+    fn export(&self, app: &dyn AppContext) -> Result<Vec<(String, String)>> {
         match self {
             Self::Env(inner) => inner.export(app),
             Self::Symlink(inner) => inner.export(),
