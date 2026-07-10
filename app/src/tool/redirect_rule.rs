@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 
-use super::cloudflare::{optional_option, required_option};
+use super::cloudflare::{optional, required};
 
 pub(super) fn eval(args: &[String]) -> Result<Option<String>> {
     let [command, rest @ ..] = args else {
@@ -10,53 +10,53 @@ pub(super) fn eval(args: &[String]) -> Result<Option<String>> {
     if command != "exact" {
         bail!("usage: runseal @tool cloudflare redirect-rule exact ...");
     }
-    let ref_name = required_option(rest, "--ref")?;
-    let description = required_option(rest, "--description")?;
-    let host = required_option(rest, "--host")?;
-    let path = required_option(rest, "--path")?;
-    let target_url = required_option(rest, "--target-url")?;
-    let status_code = optional_option(rest, "--status-code")
+    let reference = required(rest, "--ref")?;
+    let description = required(rest, "--description")?;
+    let host = required(rest, "--host")?;
+    let path = required(rest, "--path")?;
+    let url = required(rest, "--target-url")?;
+    let status = optional(rest, "--status-code")
         .unwrap_or_else(|| "302".to_string())
         .parse::<u16>()
         .context("invalid redirect status code")?;
     Ok(Some(serde_json::to_string(&redirect(
-        ref_name,
+        reference,
         description,
         host,
         path,
-        target_url,
-        status_code,
+        url,
+        status,
     ))?))
 }
 
 fn redirect(
-    ref_name: String,
+    reference: String,
     description: String,
     host: String,
     path: String,
-    target_url: String,
-    status_code: u16,
+    url: String,
+    status: u16,
 ) -> JsonValue {
     serde_json::json!({
-        "ref": ref_name,
+        "ref": reference,
         "description": description,
         "expression": format!("(http.host eq \"{host}\" and http.request.uri.path eq \"{path}\")"),
         "action": "redirect",
         "enabled": true,
-        "action_parameters": params(target_url, status_code),
+        "action_parameters": params(url, status),
     })
 }
 
-fn params(target_url: String, status_code: u16) -> JsonValue {
+fn params(url: String, status: u16) -> JsonValue {
     serde_json::json!({
-        "from_value": from(target_url, status_code),
+        "from_value": from(url, status),
     })
 }
 
-fn from(target_url: String, status_code: u16) -> JsonValue {
+fn from(url: String, status: u16) -> JsonValue {
     serde_json::json!({
-        "target_url": target(target_url),
-        "status_code": status_code,
+        "target_url": target(url),
+        "status_code": status,
         "preserve_query_string": false,
     })
 }

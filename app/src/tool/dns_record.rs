@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 
-use super::cloudflare::{load_config, optional_option, request, required_option};
+use super::cloudflare::{Config, optional, request, required};
 
 pub(super) fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
     match command {
@@ -13,15 +13,15 @@ pub(super) fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
 }
 
 fn list(args: &[String]) -> Result<Option<String>> {
-    let zone_id = required_option(args, "--zone-id")?;
-    let query = optional_option(args, "--name")
+    let zone = required(args, "--zone-id")?;
+    let query = optional(args, "--name")
         .map(|name| vec![("name".to_string(), name)])
         .unwrap_or_default();
-    let config = load_config()?;
+    let config = Config::load()?;
     let payload = request(
         &config,
         "GET",
-        &format!("/zones/{zone_id}/dns_records"),
+        &format!("/zones/{zone}/dns_records"),
         query,
         None,
     )?;
@@ -32,13 +32,13 @@ fn list(args: &[String]) -> Result<Option<String>> {
 }
 
 fn create(args: &[String]) -> Result<Option<String>> {
-    let zone_id = required_option(args, "--zone-id")?;
-    let body = record_json(args)?;
-    let config = load_config()?;
+    let zone = required(args, "--zone-id")?;
+    let body = payload(args)?;
+    let config = Config::load()?;
     let payload = request(
         &config,
         "POST",
-        &format!("/zones/{zone_id}/dns_records"),
+        &format!("/zones/{zone}/dns_records"),
         Vec::new(),
         Some(body),
     )?;
@@ -46,23 +46,23 @@ fn create(args: &[String]) -> Result<Option<String>> {
 }
 
 fn update(args: &[String]) -> Result<Option<String>> {
-    let zone_id = required_option(args, "--zone-id")?;
-    let record_id = required_option(args, "--record-id")?;
-    let body = record_json(args)?;
-    let config = load_config()?;
+    let zone = required(args, "--zone-id")?;
+    let record = required(args, "--record-id")?;
+    let body = payload(args)?;
+    let config = Config::load()?;
     let payload = request(
         &config,
         "PATCH",
-        &format!("/zones/{zone_id}/dns_records/{record_id}"),
+        &format!("/zones/{zone}/dns_records/{record}"),
         Vec::new(),
         Some(body),
     )?;
     result(payload)
 }
 
-fn record_json(args: &[String]) -> Result<JsonValue> {
-    let record_json = required_option(args, "--json")?;
-    serde_json::from_str(&record_json).context("invalid DNS record JSON")
+fn payload(args: &[String]) -> Result<JsonValue> {
+    let raw = required(args, "--json")?;
+    serde_json::from_str(&raw).context("invalid DNS record JSON")
 }
 
 fn result(payload: Option<String>) -> Result<Option<String>> {
