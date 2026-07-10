@@ -1,34 +1,36 @@
-export type StableVersion = {
+export type Version = {
   major: number;
   minor: number;
   patch: number;
 };
 
-export function parseStableVersion(version: string): StableVersion {
-  const value = version.startsWith("v") ? version.slice(1) : version;
+function parse(input: string): Version {
+  const value = input.startsWith("v") ? input.slice(1) : input;
   const parts = value.split(".");
   if (parts.length !== 3) {
-    throw new Error(`expected stable semantic version, got ${version}`);
+    throw new Error(`expected stable semantic version, got ${input}`);
   }
   const [major, minor, patch] = parts.map((part) => {
     if (!/^[0-9]+$/.test(part)) {
-      throw new Error(`invalid stable semantic version, got ${version}`);
+      throw new Error(`invalid stable semantic version, got ${input}`);
     }
     return Number(part);
   });
   return { major, minor, patch };
 }
 
-export function compareStableVersion(left: string, right: string): "lt" | "eq" | "gt" {
-  const leftParsed = parseStableVersion(left);
-  const rightParsed = parseStableVersion(right);
+function compare(left: string, right: string): "lt" | "eq" | "gt" {
+  const before = parse(left);
+  const after = parse(right);
   for (const key of ["major", "minor", "patch"] as const) {
-    if (leftParsed[key] < rightParsed[key]) {
+    if (before[key] < after[key]) {
       return "lt";
     }
-    if (leftParsed[key] > rightParsed[key]) {
+    if (before[key] > after[key]) {
       return "gt";
     }
   }
   return "eq";
 }
+
+export const version = { parse, compare };
