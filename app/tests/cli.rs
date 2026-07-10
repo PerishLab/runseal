@@ -6,114 +6,130 @@ fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
 }
 
-#[cfg(unix)]
-fn shell_args(script: &str) -> Vec<String> {
-    vec!["bash".into(), "--".into(), "-lc".into(), script.into()]
+struct Shell;
+
+impl Shell {
+    #[cfg(unix)]
+    fn args(script: &str) -> Vec<String> {
+        vec!["bash".into(), "--".into(), "-lc".into(), script.into()]
+    }
+
+    #[cfg(windows)]
+    fn args(script: &str) -> Vec<String> {
+        vec![
+            "pwsh".into(),
+            "--".into(),
+            "-NoProfile".into(),
+            "-Command".into(),
+            script.into(),
+        ]
+    }
 }
 
-#[cfg(windows)]
-fn shell_args(script: &str) -> Vec<String> {
-    vec![
-        "pwsh".into(),
-        "--".into(),
-        "-NoProfile".into(),
-        "-Command".into(),
-        script.into(),
-    ]
+struct Script;
+
+impl Script {
+    #[cfg(unix)]
+    fn env(key: &str) -> String {
+        format!("printf '%s' \"${key}\"")
+    }
+
+    #[cfg(windows)]
+    fn env(key: &str) -> String {
+        format!("[Console]::Write($env:{key})")
+    }
+
+    #[cfg(unix)]
+    fn profile() -> String {
+        "printf '%s|%s' \"$RUNSEAL_TEST_VALUE\" \"$(basename \"$RUNSEAL_PROFILE_PATH\")\"".into()
+    }
+
+    #[cfg(windows)]
+    fn profile() -> String {
+        "[Console]::Write(\"$env:RUNSEAL_TEST_VALUE|$(Split-Path -Leaf $env:RUNSEAL_PROFILE_PATH)\")"
+            .into()
+    }
+
+    #[cfg(unix)]
+    fn symlink(path: &std::path::Path) -> String {
+        format!("test -L {}", path.display())
+    }
 }
 
-#[cfg(unix)]
-fn print_env_script(key: &str) -> String {
-    format!("printf '%s' \"${key}\"")
+struct Probe;
+
+impl Probe {
+    #[cfg(unix)]
+    fn write(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+
+        std::fs::write(path, "#!/usr/bin/env sh\nprintf '%s|' \"$@\"\n")
+            .expect("probe should be written");
+        let mut permissions = std::fs::metadata(path)
+            .expect("probe metadata should be readable")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(path, permissions).expect("probe should be executable");
+    }
 }
 
-#[cfg(windows)]
-fn print_env_script(key: &str) -> String {
-    format!("[Console]::Write($env:{key})")
-}
+struct Wrapper;
 
-#[cfg(unix)]
-fn explicit_profile_script() -> String {
-    "printf '%s|%s' \"$RUNSEAL_TEST_VALUE\" \"$(basename \"$RUNSEAL_PROFILE_PATH\")\"".into()
-}
+impl Wrapper {
+    #[cfg(unix)]
+    fn file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+        dir.join(format!("{name}.sh"))
+    }
 
-#[cfg(windows)]
-fn explicit_profile_script() -> String {
-    "[Console]::Write(\"$env:RUNSEAL_TEST_VALUE|$(Split-Path -Leaf $env:RUNSEAL_PROFILE_PATH)\")"
-        .into()
-}
+    #[cfg(windows)]
+    fn file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+        dir.join(format!("{name}.cmd"))
+    }
 
-#[cfg(unix)]
-fn symlink_check_script(path: &std::path::Path) -> String {
-    format!("test -L {}", path.display())
-}
+    #[cfg(unix)]
+    fn name(name: &str) -> String {
+        format!("{name}.sh")
+    }
 
-#[cfg(unix)]
-fn make_probe(path: &std::path::Path) {
-    use std::os::unix::fs::PermissionsExt;
+    #[cfg(windows)]
+    fn name(name: &str) -> String {
+        format!("{name}.cmd")
+    }
 
-    std::fs::write(path, "#!/usr/bin/env sh\nprintf '%s|' \"$@\"\n")
-        .expect("probe should be written");
-    let mut permissions = std::fs::metadata(path)
-        .expect("probe metadata should be readable")
-        .permissions();
-    permissions.set_mode(0o755);
-    std::fs::set_permissions(path, permissions).expect("probe should be executable");
-}
+    #[cfg(unix)]
+    fn write(path: &std::path::Path, label: &str) {
+        use std::os::unix::fs::PermissionsExt;
 
-#[cfg(unix)]
-fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
-    dir.join(format!("{name}.sh"))
-}
+        std::fs::write(
+            path,
+            format!(
+                "#!/usr/bin/env sh\nprintf '{}|%s|%s|%s|' \"$1\" \"$RUNSEAL_WRAPPER_NAME\" \"$(basename \"$RUNSEAL_WRAPPER_FILE\")\"\n",
+                label
+            ),
+        )
+        .expect("wrapper should be written");
+        let mut permissions = std::fs::metadata(path)
+            .expect("wrapper metadata should be readable")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(path, permissions).expect("wrapper should be executable");
+    }
 
-#[cfg(windows)]
-fn wrapper_file(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
-    dir.join(format!("{name}.cmd"))
-}
-
-#[cfg(unix)]
-fn wrapper_basename(name: &str) -> String {
-    format!("{name}.sh")
-}
-
-#[cfg(windows)]
-fn wrapper_basename(name: &str) -> String {
-    format!("{name}.cmd")
-}
-
-#[cfg(unix)]
-fn make_wrapper(path: &std::path::Path, label: &str) {
-    use std::os::unix::fs::PermissionsExt;
-
-    std::fs::write(
-        path,
-        format!(
-            "#!/usr/bin/env sh\nprintf '{}|%s|%s|%s|' \"$1\" \"$RUNSEAL_WRAPPER_NAME\" \"$(basename \"$RUNSEAL_WRAPPER_FILE\")\"\n",
-            label
-        ),
-    )
-    .expect("wrapper should be written");
-    let mut permissions = std::fs::metadata(path)
-        .expect("wrapper metadata should be readable")
-        .permissions();
-    permissions.set_mode(0o755);
-    std::fs::set_permissions(path, permissions).expect("wrapper should be executable");
-}
-
-#[cfg(windows)]
-fn make_wrapper(path: &std::path::Path, label: &str) {
-    std::fs::write(
-        path,
-        format!(
-            "@echo off\r\n<nul set /p=\"{}|%1|%RUNSEAL_WRAPPER_NAME%|%~nx0|\"\r\nexit /b 0\r\n",
-            label
-        ),
-    )
-    .expect("wrapper should be written");
+    #[cfg(windows)]
+    fn write(path: &std::path::Path, label: &str) {
+        std::fs::write(
+            path,
+            format!(
+                "@echo off\r\n<nul set /p=\"{}|%1|%RUNSEAL_WRAPPER_NAME%|%~nx0|\"\r\nexit /b 0\r\n",
+                label
+            ),
+        )
+        .expect("wrapper should be written");
+    }
 }
 
 #[test]
-fn help_without_command() {
+fn help() {
     let output = bin().output().expect("runseal should run");
 
     assert!(output.status.success());
@@ -123,7 +139,7 @@ fn help_without_command() {
 }
 
 #[test]
-fn explicit_profile_runs() {
+fn explicit() {
     let temp = TempDir::new().expect("temp dir should be created");
     let profile = temp.path().join("profile.toml");
     std::fs::write(
@@ -144,7 +160,7 @@ value = "from-toml"
         .env("RUNSEAL_HOME", temp.path().join("home"))
         .arg("--profile")
         .arg(profile.to_str().expect("path should be UTF-8"))
-        .args(shell_args(&explicit_profile_script()))
+        .args(Shell::args(&Script::profile()))
         .output()
         .expect("runseal should run");
 
@@ -154,28 +170,28 @@ value = "from-toml"
 }
 
 #[test]
-fn cwd_beats_home() {
+fn nearest() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("work");
-    let runseal_home = temp.path().join("home");
-    let profile_home = runseal_home.join("profiles");
+    let home = temp.path().join("home");
+    let profiles = home.join("profiles");
     std::fs::create_dir_all(&cwd).expect("cwd should be created");
-    std::fs::create_dir_all(&profile_home).expect("profile home should be created");
+    std::fs::create_dir_all(&profiles).expect("profile home should be created");
     std::fs::write(
         cwd.join("runseal.yaml"),
         "injections:\n  - type: env\n    vars:\n      PICKED: cwd\n",
     )
     .expect("cwd profile should be written");
     std::fs::write(
-        profile_home.join("default.toml"),
+        profiles.join("default.toml"),
         "[[injections]]\ntype = \"env\"\n[injections.vars]\nPICKED = \"home\"\n",
     )
     .expect("default profile should be written");
 
     let output = bin()
         .current_dir(&cwd)
-        .env("RUNSEAL_HOME", &runseal_home)
-        .args(shell_args(&print_env_script("PICKED")))
+        .env("RUNSEAL_HOME", &home)
+        .args(Shell::args(&Script::env("PICKED")))
         .output()
         .expect("runseal should run");
 
@@ -186,7 +202,7 @@ fn cwd_beats_home() {
 
 #[cfg(unix)]
 #[test]
-fn symlink_lifecycle() {
+fn lifecycle() {
     let temp = TempDir::new().expect("temp dir should be created");
     let source = temp.path().join("source.txt");
     let target = temp.path().join("links/source.txt");
@@ -219,7 +235,7 @@ fn symlink_lifecycle() {
         .env("RUNSEAL_HOME", temp.path().join("home"))
         .arg("--profile")
         .arg(profile.to_str().expect("path should be UTF-8"))
-        .args(shell_args(&symlink_check_script(&target)))
+        .args(Shell::args(&Script::symlink(&target)))
         .output()
         .expect("runseal should run");
 
@@ -229,7 +245,7 @@ fn symlink_lifecycle() {
 
 #[cfg(unix)]
 #[test]
-fn symlink_shutdown_contention() {
+fn contention() {
     let temp = TempDir::new().expect("temp dir should be created");
     let source = temp.path().join("source.txt");
     let target = temp.path().join("links/source.txt");
@@ -258,7 +274,7 @@ fn symlink_shutdown_contention() {
         .env("RUNSEAL_HOME", temp.path().join("home"))
         .arg("--profile")
         .arg(profile.to_str().expect("path should be UTF-8"))
-        .args(shell_args(&format!("rm -- '{}'", target.display())))
+        .args(Shell::args(&format!("rm -- '{}'", target.display())))
         .output()
         .expect("runseal should run");
 
@@ -271,12 +287,12 @@ fn symlink_shutdown_contention() {
 
 #[cfg(unix)]
 #[test]
-fn argv_injection_prefixes_command() {
+fn argv() {
     let temp = TempDir::new().expect("temp dir should be created");
-    let bin_dir = temp.path().join("bin");
+    let path = temp.path().join("bin");
     let profile = temp.path().join("profile.toml");
-    std::fs::create_dir_all(&bin_dir).expect("bin dir should be created");
-    make_probe(&bin_dir.join("probe"));
+    std::fs::create_dir_all(&path).expect("bin dir should be created");
+    Probe::write(&path.join("probe"));
     std::fs::write(
         &profile,
         format!(
@@ -296,7 +312,7 @@ type = "argv"
 command = "probe"
 args = ["-F", ".local/ssh/config"]
 "#,
-            bin_dir.display()
+            path.display()
         ),
     )
     .expect("profile should be written");
@@ -315,19 +331,19 @@ args = ["-F", ".local/ssh/config"]
 }
 
 #[test]
-fn wrapper_uses_profile_root() {
+fn root() {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     let cwd = project.join("nested");
-    let project_wrappers = project.join(".runseal/wrappers");
-    let home_wrappers = temp.path().join("home/wrappers");
+    let local = project.join(".runseal/wrappers");
+    let global = temp.path().join("home/wrappers");
     std::fs::create_dir_all(&cwd).expect("cwd should be created");
-    std::fs::create_dir_all(&project_wrappers).expect("project wrappers should be created");
-    std::fs::create_dir_all(&home_wrappers).expect("home wrappers should be created");
+    std::fs::create_dir_all(&local).expect("project wrappers should be created");
+    std::fs::create_dir_all(&global).expect("home wrappers should be created");
     std::fs::write(project.join("runseal.toml"), "injections = []\n")
         .expect("profile should be written");
-    make_wrapper(&wrapper_file(&project_wrappers, "wrap"), "project");
-    make_wrapper(&wrapper_file(&home_wrappers, "wrap"), "home");
+    Wrapper::write(&Wrapper::file(&local, "wrap"), "project");
+    Wrapper::write(&Wrapper::file(&global, "wrap"), "home");
 
     let output = bin()
         .current_dir(&cwd)
@@ -342,12 +358,12 @@ fn wrapper_uses_profile_root() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     assert_eq!(
         stdout,
-        format!("project|arg|wrap|{}|", wrapper_basename("wrap"))
+        format!("project|arg|wrap|{}|", Wrapper::name("wrap"))
     );
 }
 
 #[test]
-fn wrapper_missing_lists_paths() {
+fn missing() {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     std::fs::create_dir_all(&project).expect("project should be created");
@@ -369,7 +385,7 @@ fn wrapper_missing_lists_paths() {
 }
 
 #[test]
-fn child_exit_code() {
+fn exit() {
     let temp = TempDir::new().expect("temp dir should be created");
     let profile = temp.path().join("profile.json");
     std::fs::write(&profile, r#"{"injections":[]}"#).expect("profile should be written");
@@ -378,7 +394,7 @@ fn child_exit_code() {
         .env("RUNSEAL_HOME", temp.path().join("home"))
         .arg("--profile")
         .arg(profile.to_str().expect("path should be UTF-8"))
-        .args(shell_args("exit 17"))
+        .args(Shell::args("exit 17"))
         .output()
         .expect("runseal should run");
 
@@ -386,7 +402,7 @@ fn child_exit_code() {
 }
 
 #[test]
-fn toml_beats_yaml() {
+fn priority() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("work");
     std::fs::create_dir_all(&cwd).expect("cwd should be created");
@@ -404,7 +420,7 @@ fn toml_beats_yaml() {
     let output = bin()
         .current_dir(&cwd)
         .env("RUNSEAL_HOME", temp.path().join("home"))
-        .args(shell_args(&print_env_script("PICKED")))
+        .args(Shell::args(&Script::env("PICKED")))
         .output()
         .expect("runseal should run");
 
@@ -414,7 +430,7 @@ fn toml_beats_yaml() {
 }
 
 #[test]
-fn missing_profile_paths() {
+fn paths() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("work");
     let home = temp.path().join("home");
@@ -423,7 +439,7 @@ fn missing_profile_paths() {
     let output = bin()
         .current_dir(&cwd)
         .env("RUNSEAL_HOME", &home)
-        .args(shell_args("true"))
+        .args(Shell::args("true"))
         .output()
         .expect("runseal should run");
 

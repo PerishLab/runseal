@@ -27,3 +27,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   moved into type and module namespaces; no vocabulary entries were added.
 - Discovery, startup, resource, and tool-help tests moved into fixture and
   behavior namespaces; no vocabulary entries were added.
+- CLI tests moved shell, script, probe, and wrapper setup into type namespaces;
+  no vocabulary entries were added.
