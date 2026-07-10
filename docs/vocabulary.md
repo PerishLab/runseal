@@ -31,3 +31,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   no vocabulary entries were added.
 - Internal command and wrapper behavior tests moved file, fixture, path, and
   assertion compounds into type namespaces; no vocabulary entries were added.
+- Operator repository tests moved fixture, stub, path, land, and release
+  compounds into type and module namespaces; no vocabulary entries were added.
