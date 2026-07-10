@@ -38,7 +38,7 @@ then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
 Run runseal @profile --help, @resolve --help, @tool --help, @wrappers --help,
 or @which --help for details.
 
-Repository: https://github.com/PerishCode/runseal"
+Repository: https://git.perish.top/PerishFire/runseal"
 )]
 struct Cli {
     #[arg(short = 'p', long = "profile")]

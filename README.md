@@ -112,16 +112,8 @@ and internal command namespaces:
 
 ## Install
 
-Unix:
-
 ```bash
 curl -fsSL https://runseal.perish.uk/manage.sh | sh
-```
-
-Windows:
-
-```powershell
-irm https://runseal.perish.uk/manage.ps1 | pwsh
 ```
 
 Install a beta or one explicit version:
@@ -282,6 +274,10 @@ permissions = [
 ]
 ```
 
+Permission entries expand host environment references such as
+`--allow-read=${HOME}/.tea/tea.yml` before Deno starts. A referenced variable
+must exist.
+
 Runseal adds `--no-prompt`, then the configured `--config`, `--lock`
 `--frozen=true`, and permission flags before the wrapper file and caller args.
 The wrapper still receives `RUNSEAL_WRAPPER_NAME`, `RUNSEAL_WRAPPER_FILE`,
@@ -340,7 +336,7 @@ read-only; `@tool` is the explicit atomic tool runtime.
 - `@resolve resource://...` prints resolved absolute resource paths, one per
   argument.
 - `@tool <namespace> <command> ...` runs an atomic runseal tool command. The
-  current public namespaces are `github` and `cloudflare`. Run
+  current public namespaces are `forgejo`, `github`, and `cloudflare`. Run
   `runseal @tool --help` for the complete tool index. Tools are reusable atoms:
   they may read generic
   defaults such as service tokens, but profile-specific paths and env names

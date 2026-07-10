@@ -1,0 +1,98 @@
+name: release-beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: "Optional beta version override, for example v0.10.0-beta.2"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  release:
+    runs-on: docker
+    container:
+      image: mirror.perish.lan/ci/deno
+    env:
+      BETA_VERSION_OVERRIDE: ${{ inputs.version_override }}
+      CI_COMMIT: ${{ github.sha }}
+      CI_REPOSITORY: ${{ github.repository }}
+      CI_RUN_ATTEMPT: ${{ github.run_attempt }}
+      CI_RUN_ID: ${{ github.run_id }}
+      CI_WORKFLOW: release-beta
+      RUNSEAL_RELEASES_PUBLIC_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}
+      RUNSEAL_RELEASES_S3_AK: ${{ secrets.RUNSEAL_RELEASES_S3_AK }}
+      RUNSEAL_RELEASES_S3_BUCKET: ${{ secrets.RUNSEAL_RELEASES_S3_BUCKET }}
+      RUNSEAL_RELEASES_S3_SK: ${{ secrets.RUNSEAL_RELEASES_S3_SK }}
+      RUNSEAL_RELEASES_S3_URL: ${{ secrets.RUNSEAL_RELEASES_S3_URL }}
+      R2_ACCESS_PROBE_NAME: release-beta
+      RELEASE_CHANNEL: beta
+      SMOKE_LATEST: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install pinned Negentropy
+        run: |
+          set -eu
+          version=$(cat .runseal/negentropy.version)
+          curl -fsSL https://releases.negentropy.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-negentropy.sh"
+          sh "$RUNNER_TEMP/manage-negentropy.sh" install --channel beta --version "$version" --bin-dir "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Validate R2 access
+        run: bash .forgejo/scripts/release/r2/check.sh
+
+      - name: Resolve beta metadata
+        id: beta
+        run: deno run --allow-env --allow-read --allow-net --allow-write="$GITHUB_OUTPUT" .forgejo/scripts/release/metadata/beta.ts
+
+      - name: Guard
+        run: |
+          set -eu
+          export PATH="$HOME/.local/bin:$PWD/target/debug:$PATH"
+          cargo build --quiet --locked -p runseal
+          target/debug/runseal :guard
+
+      - name: Package
+        env:
+          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
+          TARGET: x86_64-unknown-linux-gnu
+        run: sh .forgejo/scripts/release/assets/package.sh "$RELEASE_VERSION"
+
+      - name: Publish
+        env:
+          BASE_VERSION: ${{ steps.beta.outputs.base_version }}
+          BETA_NUMBER: ${{ steps.beta.outputs.beta_number }}
+          RELEASE_ROOT: dist/${{ steps.beta.outputs.release_version }}
+          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
+          STATE_SOURCE: ${{ steps.beta.outputs.state_source }}
+        run: |
+          set -eu
+          export PATH="$HOME/.local/bin:$PWD/target/debug:$PATH"
+          export GUARD_VERSION_HASH="$(target/debug/runseal :guard version-hash)"
+          sh .forgejo/scripts/release/assets/checksums.sh "$RELEASE_VERSION" "$RELEASE_ROOT"
+          sh .forgejo/scripts/release/assets/verify.sh accept "$RELEASE_VERSION" "$RELEASE_ROOT"
+          sh .forgejo/scripts/release/assets/verify.sh verify "$RELEASE_VERSION" "$RELEASE_ROOT"
+          bash .forgejo/scripts/release/r2/publish.sh
+
+      - name: Verify R2 publish
+        env:
+          R2_METADATA_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}/beta/latest/metadata.json
+          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
+        run: bash .forgejo/scripts/release/r2/verify.sh
+
+      - name: Publish summary
+        env:
+          BASE_VERSION: ${{ steps.beta.outputs.base_version }}
+          BETA_NUMBER: ${{ steps.beta.outputs.beta_number }}
+          R2_METADATA_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}/beta/latest/metadata.json
+          R2_VERSION_METADATA_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}/beta/versions/${{ steps.beta.outputs.release_version }}/metadata.json
+          R2_VERSION_PREFIX: beta/versions/${{ steps.beta.outputs.release_version }}
+          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
+          STATE_SOURCE: ${{ steps.beta.outputs.state_source }}
+        run: bash .forgejo/scripts/release/r2/summary.sh
+
+      - name: Smoke install
+        run: sh .forgejo/scripts/release/smoke/smoke.sh "${{ steps.beta.outputs.release_version }}" beta

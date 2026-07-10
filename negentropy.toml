@@ -1,0 +1,20 @@
+[scan]
+include = [
+  ".runseal/**",
+  "app/src/**/*.rs",
+  "app/tests/**/*.rs",
+  "docs/**/*.md",
+]
+exclude = [
+  "**/target/**",
+]
+
+[limit]
+block = 3
+path = 3
+
+[comment]
+allow = false
+
+[word]
+single = true

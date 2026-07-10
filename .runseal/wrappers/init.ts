@@ -2,6 +2,7 @@ import { helpRequested, parseArgs, requireNoPositionals } from "@/lib/cli.ts";
 import { cmd } from "@/lib/std/cmd.ts";
 import { fs } from "@/lib/std/fs.ts";
 import { io } from "@/lib/std/io.ts";
+import { negentropy } from "@/lib/negentropy.ts";
 import { path } from "@/lib/std/path.ts";
 
 const HOOKS_PATH = ".runseal/hooks";
@@ -40,10 +41,8 @@ for (
   const tool of [
     "git",
     "deno",
-    "python3",
     "cargo",
     "runseal",
-    "flavor",
     "sh",
     "bash",
     "sed",
@@ -52,23 +51,27 @@ for (
 ) {
   await requireTool(tool);
 }
-io.print("ok: git, deno, python3, cargo, runseal, flavor, sh, bash, sed, grep");
+await negentropy.verify();
+io.print("ok: git, deno, cargo, runseal, negentropy, sh, bash, sed, grep");
 
 io.print("==> checking repository entrypoints");
 for (
   const path of [
     "Cargo.toml",
     "Cargo.lock",
-    "flavor.toml",
+    "negentropy.toml",
+    "vocabulary.toml",
+    "docs/vocabulary.md",
     "manage.sh",
-    "manage.ps1",
     "runseal.toml",
     ".runseal/deno.json",
     ".runseal/deno.lock",
+    ".runseal/negentropy.version",
     ".runseal/hooks/pre-commit",
     ".runseal/hooks/commit-msg",
     ".runseal/lib/cli.ts",
     ".runseal/lib/hash.ts",
+    ".runseal/lib/negentropy.ts",
     ".runseal/lib/std/cmd.ts",
     ".runseal/lib/std/env.ts",
     ".runseal/lib/std/fs.ts",
@@ -83,22 +86,20 @@ for (
     ".runseal/wrappers/init.ts",
     ".runseal/wrappers/land.ts",
     ".runseal/wrappers/release.ts",
-    ".github/workflows/guard.yml",
-    ".github/workflows/release-beta.yml",
-    ".github/workflows/release-stable.yml",
-    ".github/scripts/release/assets/checksums.sh",
-    ".github/scripts/release/assets/package.sh",
-    ".github/scripts/release/assets/package.ps1",
-    ".github/scripts/release/assets/verify.sh",
-    ".github/scripts/release/github/cleanup-artifacts.sh",
-    ".github/scripts/release/metadata/beta.py",
-    ".github/scripts/release/metadata/stable.py",
-    ".github/scripts/release/r2/check.sh",
-    ".github/scripts/release/r2/publish.sh",
-    ".github/scripts/release/r2/summary.sh",
-    ".github/scripts/release/r2/verify.sh",
-    ".github/scripts/release/smoke/smoke.sh",
-    ".github/scripts/release/smoke/smoke.ps1",
+    ".forgejo/release.env.example",
+    ".forgejo/workflows/guard.yml",
+    ".forgejo/workflows/release-beta.yml",
+    ".forgejo/workflows/release-stable.yml",
+    ".forgejo/scripts/release/assets/checksums.sh",
+    ".forgejo/scripts/release/assets/package.sh",
+    ".forgejo/scripts/release/assets/verify.sh",
+    ".forgejo/scripts/release/metadata/beta.ts",
+    ".forgejo/scripts/release/metadata/stable.ts",
+    ".forgejo/scripts/release/r2/check.sh",
+    ".forgejo/scripts/release/r2/publish.sh",
+    ".forgejo/scripts/release/r2/summary.sh",
+    ".forgejo/scripts/release/r2/verify.sh",
+    ".forgejo/scripts/release/smoke/smoke.sh",
   ]
 ) {
   await requirePath(root, path);

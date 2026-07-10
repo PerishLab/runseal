@@ -46,7 +46,7 @@ case "${1:-}" in
   remote)
     [ "${2:-}" = "get-url" ] || exit 9
     [ "${3:-}" = "origin" ] || exit 9
-    printf '%s\n' "${RUNSEAL_TEST_REMOTE_ORIGIN:-git@github.com:PerishCode/runseal.git}"
+    printf '%s\n' "${RUNSEAL_TEST_REMOTE_ORIGIN:-git@git.perish.top:PerishFire/runseal.git}"
     ;;
   rev-parse)
     if [ "${2:-}" = "--verify" ]; then
@@ -71,78 +71,45 @@ esac
 "#,
     );
     write_stub(
-        &bin.join("gh"),
-        r#"#!/usr/bin/env sh
-set -eu
-
-log() {
-  printf 'gh %s\n' "$*" >> "${RUNSEAL_TEST_LOG:?}"
-}
-
-case "${1:-}" in
-  --version)
-    ;;
-  auth)
-    [ "${2:-}" = status ] || exit 9
-    ;;
-  workflow)
-    log "$@"
-    [ "${2:-}" = run ] || exit 9
-    printf '%s\n' "${RUNSEAL_TEST_WORKFLOW_OUTPUT:-}"
-    ;;
-  run)
-    log "$@"
-    case "${2:-}" in
-      list)
-        printf '%s\n' "${RUNSEAL_TEST_RUN_LIST:-[]}"
-        ;;
-      watch)
-        ;;
-      *)
-        exit 9
-        ;;
-    esac
-    ;;
-  pr)
-    log "$@"
-    case "${2:-}" in
-      list)
-        if [ "${RUNSEAL_TEST_PR_LIST+x}" ]; then
-          printf '%s\n' "$RUNSEAL_TEST_PR_LIST"
-        else
-          printf '%s\n' 'https://example.test/pull/42'
-        fi
-        ;;
-      create)
-        printf '%s\n' "${RUNSEAL_TEST_PR_CREATE:-https://example.test/pull/77}"
-        ;;
-      checks|merge)
-        ;;
-      *)
-        exit 9
-        ;;
-    esac
-    ;;
-  *)
-    log "$@"
-    ;;
-esac
-"#,
-    );
-    write_stub(
         &bin.join("runseal"),
         r#"#!/usr/bin/env sh
 set -eu
 printf 'runseal %s\n' "$*" >> "${RUNSEAL_TEST_LOG:?}"
-if [ "${1:-}" = "@tool" ] &&
-   [ "${2:-}" = "github" ] &&
-   [ "${3:-}" = "pr" ] &&
-   [ "${4:-}" = "checks" ] &&
-   [ "${5:-}" = "probe" ]; then
-  printf '%s\n' "${RUNSEAL_TEST_CHECKS_SEEN:-true}"
-  exit 0
-fi
-exit 9
+[ "${1:-}" = "@tool" ] || exit 9
+[ "${2:-}" = "forgejo" ] || exit 9
+case "${3:-}:${4:-}" in
+  pr:find)
+    if [ "${RUNSEAL_TEST_PR_FIND+x}" ]; then
+      printf '%s\n' "$RUNSEAL_TEST_PR_FIND"
+    else
+      printf '%s\n' '{"number":42,"html_url":"https://git.test/pull/42"}'
+    fi
+    ;;
+  pr:create)
+    if [ "${RUNSEAL_TEST_PR_CREATE+x}" ]; then
+      printf '%s\n' "$RUNSEAL_TEST_PR_CREATE"
+    else
+      printf '%s\n' '{"number":77,"html_url":"https://git.test/pull/77"}'
+    fi
+    ;;
+  pr:guard)
+    printf '%s\n' '{"id":8,"status":"success","commit_sha":"guarded123"}'
+    ;;
+  pr:merge)
+    ;;
+  workflow:dispatch)
+    if [ "${RUNSEAL_TEST_DISPATCH+x}" ]; then
+      printf '%s\n' "$RUNSEAL_TEST_DISPATCH"
+    else
+      printf '%s\n' '{"id":12345,"run_number":9}'
+    fi
+    ;;
+  run:watch)
+    ;;
+  *)
+    exit 9
+    ;;
+esac
 "#,
     );
     Some(Fixture {
@@ -248,10 +215,10 @@ fn land_dry_run_matches() {
   git fetch origin main
   verify feat/deno is clean, not main, contains origin/main, ahead >= 1
   git push -u origin feat/deno
-  gh pr list --head feat/deno --base main --state open --json url --jq ...
-  gh pr create --base main --head feat/deno --fill  # if missing
-  gh pr checks <url> --watch --interval 10  # if checks exist
-  gh pr merge <url> --squash --delete-branch
+  runseal @tool forgejo pr find --repo PerishFire/runseal --head feat/deno --base main
+  runseal @tool forgejo pr create --repo PerishFire/runseal --base main --head feat/deno --title <commit>  # if missing
+  runseal @tool forgejo pr guard --repo PerishFire/runseal --number <n>
+  runseal @tool forgejo pr merge --repo PerishFire/runseal --number <n> --head <guarded-sha> --delete-branch true
   git checkout main
   git pull --ff-only origin main
   git branch -D feat/deno  # if still present locally
@@ -303,14 +270,17 @@ fn land_reuses_open_pr() {
         &fx,
         "land",
         &["--no-delete"],
-        &[("RUNSEAL_TEST_PR_LIST", "https://example.test/pull/42")],
+        &[(
+            "RUNSEAL_TEST_PR_FIND",
+            r#"{"number":42,"html_url":"https://git.test/pull/42"}"#,
+        )],
     );
 
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     assert_eq!(
         stdout(&output),
         "\
-https://example.test/pull/42
+https://git.test/pull/42
 "
     );
     assert_eq!(
@@ -318,10 +288,9 @@ https://example.test/pull/42
         "\
 git fetch origin main
 git push -u origin feat/deno
-gh pr list --head feat/deno --base main --state open --json url --jq .[0].url // \"\"
-runseal @tool github pr checks probe https://example.test/pull/42
-gh pr checks https://example.test/pull/42 --watch --interval 10
-gh pr merge https://example.test/pull/42 --squash
+runseal @tool forgejo pr find --repo PerishFire/runseal --head feat/deno --base main
+runseal @tool forgejo pr guard --repo PerishFire/runseal --number 42
+runseal @tool forgejo pr merge --repo PerishFire/runseal --number 42 --head guarded123 --delete-branch false
 git checkout main
 git pull --ff-only origin main
 "
@@ -339,8 +308,11 @@ fn land_creates_and_merges() {
         "land",
         &["--body", "body text", "--base", "develop"],
         &[
-            ("RUNSEAL_TEST_PR_LIST", ""),
-            ("RUNSEAL_TEST_PR_CREATE", "https://example.test/pull/77"),
+            ("RUNSEAL_TEST_PR_FIND", "null"),
+            (
+                "RUNSEAL_TEST_PR_CREATE",
+                r#"{"number":77,"html_url":"https://git.test/pull/77"}"#,
+            ),
             ("RUNSEAL_TEST_LOG_SUBJECTS", "ops: add land wrapper"),
         ],
     );
@@ -349,7 +321,7 @@ fn land_creates_and_merges() {
     assert_eq!(
         stdout(&output),
         "\
-https://example.test/pull/77
+https://git.test/pull/77
 "
     );
     assert_eq!(
@@ -357,11 +329,10 @@ https://example.test/pull/77
         "\
 git fetch origin develop
 git push -u origin feat/deno
-gh pr list --head feat/deno --base develop --state open --json url --jq .[0].url // \"\"
-gh pr create --base develop --head feat/deno --title ops: add land wrapper --body body text
-runseal @tool github pr checks probe https://example.test/pull/77
-gh pr checks https://example.test/pull/77 --watch --interval 10
-gh pr merge https://example.test/pull/77 --squash --delete-branch
+runseal @tool forgejo pr find --repo PerishFire/runseal --head feat/deno --base develop
+runseal @tool forgejo pr create --repo PerishFire/runseal --base develop --head feat/deno --title ops: add land wrapper --body body text
+runseal @tool forgejo pr guard --repo PerishFire/runseal --number 77
+runseal @tool forgejo pr merge --repo PerishFire/runseal --number 77 --head guarded123 --delete-branch true
 git checkout develop
 git pull --ff-only origin develop
 git branch -D feat/deno
@@ -406,7 +377,7 @@ fn release_dry_run_matches() {
     assert!(output.status.success());
     assert_eq!(
         stdout(&output),
-        "gh workflow run release-beta.yml --ref feature/ref -f ref=feature/ref -f version_override=v1.2.3-beta.4\n"
+        "runseal @tool forgejo workflow dispatch --repo PerishFire/runseal --workflow release-beta.yml --ref feature/ref --input version_override=v1.2.3-beta.4\n"
     );
 }
 
@@ -444,25 +415,21 @@ fn release_watches_trigger_url() {
         &fx,
         "release",
         &["--channel", "stable", "--watch"],
-        &[(
-            "RUNSEAL_TEST_WORKFLOW_OUTPUT",
-            "https://github.com/acme/runseal/actions/runs/12345",
-        )],
+        &[("RUNSEAL_TEST_DISPATCH", r#"{"id":12345,"run_number":9}"#)],
     );
 
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     assert_eq!(
         stdout(&output),
         "\
-https://github.com/acme/runseal/actions/runs/12345
-triggered release-stable.yml for ref main
+triggered release-stable.yml run 12345 for ref main
 "
     );
     assert_eq!(
         command_log(&fx),
         "\
-gh workflow run release-stable.yml --ref main -f ref=main -f version_override=
-gh run watch 12345 --interval 10
+runseal @tool forgejo workflow dispatch --repo PerishFire/runseal --workflow release-stable.yml --ref main --input version_override=
+runseal @tool forgejo run watch --repo PerishFire/runseal --id 12345 --interval 10
 "
     );
 }
@@ -477,20 +444,19 @@ fn release_uses_latest_run() {
         &fx,
         "release",
         &["--channel", "beta", "--ref", "feature/ref", "--watch"],
-        &[("RUNSEAL_TEST_RUN_LIST", r#"[{"databaseId":67890}]"#)],
+        &[("RUNSEAL_TEST_DISPATCH", r#"{"id":67890,"run_number":10}"#)],
     );
 
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     assert_eq!(
         stdout(&output),
-        "triggered release-beta.yml for ref feature/ref\n"
+        "triggered release-beta.yml run 67890 for ref feature/ref\n"
     );
     assert_eq!(
         command_log(&fx),
         "\
-gh workflow run release-beta.yml --ref feature/ref -f ref=feature/ref -f version_override=
-gh run list --workflow release-beta.yml --branch feature/ref --commit abc123 --event workflow_dispatch --limit 1 --json databaseId
-gh run watch 67890 --interval 10
+runseal @tool forgejo workflow dispatch --repo PerishFire/runseal --workflow release-beta.yml --ref feature/ref --input version_override=
+runseal @tool forgejo run watch --repo PerishFire/runseal --id 67890 --interval 10
 "
     );
 }

@@ -38,7 +38,7 @@ permissions = [
   "--allow-read=.",
   "--allow-env",
   "--allow-net=127.0.0.1",
-  "--allow-run=git,cargo,runseal",
+  "--allow-run=git,cargo,negentropy,runseal",
 ]
 "#,
     )
@@ -64,6 +64,18 @@ permissions = [
             .expect("repo hash helper should be readable"),
     )
     .expect("hash helper should be copied");
+    std::fs::write(
+        project.join(".runseal/lib/negentropy.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/negentropy.ts"))
+            .expect("repo negentropy helper should be readable"),
+    )
+    .expect("negentropy helper should be copied");
+    std::fs::write(
+        project.join(".runseal/negentropy.version"),
+        std::fs::read_to_string(repo_root().join(".runseal/negentropy.version"))
+            .expect("repo negentropy version should be readable"),
+    )
+    .expect("negentropy version should be copied");
     for path in [
         ".runseal/lib/std/cmd.ts",
         ".runseal/lib/std/env.ts",
@@ -189,15 +201,17 @@ fn accept_with_timeout(server: &TcpListener) -> std::net::TcpStream {
     loop {
         match server.accept() {
             Ok((stream, _)) => return stream,
-            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                if Instant::now() >= deadline {
-                    panic!("mock request did not arrive within 5 seconds");
-                }
-                thread::sleep(Duration::from_millis(10));
-            }
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => wait_request(deadline),
             Err(err) => panic!("mock accept failed: {err}"),
         }
     }
+}
+
+fn wait_request(deadline: Instant) {
+    if Instant::now() >= deadline {
+        panic!("mock request did not arrive within 5 seconds");
+    }
+    thread::sleep(Duration::from_millis(10));
 }
 
 fn run_guard(fx: &Fixture, args: &[&str], envs: &[(&str, &str)]) -> std::process::Output {

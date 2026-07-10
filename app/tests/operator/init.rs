@@ -27,9 +27,8 @@ fn fixture() -> Fixture {
         .expect("git init should run");
     write_required_files(&project);
     write_git_stub(&bin.join("git"));
-    write_stub(&bin.join("python3"));
     write_stub(&bin.join("cargo"));
-    write_stub(&bin.join("flavor"));
+    write_stub(&bin.join("negentropy"));
     write_stub(&bin.join("sh"));
     write_stub(&bin.join("bash"));
     write_stub(&bin.join("sed"));
@@ -45,16 +44,19 @@ fn write_required_files(project: &Path) {
     for path in [
         "Cargo.toml",
         "Cargo.lock",
-        "flavor.toml",
+        "negentropy.toml",
+        "vocabulary.toml",
+        "docs/vocabulary.md",
         "manage.sh",
-        "manage.ps1",
         "runseal.toml",
         ".runseal/deno.json",
         ".runseal/deno.lock",
+        ".runseal/negentropy.version",
         ".runseal/hooks/pre-commit",
         ".runseal/hooks/commit-msg",
         ".runseal/lib/cli.ts",
         ".runseal/lib/hash.ts",
+        ".runseal/lib/negentropy.ts",
         ".runseal/lib/std/cmd.ts",
         ".runseal/lib/std/env.ts",
         ".runseal/lib/std/fs.ts",
@@ -69,22 +71,20 @@ fn write_required_files(project: &Path) {
         ".runseal/wrappers/init.ts",
         ".runseal/wrappers/land.ts",
         ".runseal/wrappers/release.ts",
-        ".github/workflows/guard.yml",
-        ".github/workflows/release-beta.yml",
-        ".github/workflows/release-stable.yml",
-        ".github/scripts/release/assets/checksums.sh",
-        ".github/scripts/release/assets/package.sh",
-        ".github/scripts/release/assets/package.ps1",
-        ".github/scripts/release/assets/verify.sh",
-        ".github/scripts/release/github/cleanup-artifacts.sh",
-        ".github/scripts/release/metadata/beta.py",
-        ".github/scripts/release/metadata/stable.py",
-        ".github/scripts/release/r2/check.sh",
-        ".github/scripts/release/r2/publish.sh",
-        ".github/scripts/release/r2/summary.sh",
-        ".github/scripts/release/r2/verify.sh",
-        ".github/scripts/release/smoke/smoke.sh",
-        ".github/scripts/release/smoke/smoke.ps1",
+        ".forgejo/release.env.example",
+        ".forgejo/workflows/guard.yml",
+        ".forgejo/workflows/release-beta.yml",
+        ".forgejo/workflows/release-stable.yml",
+        ".forgejo/scripts/release/assets/checksums.sh",
+        ".forgejo/scripts/release/assets/package.sh",
+        ".forgejo/scripts/release/assets/verify.sh",
+        ".forgejo/scripts/release/metadata/beta.ts",
+        ".forgejo/scripts/release/metadata/stable.ts",
+        ".forgejo/scripts/release/r2/check.sh",
+        ".forgejo/scripts/release/r2/publish.sh",
+        ".forgejo/scripts/release/r2/summary.sh",
+        ".forgejo/scripts/release/r2/verify.sh",
+        ".forgejo/scripts/release/smoke/smoke.sh",
     ] {
         let file = project.join(path);
         std::fs::create_dir_all(file.parent().expect("file should have a parent"))
@@ -138,6 +138,18 @@ fn write_required_files(project: &Path) {
     )
     .expect("hash helper should be copied");
     std::fs::write(
+        project.join(".runseal/negentropy.version"),
+        std::fs::read_to_string(repo_root().join(".runseal/negentropy.version"))
+            .expect("repo negentropy version should be readable"),
+    )
+    .expect("negentropy version should be copied");
+    std::fs::write(
+        project.join(".runseal/lib/negentropy.ts"),
+        std::fs::read_to_string(repo_root().join(".runseal/lib/negentropy.ts"))
+            .expect("repo negentropy helper should be readable"),
+    )
+    .expect("negentropy helper should be copied");
+    std::fs::write(
         project.join(".runseal/lib/version.ts"),
         std::fs::read_to_string(repo_root().join(".runseal/lib/version.ts"))
             .expect("repo version helper should be readable"),
@@ -178,7 +190,7 @@ permissions = [
   "--allow-read=.",
   "--allow-write=.",
   "--allow-env",
-  "--allow-run=git,deno,python3,cargo,runseal,flavor,sh,bash,sed,grep",
+  "--allow-run=git,deno,cargo,runseal,negentropy,sh,bash,sed,grep",
 ]
 "#,
     )
@@ -190,7 +202,7 @@ fn write_git_stub(path: &Path) {
 
     std::fs::write(
         path,
-        r#"#!/usr/bin/env sh
+        r#"#!/bin/sh
 set -eu
 case "${1:-}" in
   --version)
@@ -231,8 +243,11 @@ fn write_stub(path: &Path) {
 
     std::fs::write(
         path,
-        r#"#!/usr/bin/env sh
+        r#"#!/bin/sh
 set -eu
+if [ "${1:-}" = "--version" ] && [ "${0##*/}" = "negentropy" ]; then
+  printf '%s\n' 'negentropy v0.1.0-beta.1'
+fi
 if [ "${1:-}" = "config" ] && [ "${2:-}" = "--get" ]; then
   if [ "${3:-}" = "core.hooksPath" ]; then
     printf '%s\n' ".runseal/hooks"
@@ -288,4 +303,35 @@ fn init_help_is_readonly() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Usage: runseal :init"));
+}
+
+#[test]
+fn pinned() {
+    let fx = fixture();
+
+    let output = run_init(&fx, &[]);
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn mismatch() {
+    let fx = fixture();
+    std::fs::write(
+        fx.bin.join("negentropy"),
+        "#!/bin/sh\nprintf '%s\\n' 'negentropy v0.1.0-beta.2'\n",
+    )
+    .expect("negentropy stub should be replaced");
+
+    let output = run_init(&fx, &[]);
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("negentropy: expected v0.1.0-beta.1, got negentropy v0.1.0-beta.2")
+    );
 }

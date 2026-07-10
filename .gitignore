@@ -3,7 +3,7 @@
 /.local/
 /scripts/.venv/
 __pycache__/
-/.github/release.env
+/.forgejo/release.env
 node_modules/
 docs/.vitepress/cache/
 docs/.vitepress/dist/

@@ -7,11 +7,13 @@ import {
 } from "@/lib/cli.ts";
 import { cmd } from "@/lib/std/cmd.ts";
 import { io } from "@/lib/std/io.ts";
+import { json } from "@/lib/std/json.ts";
 import { runseal } from "@/lib/std/runseal.ts";
 
 type Options = {
   base: string;
   body: string;
+  repo: string;
   dryRun: boolean;
   deleteBranch: boolean;
 };
@@ -19,63 +21,66 @@ type Options = {
 function usage(): void {
   io.print("Usage: runseal :land [options]");
   io.print("");
-  io.print("Land the current clean topic branch on GitHub.");
-  io.print("The branch is pushed, a PR is created or reused, checks are watched,");
+  io.print("Land the current clean topic branch on Forgejo.");
+  io.print("The branch is pushed, a PR is created or reused, guard is awaited,");
   io.print("the PR is squash-merged, main is synced, and the topic branch is deleted.");
   io.print("");
   io.print("Options:");
   io.print("  --base <branch>    base branch (default: main)");
   io.print("  --body <body>      pull request body override");
-  io.print("  --dry-run          print planned actions without changing git or GitHub");
+  io.print("  --repo <owner/name> Forgejo repository (default: derived from origin)");
+  io.print("  --dry-run          print planned actions without changing git or Forgejo");
   io.print("  --no-delete        keep the topic branch after merge");
 }
 
-function parseArgs(args: string[]): Options & { help: boolean } {
+function parse(args: string[]): Options & { help: boolean } {
   const parsed = parseCliArgs(args, {
-    string: ["base", "body"],
+    string: ["base", "body", "repo"],
     boolean: ["dry-run", "no-delete", "help", "h"],
   });
   requireNoPositionals(parsed, "land", { allowHelp: true });
   return {
     base: stringOption(parsed, "base", "main"),
     body: stringOption(parsed, "body"),
+    repo: stringOption(parsed, "repo"),
     dryRun: booleanOption(parsed, "dry-run"),
     deleteBranch: !booleanOption(parsed, "no-delete"),
     help: helpRequested(parsed),
   };
 }
 
-const options = parseArgs([...Deno.args]);
+const options = parse([...Deno.args]);
 if (options.help) {
   usage();
   Deno.exit(0);
 }
 
 await cmd.run("git", ["--version"], { stdout: "null" });
-await cmd.run("gh", ["--version"], { stdout: "null" });
 
-const branch = await currentBranch();
+const branch = await current();
+const repo = options.repo === "" ? await target() : options.repo;
 if (options.dryRun) {
-  await ensureLandable(options.base, branch, { fetch: false });
-  printPlan(options, branch);
+  await landable(options.base, branch, { fetch: false });
+  plan(options, repo, branch);
   Deno.exit(0);
 }
 
-await cmd.run("gh", ["auth", "status"], { stdout: "piped" });
-await ensureLandable(options.base, branch, { fetch: true });
+await landable(options.base, branch, { fetch: true });
 await cmd.run("git", ["push", "-u", "origin", branch]);
 
-const prUrl = await findOrCreatePr(options, branch);
-io.print(prUrl);
-await watchChecks(prUrl);
-await mergePr(prUrl, options.deleteBranch);
+const pr = await pull(options, repo, branch);
+const number = json.get(pr, ".number");
+const url = json.get(pr, ".html_url");
+io.print(url);
+const sha = await guarded(repo, number);
+await merge(repo, number, sha, options.deleteBranch);
 await cmd.run("git", ["checkout", options.base]);
 await cmd.run("git", ["pull", "--ff-only", "origin", options.base]);
-if (options.deleteBranch && await gitOk(["rev-parse", "--verify", `refs/heads/${branch}`])) {
+if (options.deleteBranch && await ok(["rev-parse", "--verify", `refs/heads/${branch}`])) {
   await cmd.run("git", ["branch", "-D", branch]);
 }
 
-async function currentBranch(): Promise<string> {
+async function current(): Promise<string> {
   const branch = await cmd.text("git", ["branch", "--show-current"]);
   if (branch === "") {
     io.fail("land: detached HEAD is not a landable topic branch");
@@ -83,7 +88,7 @@ async function currentBranch(): Promise<string> {
   return branch;
 }
 
-async function ensureLandable(
+async function landable(
   base: string,
   branch: string,
   options: { fetch: boolean },
@@ -98,20 +103,20 @@ async function ensureLandable(
   if (options.fetch) {
     await cmd.run("git", ["fetch", "origin", base]);
   }
-  const remoteBase = `origin/${base}`;
-  if (!await gitOk(["rev-parse", "--verify", remoteBase])) {
-    io.fail(`land: missing ${remoteBase}; fetch or check the base branch name`);
+  const remote = `origin/${base}`;
+  if (!await ok(["rev-parse", "--verify", remote])) {
+    io.fail(`land: missing ${remote}; fetch or check the base branch name`);
   }
-  if (!await gitOk(["merge-base", "--is-ancestor", remoteBase, "HEAD"])) {
-    io.fail(`land: current branch must contain latest ${remoteBase}; rebase onto ${base} first`);
+  if (!await ok(["merge-base", "--is-ancestor", remote, "HEAD"])) {
+    io.fail(`land: current branch must contain latest ${remote}; rebase onto ${base} first`);
   }
-  const ahead = Number(await cmd.text("git", ["rev-list", "--count", `${remoteBase}..HEAD`]));
+  const ahead = Number(await cmd.text("git", ["rev-list", "--count", `${remote}..HEAD`]));
   if (!Number.isFinite(ahead) || ahead <= 0) {
-    io.fail(`land: current branch has no commits ahead of ${remoteBase}`);
+    io.fail(`land: current branch has no commits ahead of ${remote}`);
   }
 }
 
-async function gitOk(args: string[]): Promise<boolean> {
+async function ok(args: string[]): Promise<boolean> {
   return await cmd.status("git", args, {
     stdin: "null",
     stdout: "null",
@@ -119,35 +124,44 @@ async function gitOk(args: string[]): Promise<boolean> {
   }) === 0;
 }
 
-async function findOrCreatePr(options: Options, branch: string): Promise<string> {
-  const existing = await cmd.text("gh", [
+async function pull(options: Options, repo: string, branch: string): Promise<string> {
+  const existing = await runseal.text([
+    "@tool",
+    "forgejo",
     "pr",
-    "list",
+    "find",
+    "--repo",
+    repo,
     "--head",
     branch,
     "--base",
     options.base,
-    "--state",
-    "open",
-    "--json",
-    "url",
-    "--jq",
-    '.[0].url // ""',
   ]);
-  if (existing !== "") {
+  if (!json.empty(existing)) {
     return existing;
   }
 
-  const args = ["pr", "create", "--base", options.base, "--head", branch];
-  if (options.body === "") {
-    args.push("--fill");
-  } else {
-    args.push("--title", await deriveTitle(options.base), "--body", options.body);
+  const args = [
+    "@tool",
+    "forgejo",
+    "pr",
+    "create",
+    "--repo",
+    repo,
+    "--base",
+    options.base,
+    "--head",
+    branch,
+    "--title",
+    await title(options.base),
+  ];
+  if (options.body !== "") {
+    args.push("--body", options.body);
   }
-  return await cmd.text("gh", args);
+  return await runseal.text(args);
 }
 
-async function deriveTitle(base: string): Promise<string> {
+async function title(base: string): Promise<string> {
   const subjects = await cmd.text("git", [
     "log",
     "--reverse",
@@ -158,52 +172,57 @@ async function deriveTitle(base: string): Promise<string> {
   return first ?? "land branch";
 }
 
-async function watchChecks(prUrl: string): Promise<void> {
-  let checksSeen = false;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    checksSeen = (await runseal.text(["@tool", "github", "pr", "checks", "probe", prUrl])) ===
-      "true";
-    if (checksSeen) {
-      break;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-  if (!checksSeen) {
-    io.print(`no checks reported on ${prUrl}; skipping watch`);
-    return;
-  }
-  let lastCode = 0;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    lastCode = await cmd.status("gh", ["pr", "checks", prUrl, "--watch", "--interval", "10"]);
-    if (lastCode === 0) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-  if (lastCode !== 0) {
-    io.print(`checks watch exited with ${lastCode}; continuing to merge`);
-  }
+async function guarded(repo: string, number: string): Promise<string> {
+  const run = await runseal.text([
+    "@tool",
+    "forgejo",
+    "pr",
+    "guard",
+    "--repo",
+    repo,
+    "--number",
+    number,
+  ]);
+  return json.get(run, ".commit_sha");
 }
 
-async function mergePr(prUrl: string, deleteBranch: boolean): Promise<void> {
-  const args = ["pr", "merge", prUrl, "--squash"];
-  if (deleteBranch) {
-    args.push("--delete-branch");
-  }
-  await cmd.run("gh", args);
+async function merge(repo: string, number: string, sha: string, remove: boolean): Promise<void> {
+  await runseal.run([
+    "@tool",
+    "forgejo",
+    "pr",
+    "merge",
+    "--repo",
+    repo,
+    "--number",
+    number,
+    "--head",
+    sha,
+    "--delete-branch",
+    String(remove),
+  ]);
 }
 
-function printPlan(options: Options, branch: string): void {
-  const createTail = options.body === "" ? "--fill" : "--title <commit> --body <given>";
+async function target(): Promise<string> {
+  const origin = (await cmd.text("git", ["remote", "get-url", "origin"])).replace(/\.git$/, "");
+  const found = origin.match(/[:/]([^/:]+)\/([^/]+)$/);
+  if (found === null) {
+    return io.fail(`land: cannot derive Forgejo owner/name from origin: ${origin}`);
+  }
+  return `${found[1]}/${found[2]}`;
+}
+
+function plan(options: Options, repo: string, branch: string): void {
+  const creation = options.body === "" ? "--title <commit>" : "--title <commit> --body <given>";
   const steps = [
     "[dry-run] would run:",
     `  git fetch origin ${options.base}`,
     `  verify ${branch} is clean, not ${options.base}, contains origin/${options.base}, ahead >= 1`,
     `  git push -u origin ${branch}`,
-    `  gh pr list --head ${branch} --base ${options.base} --state open --json url --jq ...`,
-    `  gh pr create --base ${options.base} --head ${branch} ${createTail}  # if missing`,
-    "  gh pr checks <url> --watch --interval 10  # if checks exist",
-    `  gh pr merge <url> --squash${options.deleteBranch ? " --delete-branch" : ""}`,
+    `  runseal @tool forgejo pr find --repo ${repo} --head ${branch} --base ${options.base}`,
+    `  runseal @tool forgejo pr create --repo ${repo} --base ${options.base} --head ${branch} ${creation}  # if missing`,
+    `  runseal @tool forgejo pr guard --repo ${repo} --number <n>`,
+    `  runseal @tool forgejo pr merge --repo ${repo} --number <n> --head <guarded-sha> --delete-branch ${options.deleteBranch}`,
     `  git checkout ${options.base}`,
     `  git pull --ff-only origin ${options.base}`,
   ];

@@ -37,7 +37,6 @@ type ManageRules = {
   requestHost: string;
   redirectHost: string;
   ruleSh: string;
-  rulePs1: string;
 };
 
 async function loadManageRedirectRules(): Promise<ManageRules> {
@@ -60,9 +59,6 @@ async function loadManageRedirectRules(): Promise<ManageRules> {
   const targetSh = prefix === ""
     ? `https://${redirectHost}/manage.sh`
     : `https://${redirectHost}/${prefix}/manage.sh`;
-  const targetPs1 = prefix === ""
-    ? `https://${redirectHost}/manage.ps1`
-    : `https://${redirectHost}/${prefix}/manage.ps1`;
   const ruleSh = await runseal.text([
     "@tool",
     "cloudflare",
@@ -79,28 +75,11 @@ async function loadManageRedirectRules(): Promise<ManageRules> {
     "--target-url",
     targetSh,
   ]);
-  const rulePs1 = await runseal.text([
-    "@tool",
-    "cloudflare",
-    "redirect-rule",
-    "exact",
-    "--ref",
-    "runseal_manage_ps1_redirect",
-    "--description",
-    "Redirect runseal manage.ps1 to releases bucket asset",
-    "--host",
-    requestHost,
-    "--path",
-    "/manage.ps1",
-    "--target-url",
-    targetPs1,
-  ]);
-  return { zoneName, requestHost, redirectHost, ruleSh, rulePs1 };
+  return { zoneName, requestHost, redirectHost, ruleSh };
 }
 
 async function printManageRedirectPlan(rules: ManageRules, zoneId?: string): Promise<void> {
   const prettySh = json.pretty(rules.ruleSh);
-  const prettyPs1 = json.pretty(rules.rulePs1);
   io.print("manage redirect plan");
   io.print(`zone: ${rules.zoneName}`);
   if (zoneId !== undefined) {
@@ -111,7 +90,6 @@ async function printManageRedirectPlan(rules: ManageRules, zoneId?: string): Pro
   io.print("phase: http_request_dynamic_redirect");
   io.print("rules:");
   io.print(prettySh);
-  io.print(prettyPs1);
 }
 
 async function initCommand(rest: string[]): Promise<void> {
@@ -232,10 +210,7 @@ async function manageInspectCommand(rest: string[]): Promise<void> {
   ]);
   const rulesetName = json.get(fullRuleset, ".name");
   const rules = json.get(fullRuleset, ".rules");
-  const matched = json.filter(rules, "ref", [
-    "runseal_manage_sh_redirect",
-    "runseal_manage_ps1_redirect",
-  ]);
+  const matched = json.filter(rules, "ref", ["runseal_manage_sh_redirect"]);
   const matchedCount = json.len(matched);
   io.print(`zone id: ${zoneId}`);
   io.print(`ruleset id: ${rulesetId}`);
@@ -365,16 +340,8 @@ async function manageEnsureRedirectCommand(rest: string[]): Promise<void> {
     "runseal_manage_sh_redirect",
     rules.ruleSh,
   );
-  const changedPs1 = await upsertRedirectRule(
-    zoneId,
-    rulesetId,
-    json.find(existingRules, "ref", "runseal_manage_ps1_redirect"),
-    "runseal_manage_ps1_redirect",
-    rules.rulePs1,
-  );
   io.print("manage ensure redirect: ok");
   io.print(`  - ${changedSh}`);
-  io.print(`  - ${changedPs1}`);
 }
 
 async function apiCommand(rest: string[]): Promise<void> {

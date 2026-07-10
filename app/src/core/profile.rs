@@ -242,27 +242,40 @@ fn normalize_env_resource_values(
     profile: &mut Profile,
 ) -> Result<()> {
     for injection in &mut profile.injections {
-        let InjectionProfile::Env(spec) = injection else {
-            continue;
-        };
-
-        for value in spec.vars.values_mut() {
-            normalize_env_value(profile_path, resources, value)?;
-        }
-
-        for op in &mut spec.ops {
-            match op {
-                EnvOpProfile::Set { value, .. }
-                | EnvOpProfile::SetIfAbsent { value, .. }
-                | EnvOpProfile::Prepend { value, .. }
-                | EnvOpProfile::Append { value, .. } => {
-                    normalize_env_value(profile_path, resources, value)?;
-                }
-                EnvOpProfile::Unset { .. } => {}
-            }
-        }
+        normalize_injection(profile_path, resources, injection)?;
     }
     Ok(())
+}
+
+fn normalize_injection(
+    profile_path: &Path,
+    resources: Option<&ResourcesProfile>,
+    injection: &mut InjectionProfile,
+) -> Result<()> {
+    let InjectionProfile::Env(spec) = injection else {
+        return Ok(());
+    };
+    for value in spec.vars.values_mut() {
+        normalize_env_value(profile_path, resources, value)?;
+    }
+    for op in &mut spec.ops {
+        normalize_op(profile_path, resources, op)?;
+    }
+    Ok(())
+}
+
+fn normalize_op(
+    profile_path: &Path,
+    resources: Option<&ResourcesProfile>,
+    op: &mut EnvOpProfile,
+) -> Result<()> {
+    match op {
+        EnvOpProfile::Set { value, .. }
+        | EnvOpProfile::SetIfAbsent { value, .. }
+        | EnvOpProfile::Prepend { value, .. }
+        | EnvOpProfile::Append { value, .. } => normalize_env_value(profile_path, resources, value),
+        EnvOpProfile::Unset { .. } => Ok(()),
+    }
 }
 
 fn normalize_env_value(

@@ -1,3 +1,6 @@
+#[path = "internal_tool/forgejo.rs"]
+#[cfg(unix)]
+mod forgejo;
 #[path = "internal_tool/github.rs"]
 #[cfg(unix)]
 mod github;
@@ -54,6 +57,14 @@ fn tool_help_is_progressive() {
         (
             vec!["@tool", "github", "pr", "checks", "probe", "--help"],
             "on API probe failure",
+        ),
+        (
+            vec!["@tool", "forgejo", "pr", "guard", "--help"],
+            "fail closed",
+        ),
+        (
+            vec!["@tool", "forgejo", "secret", "upsert", "--help"],
+            "not exposed in process arguments",
         ),
     ] {
         let output = bin()

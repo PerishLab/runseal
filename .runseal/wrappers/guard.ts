@@ -4,6 +4,7 @@ import { env } from "@/lib/std/env.ts";
 import { io } from "@/lib/std/io.ts";
 import { json } from "@/lib/std/json.ts";
 import { treeHash } from "@/lib/hash.ts";
+import { negentropy } from "@/lib/negentropy.ts";
 import { compareStableVersion, parseStableVersion } from "@/lib/version.ts";
 
 function usage(): void {
@@ -160,54 +161,27 @@ await cmd.run("deno", [
   ".runseal/wrappers/init.ts",
   ".runseal/wrappers/land.ts",
   ".runseal/wrappers/release.ts",
+  ".forgejo/scripts/release/metadata/beta.ts",
+  ".forgejo/scripts/release/metadata/stable.ts",
 ]);
 
-io.print("==> flavor self-check");
-await cmd.run("flavor", ["check", "--root", ".", "--config", "flavor.toml"]);
+io.print("==> negentropy");
+await negentropy.verify();
+await cmd.run("negentropy", ["--strict", "."]);
 
 io.print("==> shell syntax");
 for (
   const [command, script] of [
     ["sh", "manage.sh"],
-    ["sh", ".github/scripts/release/assets/checksums.sh"],
-    ["sh", ".github/scripts/release/assets/package.sh"],
-    ["sh", ".github/scripts/release/assets/verify.sh"],
-    ["sh", ".github/scripts/release/github/cleanup-artifacts.sh"],
-    ["bash", ".github/scripts/release/r2/check.sh"],
-    ["bash", ".github/scripts/release/r2/publish.sh"],
-    ["bash", ".github/scripts/release/r2/summary.sh"],
-    ["bash", ".github/scripts/release/r2/verify.sh"],
-    ["sh", ".github/scripts/release/smoke/smoke.sh"],
+    ["sh", ".forgejo/scripts/release/assets/checksums.sh"],
+    ["sh", ".forgejo/scripts/release/assets/package.sh"],
+    ["sh", ".forgejo/scripts/release/assets/verify.sh"],
+    ["bash", ".forgejo/scripts/release/r2/check.sh"],
+    ["bash", ".forgejo/scripts/release/r2/publish.sh"],
+    ["bash", ".forgejo/scripts/release/r2/summary.sh"],
+    ["bash", ".forgejo/scripts/release/r2/verify.sh"],
+    ["sh", ".forgejo/scripts/release/smoke/smoke.sh"],
   ]
 ) {
   await cmd.run(command, ["-n", script]);
-}
-
-io.print("==> python syntax");
-await cmd.run("python3", ["-m", "py_compile", ".github/scripts/release/metadata/beta.py"]);
-await cmd.run("python3", ["-m", "py_compile", ".github/scripts/release/metadata/stable.py"]);
-
-const hasPwsh = await cmd.exists("pwsh");
-io.print("==> PowerShell syntax");
-if (hasPwsh) {
-  await cmd.run("pwsh", [
-    "-NoProfile",
-    "-NonInteractive",
-    "-Command",
-    "[scriptblock]::Create((Get-Content -Raw 'manage.ps1')) | Out-Null",
-  ]);
-  await cmd.run("pwsh", [
-    "-NoProfile",
-    "-NonInteractive",
-    "-Command",
-    "[scriptblock]::Create((Get-Content -Raw '.github/scripts/release/assets/package.ps1')) | Out-Null",
-  ]);
-  await cmd.run("pwsh", [
-    "-NoProfile",
-    "-NonInteractive",
-    "-Command",
-    "[scriptblock]::Create((Get-Content -Raw '.github/scripts/release/smoke/smoke.ps1')) | Out-Null",
-  ]);
-} else {
-  io.print("skip: pwsh not found");
 }

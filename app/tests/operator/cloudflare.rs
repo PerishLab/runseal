@@ -215,15 +215,17 @@ fn accept_with_timeout(server: &TcpListener) -> std::net::TcpStream {
     loop {
         match server.accept() {
             Ok((stream, _)) => return stream,
-            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                if Instant::now() >= deadline {
-                    panic!("mock request did not arrive within 5 seconds");
-                }
-                thread::sleep(Duration::from_millis(10));
-            }
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => wait_request(deadline),
             Err(err) => panic!("mock accept failed: {err}"),
         }
     }
+}
+
+fn wait_request(deadline: Instant) {
+    if Instant::now() >= deadline {
+        panic!("mock request did not arrive within 5 seconds");
+    }
+    thread::sleep(Duration::from_millis(10));
 }
 
 fn stdout(output: &std::process::Output) -> String {
@@ -260,7 +262,7 @@ fn manage_plan_uses_tool() {
     assert!(stdout.contains("manage redirect plan"));
     assert!(stdout.contains("runseal_manage_sh_redirect"));
     assert!(stdout.contains("https://releases.runseal.perish.uk/manage.sh"));
-    assert!(stdout.contains("runseal_manage_ps1_redirect"));
+    assert!(!stdout.contains("manage.ps1"));
 }
 
 #[test]

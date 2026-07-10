@@ -1,8 +1,11 @@
 pub mod app;
 pub mod config;
 pub(crate) mod env_key;
+#[path = "../injections/mod.rs"]
 pub mod injections;
 pub mod internal_help;
 pub mod profile;
+#[path = "../runtime.rs"]
 pub mod runtime;
+#[path = "../tool/mod.rs"]
 pub mod tool;

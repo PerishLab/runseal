@@ -8,16 +8,18 @@ import {
 import { cmd } from "@/lib/std/cmd.ts";
 import { io } from "@/lib/std/io.ts";
 import { json } from "@/lib/std/json.ts";
+import { runseal } from "@/lib/std/runseal.ts";
 
 type Options = {
   channel: string;
+  repo: string;
   ref: string;
   version: string;
   watch: boolean;
   dryRun: boolean;
 };
 
-function workflowForChannel(channel: string): string {
+function workflow(channel: string): string {
   switch (channel) {
     case "stable":
       return "release-stable.yml";
@@ -31,25 +33,27 @@ function workflowForChannel(channel: string): string {
 function usage(): void {
   io.print("Usage: runseal :release --channel=stable|beta [options]");
   io.print("");
-  io.print("Trigger one GitHub release workflow for the selected channel.");
+  io.print("Trigger one Forgejo release workflow for the selected channel.");
   io.print("Use --ref for branch beta runs; the default ref is main.");
   io.print("");
   io.print("Options:");
   io.print("  --channel <name>      release channel: stable or beta");
+  io.print("  --repo <owner/name>   Forgejo repository (default: derived from origin)");
   io.print("  --ref <ref>           git ref passed to the workflow (default: main)");
   io.print("  --version <version>   optional release version override, e.g. v0.9.0-beta.2");
   io.print("  --watch              watch the triggered workflow run");
   io.print("  --dry-run            print planned action without triggering a workflow");
 }
 
-function parseArgs(args: string[]): Options & { help: boolean; argc: number } {
+function parse(args: string[]): Options & { help: boolean; argc: number } {
   const parsed = parseCliArgs(args, {
-    string: ["channel", "ref", "version"],
+    string: ["channel", "repo", "ref", "version"],
     boolean: ["watch", "dry-run", "help", "h"],
   });
   requireNoPositionals(parsed, "release", { allowHelp: true });
   return {
     channel: stringOption(parsed, "channel"),
+    repo: stringOption(parsed, "repo"),
     ref: stringOption(parsed, "ref", "main"),
     version: stringOption(parsed, "version"),
     watch: booleanOption(parsed, "watch"),
@@ -59,7 +63,7 @@ function parseArgs(args: string[]): Options & { help: boolean; argc: number } {
   };
 }
 
-const options = parseArgs([...Deno.args]);
+const options = parse([...Deno.args]);
 if (options.argc === 0 || options.help) {
   usage();
   Deno.exit(0);
@@ -68,64 +72,53 @@ if (options.channel === "") {
   io.fail("release: --channel is required");
 }
 
-const workflow = workflowForChannel(options.channel);
+const file = workflow(options.channel);
+const repo = options.repo === "" ? await target() : options.repo;
 
-const dryRunCommand =
-  `gh workflow run ${workflow} --ref ${options.ref} -f ref=${options.ref} -f version_override=${options.version}`;
+const dry =
+  `runseal @tool forgejo workflow dispatch --repo ${repo} --workflow ${file} --ref ${options.ref} --input version_override=${options.version}`;
 if (options.dryRun) {
-  io.print(dryRunCommand);
+  io.print(dry);
   Deno.exit(0);
 }
 
-await cmd.run("gh", ["--version"]);
-await cmd.run("gh", ["auth", "status"]);
-const refSha = await cmd.text("git", ["rev-parse", options.ref]);
-const triggerOutput = await cmd.text("gh", [
+const raw = await runseal.text([
+  "@tool",
+  "forgejo",
   "workflow",
-  "run",
-  workflow,
+  "dispatch",
+  "--repo",
+  repo,
+  "--workflow",
+  file,
   "--ref",
   options.ref,
-  "-f",
-  `ref=${options.ref}`,
-  "-f",
+  "--input",
   `version_override=${options.version}`,
 ]);
-if (triggerOutput !== "") {
-  io.print(triggerOutput);
-}
-io.print(`triggered ${workflow} for ref ${options.ref}`);
+const id = json.get(raw, ".id");
+io.print(`triggered ${file} run ${id} for ref ${options.ref}`);
 
 if (options.watch) {
-  let runId = triggerOutput.match(/\/actions\/runs\/([0-9]+)/)?.[1] ?? "";
-  if (runId === "") {
-    let raw = "[]";
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      raw = await cmd.text("gh", [
-        "run",
-        "list",
-        "--workflow",
-        workflow,
-        "--branch",
-        options.ref,
-        "--commit",
-        refSha,
-        "--event",
-        "workflow_dispatch",
-        "--limit",
-        "1",
-        "--json",
-        "databaseId",
-      ]);
-      if (!json.empty(raw)) {
-        runId = json.get(raw, ".[0].databaseId");
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
+  await runseal.run([
+    "@tool",
+    "forgejo",
+    "run",
+    "watch",
+    "--repo",
+    repo,
+    "--id",
+    id,
+    "--interval",
+    "10",
+  ]);
+}
+
+async function target(): Promise<string> {
+  const origin = (await cmd.text("git", ["remote", "get-url", "origin"])).replace(/\.git$/, "");
+  const found = origin.match(/[:/]([^/:]+)\/([^/]+)$/);
+  if (found === null) {
+    return io.fail(`release: cannot derive Forgejo owner/name from origin: ${origin}`);
   }
-  if (runId === "") {
-    io.fail(`release: could not find a recent run for ${workflow} on ${options.ref}`);
-  }
-  await cmd.run("gh", ["run", "watch", runId, "--interval", "10"]);
+  return `${found[1]}/${found[2]}`;
 }

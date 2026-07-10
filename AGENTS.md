@@ -52,8 +52,8 @@ Runtime path rules:
 
 Tooling rules:
 
-- Treat `runseal` and `flavor` as installed developer infrastructure, at the
-  same level as `git`, `gh`, and `cargo`; this repository does not bootstrap
+- Treat `runseal` and `negentropy` as installed developer infrastructure, at the
+  same level as `git` and `cargo`; this repository does not bootstrap
   them.
 
 ## 2. Directory Conventions
@@ -67,7 +67,7 @@ Direct child directories that are likely future candidates for a child
 
 - `app/`: Rust application code, tests, and core runtime behavior.
 - `.runseal/`: repo-local wrappers and operator-facing workflow glue.
-- `.github/`: CI, release automation, and workflow support scripts.
+- `.forgejo/`: CI, release automation, and workflow support scripts.
 - `docs/`: durable operator or contributor documentation, if this area starts
   carrying rules distinct from code.
 
@@ -83,13 +83,13 @@ the repository-owned canonical files directly.
 - `app/src/core/config.rs`: app configuration and profile discovery.
 - `app/src/core/profile.rs`: profile format loading and normalization.
 - `app/src/core/runtime.rs`: command execution lifecycle.
-- `app/src/core/injections/`: `env` and `symlink` implementations.
-- `app/src/core/tool/`: built-in atomic `@tool` surface.
+- `app/src/injections/`: `env` and `symlink` implementations.
+- `app/src/tool/`: built-in atomic `@tool` surface.
 - `app/tests/`: integration tests and focused behavioral coverage.
 - `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. Prefer `.ts`
   wrappers for structured operations and `.sh` only for thin Unix bootstrap.
 - `runseal.toml`: repo-local operator profile.
-- `manage.sh` and `manage.ps1`: public install and uninstall managers.
+- `manage.sh`: public install and uninstall manager.
 
 Once child `AGENTS.md` files exist, this section should prefer links to those
 local guides over repeating their detail here.
@@ -142,12 +142,10 @@ Release and distribution rules:
 
 - Release and manager downloads use R2 metadata and artifacts as the source of
   truth.
-- Public install and uninstall entrypoints are `manage.sh` and `manage.ps1`.
-- Release and smoke flows should reference those root files.
-- Cloudflare manager redirects are exact-path rules for
-  `runseal.perish.uk/manage.sh` and `runseal.perish.uk/manage.ps1`, pointing to
-  `releases.runseal.perish.uk/manage.sh` and
-  `releases.runseal.perish.uk/manage.ps1`.
+- The public install and uninstall entrypoint is `manage.sh`.
+- Release and smoke flows should reference that root file.
+- Cloudflare manager redirects use the exact path `runseal.perish.uk/manage.sh`,
+  pointing to `releases.runseal.perish.uk/manage.sh`.
 
 Profile discovery order:
 

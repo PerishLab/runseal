@@ -141,7 +141,7 @@ fn help_explains_model() {
     assert!(stdout.contains("@profile"));
     assert!(stdout.contains("@resolve"));
     assert!(stdout.contains("current directory upward"));
-    assert!(stdout.contains("https://github.com/PerishCode/runseal"));
+    assert!(stdout.contains("https://git.perish.top/PerishFire/runseal"));
 }
 
 #[test]

@@ -13,13 +13,15 @@ export function parseArgs(args: string[], options: CliParseOptions = {}): Args {
   return parseStdArgs(args, {
     "--": true,
     ...parseOptions,
-    unknown: (arg) => {
-      if (arg.startsWith("-")) {
-        io.fail(unknownOptionMessage?.(arg) ?? `unknown option: ${arg}`);
-      }
-      return true;
-    },
+    unknown: (arg) => unknown(arg, unknownOptionMessage),
   });
+}
+
+function unknown(arg: string, message?: (arg: string) => string): boolean {
+  if (arg.startsWith("-")) {
+    io.fail(message?.(arg) ?? `unknown option: ${arg}`);
+  }
+  return true;
 }
 
 function requireStringValues(args: string[], names: string[]): void {

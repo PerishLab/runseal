@@ -238,6 +238,43 @@ fn deno_uses_profile_policy() {
 }
 
 #[test]
+fn deno_expands_permission_env() {
+    let fx = fixture();
+    let log = install_fake_deno(&fx);
+    let wrapper = ts_wrapper_file(&fx.project_wrappers, "tool");
+    make_ts_wrapper(&wrapper);
+    std::fs::write(
+        fx.project.join("runseal.toml"),
+        r#"
+injections = []
+
+[resources]
+root = ".resource"
+
+[deno]
+permissions = ["--allow-read=${RUNSEAL_TEST_READ}"]
+"#,
+    )
+    .expect("profile should be written");
+    let allowed = fx.home.join("tea.yml");
+
+    let output = bin()
+        .current_dir(&fx.project)
+        .env("RUNSEAL_HOME", &fx.home)
+        .env("RUNSEAL_TEST_READ", &allowed)
+        .env("RUNSEAL_TEST_DENO_LOG", &log)
+        .env("PATH", prepend_path(&fx.bin))
+        .args([":tool"])
+        .output()
+        .expect("runseal should run");
+
+    assert!(output.status.success());
+    let log = std::fs::read_to_string(log).expect("deno log should be readable");
+    assert!(log.contains(&format!("--allow-read={}", allowed.display())));
+    assert!(!log.contains("${RUNSEAL_TEST_READ}"));
+}
+
+#[test]
 fn deno_requires_profile_policy() {
     let fx = fixture();
     std::fs::write(

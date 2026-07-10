@@ -1,5 +1,10 @@
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
+type Picked = {
+  current: JsonValue;
+  input: string;
+};
+
 function parseInput(json: string | JsonValue): JsonValue {
   return typeof json === "string" ? JSON.parse(json) as JsonValue : json;
 }
@@ -115,46 +120,55 @@ function selectPath(value: JsonValue, path: string): JsonValue {
   let current = value;
   while (input !== "") {
     if (input.startsWith("[")) {
-      const end = input.indexOf("]");
-      if (end === -1) {
-        throw new Error(`unsupported json path: ${path}`);
-      }
-      const index = Number(input.slice(1, end));
-      if (!Number.isInteger(index) || index < 0) {
-        throw new Error(`invalid json path index: ${input.slice(1, end)}`);
-      }
-      if (!Array.isArray(current) || current[index] === undefined) {
-        throw new Error("json path missing");
-      }
-      current = current[index];
-      input = input.slice(end + 1);
-      if (input.startsWith(".")) {
-        input = input.slice(1);
-      }
+      const picked = index(current, input, path);
+      current = picked.current;
+      input = picked.input;
       continue;
     }
-    const dot = input.indexOf(".");
-    const bracket = input.indexOf("[");
-    const candidates = [dot, bracket].filter((index) => index >= 0);
-    const end = candidates.length === 0 ? input.length : Math.min(...candidates);
-    const field = input.slice(0, end);
-    if (!/^[A-Za-z0-9_-]+$/.test(field)) {
-      throw new Error(`unsupported json path field: ${field}`);
-    }
-    if (current === null || typeof current !== "object" || Array.isArray(current)) {
-      throw new Error("json path missing");
-    }
-    const selected = current[field];
-    if (selected === undefined) {
-      throw new Error("json path missing");
-    }
-    current = selected;
-    input = input.slice(end);
-    if (input.startsWith(".")) {
-      input = input.slice(1);
-    }
+    const picked = field(current, input);
+    current = picked.current;
+    input = picked.input;
   }
   return current;
+}
+
+function index(current: JsonValue, input: string, path: string): Picked {
+  const end = input.indexOf("]");
+  if (end === -1) {
+    throw new Error(`unsupported json path: ${path}`);
+  }
+  const slot = Number(input.slice(1, end));
+  if (!Number.isInteger(slot) || slot < 0) {
+    throw new Error(`invalid json path index: ${input.slice(1, end)}`);
+  }
+  if (!Array.isArray(current) || current[slot] === undefined) {
+    throw new Error("json path missing");
+  }
+  return { current: current[slot], input: rest(input, end + 1) };
+}
+
+function field(current: JsonValue, input: string): Picked {
+  const dot = input.indexOf(".");
+  const bracket = input.indexOf("[");
+  const choices = [dot, bracket].filter((at) => at >= 0);
+  const end = choices.length === 0 ? input.length : Math.min(...choices);
+  const key = input.slice(0, end);
+  if (!/^[A-Za-z0-9_-]+$/.test(key)) {
+    throw new Error(`unsupported json path field: ${key}`);
+  }
+  if (current === null || typeof current !== "object" || Array.isArray(current)) {
+    throw new Error("json path missing");
+  }
+  const selected = current[key];
+  if (selected === undefined) {
+    throw new Error("json path missing");
+  }
+  return { current: selected, input: rest(input, end) };
+}
+
+function rest(input: string, end: number): string {
+  const next = input.slice(end);
+  return next.startsWith(".") ? next.slice(1) : next;
 }
 
 export const json = {
