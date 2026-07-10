@@ -11,3 +11,5 @@ in `vocabulary.toml` and a matching meaning delta here.
 
 - Cloudflare flow, API, and test compounds moved into object, type, and module
   namespaces; no vocabulary entries were added.
+- GitHub command, support, and test compounds moved into type and module
+  namespaces; no vocabulary entries were added.
