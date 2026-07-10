@@ -6,7 +6,7 @@ fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
 }
 
-fn output_map(stdout: &str) -> BTreeMap<String, String> {
+fn map(stdout: &str) -> BTreeMap<String, String> {
     stdout
         .lines()
         .filter_map(|line| {
@@ -17,7 +17,7 @@ fn output_map(stdout: &str) -> BTreeMap<String, String> {
 }
 
 #[test]
-fn internal_help_without_profile() {
+fn help() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("empty");
     std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
@@ -46,7 +46,7 @@ fn internal_help_without_profile() {
 }
 
 #[test]
-fn missing_profile_hint() {
+fn missing() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("empty");
     std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
@@ -65,7 +65,7 @@ fn missing_profile_hint() {
 }
 
 #[test]
-fn profile_paths_are_absolute() {
+fn absolute() {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     std::fs::create_dir_all(&project).expect("project should be created");
@@ -84,7 +84,7 @@ fn profile_paths_are_absolute() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    let values = output_map(&stdout);
+    let values = map(&stdout);
     for key in [
         "RUNSEAL_HOME",
         "RUNSEAL_PROFILE_HOME",
@@ -94,10 +94,10 @@ fn profile_paths_are_absolute() {
         assert!(Path::new(value).is_absolute(), "{key} should be absolute");
     }
 
-    let wrapper_path = values
+    let wrapper = values
         .get("RUNSEAL_WRAPPER_PATH")
         .expect("profile output should include wrapper path");
-    for entry in std::env::split_paths(wrapper_path) {
+    for entry in std::env::split_paths(wrapper) {
         assert!(
             entry.is_absolute(),
             "wrapper path entry should be absolute: {}",

@@ -1,7 +1,7 @@
-#[path = "internal_tool/forgejo.rs"]
+#[path = "tools/forgejo.rs"]
 #[cfg(unix)]
 mod forgejo;
-#[path = "internal_tool/github.rs"]
+#[path = "tools/github.rs"]
 #[cfg(unix)]
 mod github;
 
@@ -14,7 +14,7 @@ fn bin() -> Command {
 }
 
 #[test]
-fn tool_help_is_progressive() {
+fn progressive() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("empty");
     std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
@@ -84,7 +84,7 @@ fn tool_help_is_progressive() {
 }
 
 #[test]
-fn richer_help() {
+fn rich() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("empty");
     std::fs::create_dir_all(&cwd).expect("empty cwd should be created");
@@ -135,7 +135,7 @@ fn richer_help() {
 }
 
 #[test]
-fn helper_namespaces_are_unknown() {
+fn hidden() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("empty");
     std::fs::create_dir_all(&cwd).expect("empty cwd should be created");

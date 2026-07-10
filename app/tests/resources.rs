@@ -6,40 +6,48 @@ fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
 }
 
-#[cfg(unix)]
-fn shell_args(script: &str) -> Vec<String> {
-    vec!["bash".into(), "--".into(), "-lc".into(), script.into()]
+struct Shell;
+
+impl Shell {
+    #[cfg(unix)]
+    fn args(script: &str) -> Vec<String> {
+        vec!["bash".into(), "--".into(), "-lc".into(), script.into()]
+    }
+
+    #[cfg(windows)]
+    fn args(script: &str) -> Vec<String> {
+        vec![
+            "pwsh".into(),
+            "--".into(),
+            "-NoProfile".into(),
+            "-Command".into(),
+            script.into(),
+        ]
+    }
 }
 
-#[cfg(windows)]
-fn shell_args(script: &str) -> Vec<String> {
-    vec![
-        "pwsh".into(),
-        "--".into(),
-        "-NoProfile".into(),
-        "-Command".into(),
-        script.into(),
-    ]
-}
+struct Script;
 
-#[cfg(unix)]
-fn print_env_script(key: &str) -> String {
-    format!("printf '%s' \"${key}\"")
-}
+impl Script {
+    #[cfg(unix)]
+    fn env(key: &str) -> String {
+        format!("printf '%s' \"${key}\"")
+    }
 
-#[cfg(windows)]
-fn print_env_script(key: &str) -> String {
-    format!("[Console]::Write($env:{key})")
-}
+    #[cfg(windows)]
+    fn env(key: &str) -> String {
+        format!("[Console]::Write($env:{key})")
+    }
 
-#[cfg(unix)]
-fn print_two_env_script(left: &str, right: &str) -> String {
-    format!("printf '%s|%s' \"${left}\" \"${right}\"")
-}
+    #[cfg(unix)]
+    fn pair(left: &str, right: &str) -> String {
+        format!("printf '%s|%s' \"${left}\" \"${right}\"")
+    }
 
-#[cfg(windows)]
-fn print_two_env_script(left: &str, right: &str) -> String {
-    format!("[Console]::Write(\"$env:{left}|$env:{right}\")")
+    #[cfg(windows)]
+    fn pair(left: &str, right: &str) -> String {
+        format!("[Console]::Write(\"$env:{left}|$env:{right}\")")
+    }
 }
 
 struct Fixture {
@@ -49,24 +57,25 @@ struct Fixture {
     home: std::path::PathBuf,
 }
 
-fn fixture(profile_text: &str) -> Fixture {
-    let temp = TempDir::new().expect("temp dir should be created");
-    let project = temp.path().join("project");
-    let profile = project.join("runseal.toml");
-    let home = temp.path().join("home");
-    std::fs::create_dir_all(&project).expect("project should be created");
-    std::fs::write(&profile, profile_text).expect("profile should be written");
-    Fixture {
-        _temp: temp,
-        project,
-        profile,
-        home,
+impl Fixture {
+    fn new(text: &str) -> Self {
+        let temp = TempDir::new().expect("temp dir should be created");
+        let project = temp.path().join("project");
+        let profile = project.join("runseal.toml");
+        let home = temp.path().join("home");
+        std::fs::create_dir_all(&project).expect("project should be created");
+        std::fs::write(&profile, text).expect("profile should be written");
+        Self {
+            _temp: temp,
+            project,
+            profile,
+            home,
+        }
     }
-}
 
-fn resource_profile() -> Fixture {
-    fixture(
-        r#"
+    fn resource() -> Self {
+        Self::new(
+            r#"
 [resources]
 root = ".resource"
 
@@ -83,73 +92,72 @@ op = "set"
 key = "RUNSEAL_RESOURCE_B"
 value = "resource://state/export.json"
 "#,
-    )
+        )
+    }
+
+    fn run(&self, args: &[&str]) -> std::process::Output {
+        bin()
+            .current_dir(&self.project)
+            .env("RUNSEAL_HOME", &self.home)
+            .args(args)
+            .output()
+            .expect("runseal should run")
+    }
+
+    fn profile(&self, args: Vec<String>) -> std::process::Output {
+        bin()
+            .env("RUNSEAL_HOME", &self.home)
+            .arg("--profile")
+            .arg(self.profile.to_str().expect("path should be UTF-8"))
+            .args(args)
+            .output()
+            .expect("runseal should run")
+    }
 }
 
-fn run_in(fx: &Fixture, args: &[&str]) -> std::process::Output {
-    bin()
-        .current_dir(&fx.project)
-        .env("RUNSEAL_HOME", &fx.home)
-        .args(args)
-        .output()
-        .expect("runseal should run")
-}
+struct Assert;
 
-fn run_profile(fx: &Fixture, args: Vec<String>) -> std::process::Output {
-    bin()
-        .env("RUNSEAL_HOME", &fx.home)
-        .arg("--profile")
-        .arg(fx.profile.to_str().expect("path should be UTF-8"))
-        .args(args)
-        .output()
-        .expect("runseal should run")
-}
+impl Assert {
+    fn root(value: &str) {
+        let path = Path::new(value);
+        assert!(path.is_absolute(), "expected {value} to be absolute");
+        assert!(
+            path.ends_with(Path::new(".resource")),
+            "unexpected resource root: {}",
+            path.display()
+        );
+    }
 
-fn assert_resource_root(value: &str) {
-    let path = Path::new(value);
-    assert!(path.is_absolute(), "expected {value} to be absolute");
-    assert!(
-        path.ends_with(Path::new(".resource")),
-        "unexpected resource root: {}",
-        path.display()
-    );
-}
-
-fn assert_fails(fx: &Fixture, args: &[&str], expected: &str) {
-    let output = run_in(fx, args);
-    assert!(!output.status.success(), "{args:?} should fail");
-    let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
-    assert!(
-        stderr.contains(expected),
-        "expected stderr for {args:?} to contain {expected:?}, got {stderr:?}"
-    );
+    fn fails(fx: &Fixture, args: &[&str], expected: &str) {
+        let output = fx.run(args);
+        assert!(!output.status.success(), "{args:?} should fail");
+        let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
+        assert!(
+            stderr.contains(expected),
+            "expected stderr for {args:?} to contain {expected:?}, got {stderr:?}"
+        );
+    }
 }
 
 #[test]
-fn env_values_resolve() {
-    let fx = resource_profile();
+fn env() {
+    let fx = Fixture::resource();
 
-    let output = run_profile(
-        &fx,
-        shell_args(&print_env_script("RUNSEAL_RESOURCE_ROOT_A")),
-    );
+    let output = fx.profile(Shell::args(&Script::env("RUNSEAL_RESOURCE_ROOT_A")));
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_resource_root(&stdout);
+    Assert::root(&stdout);
 
-    let output = run_profile(
-        &fx,
-        shell_args(&print_two_env_script(
-            "RUNSEAL_RESOURCE_ROOT_B",
-            "RUNSEAL_RESOURCE_A",
-        )),
-    );
+    let output = fx.profile(Shell::args(&Script::pair(
+        "RUNSEAL_RESOURCE_ROOT_B",
+        "RUNSEAL_RESOURCE_A",
+    )));
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     let (left, right) = stdout
         .split_once('|')
         .expect("stdout should include two env values");
-    assert_resource_root(left);
+    Assert::root(left);
     assert!(
         Path::new(right).ends_with(
             Path::new(".resource")
@@ -160,7 +168,7 @@ fn env_values_resolve() {
         "unexpected resource path: {right}"
     );
 
-    let output = run_profile(&fx, shell_args(&print_env_script("RUNSEAL_RESOURCE_B")));
+    let output = fx.profile(Shell::args(&Script::env("RUNSEAL_RESOURCE_B")));
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     assert!(
@@ -170,41 +178,38 @@ fn env_values_resolve() {
 }
 
 #[test]
-fn internal_prints_resources() {
-    let fx = resource_profile();
+fn internal() {
+    let fx = Fixture::resource();
 
-    let output = run_in(&fx, &["@profile"]);
+    let output = fx.run(&["@profile"]);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     let value = stdout
         .lines()
         .find_map(|line| line.strip_prefix("RUNSEAL_RESOURCE_ROOT="))
         .expect("@profile should include resource root");
-    assert_resource_root(value);
+    Assert::root(value);
 
-    let output = run_in(&fx, &["@resources"]);
+    let output = fx.run(&["@resources"]);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     let value = stdout
         .trim()
         .strip_prefix("RUNSEAL_RESOURCE_ROOT=")
         .expect("output should include resource root");
-    assert_resource_root(value);
+    Assert::root(value);
 
-    let output = run_in(&fx, &["@resolve", "resource://"]);
+    let output = fx.run(&["@resolve", "resource://"]);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
-    assert_resource_root(stdout.trim());
+    Assert::root(stdout.trim());
 
-    let output = run_in(
-        &fx,
-        &["@resolve", "resource://", "resource://local/ssh/config"],
-    );
+    let output = fx.run(&["@resolve", "resource://", "resource://local/ssh/config"]);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("stdout should be UTF-8");
     let lines = stdout.lines().collect::<Vec<_>>();
     assert_eq!(lines.len(), 2);
-    assert_resource_root(lines[0]);
+    Assert::root(lines[0]);
     assert!(
         Path::new(lines[1]).ends_with(
             Path::new(".resource")
@@ -217,8 +222,8 @@ fn internal_prints_resources() {
 }
 
 #[test]
-fn root_is_required() {
-    let fx = fixture(
+fn required() {
+    let fx = Fixture::new(
         r#"
 [[injections]]
 type = "env"
@@ -228,7 +233,7 @@ RUNSEAL_RESOURCE_A = "resource://local/ssh/config"
 "#,
     );
 
-    let output = run_profile(&fx, shell_args(&print_env_script("RUNSEAL_RESOURCE_A")));
+    let output = fx.profile(Shell::args(&Script::env("RUNSEAL_RESOURCE_A")));
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("stderr should be UTF-8");
     assert!(stderr.contains("resource root is not configured"));
@@ -236,8 +241,8 @@ RUNSEAL_RESOURCE_A = "resource://local/ssh/config"
 }
 
 #[test]
-fn invalid_uri_fails() {
-    let fx = resource_profile();
+fn invalid() {
+    let fx = Fixture::resource();
     for (args, expected) in [
         (
             vec!["@resolve", "local/ssh/config"],
@@ -260,6 +265,6 @@ fn invalid_uri_fails() {
             "resource URI path segment must not contain ':'",
         ),
     ] {
-        assert_fails(&fx, &args, expected);
+        Assert::fails(&fx, &args, expected);
     }
 }

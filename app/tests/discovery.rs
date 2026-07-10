@@ -9,50 +9,62 @@ fn bin() -> Command {
     command
 }
 
-#[cfg(unix)]
-fn shell_args(script: &str) -> Vec<String> {
-    vec!["bash".into(), "--".into(), "-lc".into(), script.into()]
+struct Shell;
+
+impl Shell {
+    #[cfg(unix)]
+    fn args(script: &str) -> Vec<String> {
+        vec!["bash".into(), "--".into(), "-lc".into(), script.into()]
+    }
+
+    #[cfg(windows)]
+    fn args(script: &str) -> Vec<String> {
+        vec![
+            "pwsh".into(),
+            "--".into(),
+            "-NoProfile".into(),
+            "-Command".into(),
+            script.into(),
+        ]
+    }
 }
 
-#[cfg(windows)]
-fn shell_args(script: &str) -> Vec<String> {
-    vec![
-        "pwsh".into(),
-        "--".into(),
-        "-NoProfile".into(),
-        "-Command".into(),
-        script.into(),
-    ]
+struct Script;
+
+impl Script {
+    #[cfg(unix)]
+    fn env(key: &str) -> String {
+        format!("printf '%s' \"${key}\"")
+    }
+
+    #[cfg(windows)]
+    fn env(key: &str) -> String {
+        format!("[Console]::Write($env:{key})")
+    }
 }
 
-#[cfg(unix)]
-fn print_env_script(key: &str) -> String {
-    format!("printf '%s' \"${key}\"")
-}
+struct Profile;
 
-#[cfg(windows)]
-fn print_env_script(key: &str) -> String {
-    format!("[Console]::Write($env:{key})")
-}
+impl Profile {
+    fn text(value: &str) -> String {
+        format!("[[injections]]\ntype = \"env\"\n[injections.vars]\nPICKED = \"{value}\"\n")
+    }
 
-fn env_profile(value: &str) -> String {
-    format!("[[injections]]\ntype = \"env\"\n[injections.vars]\nPICKED = \"{value}\"\n")
-}
+    fn picked(cwd: &std::path::Path, home: &std::path::Path) -> String {
+        let output = bin()
+            .current_dir(cwd)
+            .env("RUNSEAL_HOME", home)
+            .args(Shell::args(&Script::env("PICKED")))
+            .output()
+            .expect("runseal should run");
 
-fn run_picked(cwd: &std::path::Path, home: &std::path::Path) -> String {
-    let output = bin()
-        .current_dir(cwd)
-        .env("RUNSEAL_HOME", home)
-        .args(shell_args(&print_env_script("PICKED")))
-        .output()
-        .expect("runseal should run");
-
-    assert!(output.status.success());
-    String::from_utf8(output.stdout).expect("stdout should be UTF-8")
+        assert!(output.status.success());
+        String::from_utf8(output.stdout).expect("stdout should be UTF-8")
+    }
 }
 
 #[test]
-fn explicit_is_absolute() {
+fn explicit() {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     let nested = project.join("nested");
@@ -64,7 +76,7 @@ fn explicit_is_absolute() {
         .current_dir(&nested)
         .env("RUNSEAL_HOME", temp.path().join("home"))
         .args(["--profile", "../runseal.toml"])
-        .args(shell_args(&print_env_script("RUNSEAL_PROFILE_PATH")))
+        .args(Shell::args(&Script::env("RUNSEAL_PROFILE_PATH")))
         .output()
         .expect("runseal should run");
 
@@ -81,24 +93,27 @@ fn explicit_is_absolute() {
 }
 
 #[test]
-fn ancestor_is_found() {
+fn ancestor() {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     let nested = project.join("a/b/c");
     std::fs::create_dir_all(&nested).expect("nested dir should be created");
-    std::fs::write(project.join("runseal.toml"), env_profile("parent"))
+    std::fs::write(project.join("runseal.toml"), Profile::text("parent"))
         .expect("parent profile should be written");
 
-    assert_eq!(run_picked(&nested, &temp.path().join("home")), "parent");
+    assert_eq!(
+        Profile::picked(&nested, &temp.path().join("home")),
+        "parent"
+    );
 }
 
 #[test]
-fn nearest_wins() {
+fn nearest() {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     let nested = project.join("a/b/c");
     std::fs::create_dir_all(&nested).expect("nested dir should be created");
-    std::fs::write(project.join("runseal.toml"), env_profile("parent"))
+    std::fs::write(project.join("runseal.toml"), Profile::text("parent"))
         .expect("parent profile should be written");
     std::fs::write(
         nested.join("runseal.yaml"),
@@ -106,11 +121,14 @@ fn nearest_wins() {
     )
     .expect("nested profile should be written");
 
-    assert_eq!(run_picked(&nested, &temp.path().join("home")), "nested");
+    assert_eq!(
+        Profile::picked(&nested, &temp.path().join("home")),
+        "nested"
+    );
 }
 
 #[test]
-fn priority_per_dir() {
+fn priority() {
     let temp = TempDir::new().expect("temp dir should be created");
     let project = temp.path().join("project");
     let nested = project.join("nested");
@@ -120,27 +138,27 @@ fn priority_per_dir() {
         "injections:\n  - type: env\n    vars:\n      PICKED: nested-yaml\n",
     )
     .expect("nested yaml should be written");
-    std::fs::write(project.join("runseal.toml"), env_profile("parent-toml"))
+    std::fs::write(project.join("runseal.toml"), Profile::text("parent-toml"))
         .expect("parent toml should be written");
-    std::fs::write(nested.join("runseal.toml"), env_profile("nested-toml"))
+    std::fs::write(nested.join("runseal.toml"), Profile::text("nested-toml"))
         .expect("nested toml should be written");
 
     assert_eq!(
-        run_picked(&nested, &temp.path().join("home")),
+        Profile::picked(&nested, &temp.path().join("home")),
         "nested-toml"
     );
 }
 
 #[test]
-fn default_is_fallback() {
+fn fallback() {
     let temp = TempDir::new().expect("temp dir should be created");
     let cwd = temp.path().join("work/a/b");
-    let runseal_home = temp.path().join("home");
-    let profile_home = runseal_home.join("profiles");
+    let home = temp.path().join("home");
+    let profiles = home.join("profiles");
     std::fs::create_dir_all(&cwd).expect("cwd should be created");
-    std::fs::create_dir_all(&profile_home).expect("profile home should be created");
-    std::fs::write(profile_home.join("default.toml"), env_profile("home"))
+    std::fs::create_dir_all(&profiles).expect("profile home should be created");
+    std::fs::write(profiles.join("default.toml"), Profile::text("home"))
         .expect("default profile should be written");
 
-    assert_eq!(run_picked(&cwd, &runseal_home), "home");
+    assert_eq!(Profile::picked(&cwd, &home), "home");
 }
