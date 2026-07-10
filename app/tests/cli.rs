@@ -132,8 +132,10 @@ fn explicit_profile_runs() {
 [[injections]]
 type = "env"
 
-[injections.vars]
-RUNSEAL_TEST_VALUE = "from-toml"
+[[injections.ops]]
+op = "set_if_absent"
+key = "RUNSEAL_TEST_VALUE"
+value = "from-toml"
 "#,
     )
     .expect("profile should be written");
@@ -190,6 +192,9 @@ fn symlink_lifecycle() {
     let target = temp.path().join("links/source.txt");
     let profile = temp.path().join("profile.json");
     std::fs::write(&source, "sealed").expect("source should be written");
+    std::fs::create_dir_all(target.parent().expect("target should have a parent"))
+        .expect("target parent should be created");
+    std::fs::write(&target, "stale").expect("existing target should be written");
     std::fs::write(
         &profile,
         format!(
@@ -199,6 +204,7 @@ fn symlink_lifecycle() {
       "type": "symlink",
       "source": "{}",
       "target": "{}",
+      "on_exist": "replace",
       "cleanup": true
     }}
   ]

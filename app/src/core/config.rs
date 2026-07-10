@@ -4,83 +4,79 @@ use anyhow::{Context, Result, bail};
 use path_absolutize::Absolutize;
 
 #[derive(Debug, Clone)]
-pub struct CliInput {
+pub struct Input {
     pub profile: Option<PathBuf>,
     pub command: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
-pub struct RawEnv {
+pub struct Env {
     pub home: Option<PathBuf>,
-    pub runseal_home: Option<PathBuf>,
-    pub runseal_profile_home: Option<PathBuf>,
+    pub runseal: Option<PathBuf>,
+    pub profile: Option<PathBuf>,
 }
 
-impl RawEnv {
-    pub fn from_process() -> Self {
+impl Env {
+    pub fn process() -> Self {
         Self {
             home: std::env::var_os("HOME")
                 .map(PathBuf::from)
-                .filter(|path| non_empty_path(path)),
-            runseal_home: std::env::var_os("RUNSEAL_HOME")
+                .filter(|path| present(path)),
+            runseal: std::env::var_os("RUNSEAL_HOME")
                 .map(PathBuf::from)
-                .filter(|path| non_empty_path(path)),
-            runseal_profile_home: std::env::var_os("RUNSEAL_PROFILE_HOME")
+                .filter(|path| present(path)),
+            profile: std::env::var_os("RUNSEAL_PROFILE_HOME")
                 .map(PathBuf::from)
-                .filter(|path| non_empty_path(path)),
+                .filter(|path| present(path)),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct RuntimeConfig {
-    pub profile_path: PathBuf,
+pub struct Config {
+    pub profile: PathBuf,
     pub command: Vec<String>,
-    pub runseal_home: PathBuf,
-    pub profile_home: PathBuf,
+    pub home: PathBuf,
+    pub profiles: PathBuf,
 }
 
-impl RuntimeConfig {
-    pub fn from_input(cli: CliInput, env: RawEnv, cwd: &Path) -> Result<Self> {
-        let runseal_home = absolute_path(&resolve_runseal_home(&env)?, cwd, "RUNSEAL_HOME")?;
-        let profile_home = env
-            .runseal_profile_home
-            .filter(|path| non_empty_path(path))
-            .unwrap_or_else(|| runseal_home.join("profiles"));
-        let profile_home = absolute_path(&profile_home, cwd, "RUNSEAL_PROFILE_HOME")?;
-        let profile_path = resolve_profile_path(cli.profile, cwd, &profile_home)?;
+impl Config {
+    pub fn build(input: Input, env: Env, cwd: &Path) -> Result<Self> {
+        let home = absolute(&resolve(&env)?, cwd, "RUNSEAL_HOME")?;
+        let profiles = env
+            .profile
+            .filter(|path| present(path))
+            .unwrap_or_else(|| home.join("profiles"));
+        let profiles = absolute(&profiles, cwd, "RUNSEAL_PROFILE_HOME")?;
+        let profile = discover(input.profile, cwd, &profiles)?;
 
         Ok(Self {
-            profile_path,
-            command: cli.command,
-            runseal_home,
-            profile_home,
+            profile,
+            command: input.command,
+            home,
+            profiles,
         })
     }
 }
 
-pub fn resolve_runseal_home(env: &RawEnv) -> Result<PathBuf> {
-    env.runseal_home
+pub fn resolve(env: &Env) -> Result<PathBuf> {
+    env.runseal
         .clone()
-        .filter(|path| non_empty_path(path))
+        .filter(|path| present(path))
         .or_else(|| {
             env.home
                 .clone()
-                .filter(|path| non_empty_path(path))
+                .filter(|path| present(path))
                 .map(|home| home.join(".runseal"))
         })
         .ok_or_else(|| anyhow::anyhow!("HOME is not set; pass --profile or set RUNSEAL_HOME"))
 }
 
-fn non_empty_path(path: &Path) -> bool {
+fn present(path: &Path) -> bool {
     !path.as_os_str().is_empty()
 }
 
-fn resolve_profile_path(
-    explicit: Option<PathBuf>,
-    cwd: &Path,
-    profile_home: &Path,
-) -> Result<PathBuf> {
+fn discover(explicit: Option<PathBuf>, cwd: &Path, profiles: &Path) -> Result<PathBuf> {
     if let Some(profile) = explicit {
         let profile = if profile.is_absolute() {
             profile
@@ -90,13 +86,13 @@ fn resolve_profile_path(
         if !profile.is_file() {
             bail!("profile file not found: {}", profile.display());
         }
-        return absolute_file(&profile);
+        return file(&profile);
     }
 
     let mut searched = Vec::new();
-    for candidate in discovery_candidates(cwd, profile_home) {
+    for candidate in candidates(cwd, profiles) {
         if candidate.is_file() {
-            return absolute_file(&candidate);
+            return file(&candidate);
         }
         searched.push(candidate);
     }
@@ -109,35 +105,35 @@ fn resolve_profile_path(
     bail!(
         "no runseal profile found from {} upward and no default profile under {}.\nHint: create runseal.toml here, pass --profile <path>, or add {}/default.toml.\nSearched:\n{searched}",
         cwd.display(),
-        profile_home.display(),
-        profile_home.display()
+        profiles.display(),
+        profiles.display()
     )
 }
 
-fn discovery_candidates(cwd: &Path, profile_home: &Path) -> Vec<PathBuf> {
+fn candidates(cwd: &Path, profiles: &Path) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     for dir in cwd.ancestors() {
         candidates.extend(
-            profile_extensions()
+            extensions()
                 .iter()
                 .map(|ext| dir.join(format!("runseal.{ext}"))),
         );
     }
     candidates.extend(
-        profile_extensions()
+        extensions()
             .iter()
-            .map(|ext| profile_home.join(format!("default.{ext}"))),
+            .map(|ext| profiles.join(format!("default.{ext}"))),
     );
     candidates
 }
 
-fn absolute_file(path: &Path) -> Result<PathBuf> {
+fn file(path: &Path) -> Result<PathBuf> {
     path.absolutize()
         .with_context(|| format!("failed to absolutize profile file: {}", path.display()))
         .map(|path| path.to_path_buf())
 }
 
-fn absolute_path(path: &Path, cwd: &Path, name: &str) -> Result<PathBuf> {
+fn absolute(path: &Path, cwd: &Path, name: &str) -> Result<PathBuf> {
     let path = if path.is_absolute() {
         path.to_path_buf()
     } else {
@@ -148,6 +144,6 @@ fn absolute_path(path: &Path, cwd: &Path, name: &str) -> Result<PathBuf> {
         .map(|path| path.to_path_buf())
 }
 
-pub fn profile_extensions() -> &'static [&'static str] {
+pub fn extensions() -> &'static [&'static str] {
     &["toml", "yaml", "yml", "json"]
 }

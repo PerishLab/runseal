@@ -3,22 +3,19 @@ mod symlink;
 
 use anyhow::{Context, Result, anyhow};
 
-use crate::core::app::AppContext;
-use crate::core::profile::InjectionProfile;
+use crate::core::app::Context as App;
+use crate::core::profile::Injection as Spec;
 use env::Env;
 use symlink::Symlink;
 
 pub struct Lifecycle;
 
 impl Lifecycle {
-    pub fn execute(
-        app: &dyn AppContext,
-        specs: Vec<InjectionProfile>,
-    ) -> Result<Vec<(String, String)>> {
+    pub fn execute(app: &dyn App, specs: Vec<Spec>) -> Result<Vec<(String, String)>> {
         Self::with(app, specs, |exports| Ok(exports.to_vec()))
     }
 
-    pub fn with<T, F>(app: &dyn AppContext, specs: Vec<InjectionProfile>, task: F) -> Result<T>
+    pub fn with<T, F>(app: &dyn App, specs: Vec<Spec>, task: F) -> Result<T>
     where
         F: FnOnce(&[(String, String)]) -> Result<T>,
     {
@@ -65,7 +62,7 @@ fn register(injections: &mut [Injection]) -> (usize, Result<()>) {
     (registered, Ok(()))
 }
 
-fn exports(app: &dyn AppContext, injections: &[Injection]) -> Result<Vec<(String, String)>> {
+fn exports(app: &dyn App, injections: &[Injection]) -> Result<Vec<(String, String)>> {
     let mut exports = Vec::new();
     for injection in injections {
         let exported = injection
@@ -85,18 +82,15 @@ fn shutdown(injections: &mut [Injection], registered: usize) -> Result<()> {
     Ok(())
 }
 
-fn build(specs: Vec<InjectionProfile>) -> Vec<Injection> {
+fn build(specs: Vec<Spec>) -> Vec<Injection> {
     let mut injections = Vec::new();
     for spec in specs {
         match spec {
-            InjectionProfile::Env(cfg) if cfg.enabled => {
-                injections.push(Injection::Env(Env::new(cfg)))
-            }
-            InjectionProfile::Symlink(cfg) if cfg.enabled => {
+            Spec::Env(cfg) if cfg.enabled => injections.push(Injection::Env(Env::new(cfg))),
+            Spec::Symlink(cfg) if cfg.enabled => {
                 injections.push(Injection::Symlink(Symlink::new(cfg)))
             }
-            InjectionProfile::Env(_) | InjectionProfile::Symlink(_) | InjectionProfile::Argv(_) => {
-            }
+            Spec::Env(_) | Spec::Symlink(_) | Spec::Argv(_) => {}
         }
     }
     injections
@@ -129,7 +123,7 @@ impl Injection {
         }
     }
 
-    fn export(&self, app: &dyn AppContext) -> Result<Vec<(String, String)>> {
+    fn export(&self, app: &dyn App) -> Result<Vec<(String, String)>> {
         match self {
             Self::Env(inner) => inner.export(app),
             Self::Symlink(inner) => inner.export(),

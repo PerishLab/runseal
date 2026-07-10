@@ -7,37 +7,37 @@ use anyhow::{Context, Result};
 use path_absolutize::Absolutize;
 use serde::Deserialize;
 
-fn default_enabled() -> bool {
+fn enabled() -> bool {
     true
 }
 
-fn default_cleanup() -> bool {
+fn cleanup() -> bool {
     true
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Profile {
     #[serde(default)]
-    pub resources: Option<ResourcesProfile>,
+    pub resources: Option<Resources>,
     #[serde(default)]
-    pub deno: Option<DenoProfile>,
+    pub deno: Option<Deno>,
     #[serde(default)]
-    pub injections: Vec<InjectionProfile>,
+    pub injections: Vec<Injection>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ResourceMetadata {
+struct Metadata {
     #[serde(default)]
-    resources: Option<ResourcesProfile>,
+    resources: Option<Resources>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ResourcesProfile {
+pub struct Resources {
     pub root: PathBuf,
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
-pub struct DenoProfile {
+pub struct Deno {
     #[serde(default)]
     pub config: Option<PathBuf>,
     #[serde(default)]
@@ -48,30 +48,31 @@ pub struct DenoProfile {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "lowercase")]
-pub enum InjectionProfile {
-    Env(EnvProfile),
-    Symlink(SymlinkProfile),
-    Argv(ArgvProfile),
+pub enum Injection {
+    Env(Env),
+    Symlink(Symlink),
+    Argv(Argv),
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct EnvProfile {
-    #[serde(default = "default_enabled")]
+pub struct Env {
+    #[serde(default = "enabled")]
     pub enabled: bool,
     #[serde(default)]
     pub vars: BTreeMap<String, String>,
     #[serde(default)]
-    pub ops: Vec<EnvOpProfile>,
+    pub ops: Vec<Op>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "op", rename_all = "snake_case")]
-pub enum EnvOpProfile {
+pub enum Op {
     Set {
         key: String,
         value: String,
     },
-    SetIfAbsent {
+    #[serde(rename = "set_if_absent")]
+    Absent {
         key: String,
         value: String,
     },
@@ -96,11 +97,11 @@ pub enum EnvOpProfile {
     },
 }
 
-impl EnvOpProfile {
+impl Op {
     pub fn key(&self) -> &str {
         match self {
             Self::Set { key, .. }
-            | Self::SetIfAbsent { key, .. }
+            | Self::Absent { key, .. }
             | Self::Prepend { key, .. }
             | Self::Append { key, .. }
             | Self::Unset { key } => key,
@@ -109,20 +110,20 @@ impl EnvOpProfile {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct SymlinkProfile {
-    #[serde(default = "default_enabled")]
+pub struct Symlink {
+    #[serde(default = "enabled")]
     pub enabled: bool,
     pub source: PathBuf,
     pub target: PathBuf,
-    #[serde(default)]
-    pub on_exist: SymlinkOnExist,
-    #[serde(default = "default_cleanup")]
+    #[serde(default, rename = "on_exist")]
+    pub existing: Existing,
+    #[serde(default = "cleanup")]
     pub cleanup: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct ArgvProfile {
-    #[serde(default = "default_enabled")]
+pub struct Argv {
+    #[serde(default = "enabled")]
     pub enabled: bool,
     pub command: String,
     pub args: Vec<String>,
@@ -130,7 +131,7 @@ pub struct ArgvProfile {
 
 #[derive(Debug, Deserialize, Clone, Copy, Default)]
 #[serde(rename_all = "lowercase")]
-pub enum SymlinkOnExist {
+pub enum Existing {
     #[default]
     Error,
     Replace,
@@ -151,17 +152,17 @@ pub fn load(path: &Path) -> Result<Profile> {
             path.display()
         ),
     };
-    normalize_deno_paths(path, &mut profile)?;
-    normalize_symlink_paths(path, &mut profile)?;
+    deno(path, &mut profile)?;
+    symlinks(path, &mut profile)?;
     let resources = profile.resources.clone();
-    normalize_env_resource_values(path, resources.as_ref(), &mut profile)?;
+    env(path, resources.as_ref(), &mut profile)?;
     Ok(profile)
 }
 
-pub fn load_resources(path: &Path) -> Result<Option<ResourcesProfile>> {
+pub fn resources(path: &Path) -> Result<Option<Resources>> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read profile file: {}", path.display()))?;
-    let metadata: ResourceMetadata = match path.extension().and_then(|ext| ext.to_str()) {
+    let metadata: Metadata = match path.extension().and_then(|ext| ext.to_str()) {
         Some("toml") => toml::from_str(&raw)
             .with_context(|| format!("failed to parse TOML: {}", path.display()))?,
         Some("yaml") | Some("yml") => yaml_serde::from_str(&raw)
@@ -176,123 +177,94 @@ pub fn load_resources(path: &Path) -> Result<Option<ResourcesProfile>> {
     Ok(metadata.resources)
 }
 
-pub fn resolve_resource_uri(
-    profile_path: &Path,
-    resources: Option<&ResourcesProfile>,
-    uri: &str,
-) -> Result<PathBuf> {
-    let relative = parse_resource_uri(uri)?;
-    resolve_resource_root(profile_path, resources)?
+pub fn resolve(profile: &Path, resources: Option<&Resources>, uri: &str) -> Result<PathBuf> {
+    let relative = parse(uri)?;
+    root(profile, resources)?
         .join(relative)
         .absolutize()
         .with_context(|| format!("failed to absolutize resource URI: {uri}"))
         .map(|path| path.to_path_buf())
 }
 
-pub fn resolve_resource_root(
-    profile_path: &Path,
-    resources: Option<&ResourcesProfile>,
-) -> Result<PathBuf> {
+pub fn root(profile: &Path, resources: Option<&Resources>) -> Result<PathBuf> {
     let resources = resources.ok_or_else(|| {
         anyhow::anyhow!(
             "resource root is not configured in {}; add [resources] root = \".local\"",
-            profile_path.display()
+            profile.display()
         )
     })?;
     if resources.root.as_os_str().is_empty() {
-        anyhow::bail!(
-            "resources.root must not be empty in {}",
-            profile_path.display()
-        );
+        anyhow::bail!("resources.root must not be empty in {}", profile.display());
     }
-    normalize_path(
-        &resources.root,
-        profile_path.parent().unwrap_or(Path::new(".")),
-    )
+    normalize(&resources.root, profile.parent().unwrap_or(Path::new(".")))
 }
 
-fn normalize_symlink_paths(profile_path: &Path, profile: &mut Profile) -> Result<()> {
-    let base_dir = profile_path.parent().unwrap_or(Path::new("."));
+fn symlinks(path: &Path, profile: &mut Profile) -> Result<()> {
+    let base = path.parent().unwrap_or(Path::new("."));
     for injection in &mut profile.injections {
-        if let InjectionProfile::Symlink(spec) = injection {
-            spec.source = normalize_path(&spec.source, base_dir)?;
-            spec.target = normalize_path(&spec.target, base_dir)?;
+        if let Injection::Symlink(spec) = injection {
+            spec.source = normalize(&spec.source, base)?;
+            spec.target = normalize(&spec.target, base)?;
         }
     }
     Ok(())
 }
 
-fn normalize_deno_paths(profile_path: &Path, profile: &mut Profile) -> Result<()> {
+fn deno(path: &Path, profile: &mut Profile) -> Result<()> {
     let Some(deno) = &mut profile.deno else {
         return Ok(());
     };
-    let base_dir = profile_path.parent().unwrap_or(Path::new("."));
+    let base = path.parent().unwrap_or(Path::new("."));
     if let Some(config) = &mut deno.config {
-        *config = normalize_path(config, base_dir)?;
+        *config = normalize(config, base)?;
     }
     if let Some(lock) = &mut deno.lock {
-        *lock = normalize_path(lock, base_dir)?;
+        *lock = normalize(lock, base)?;
     }
     Ok(())
 }
 
-fn normalize_env_resource_values(
-    profile_path: &Path,
-    resources: Option<&ResourcesProfile>,
-    profile: &mut Profile,
-) -> Result<()> {
+fn env(path: &Path, resources: Option<&Resources>, profile: &mut Profile) -> Result<()> {
     for injection in &mut profile.injections {
-        normalize_injection(profile_path, resources, injection)?;
+        self::injection(path, resources, injection)?;
     }
     Ok(())
 }
 
-fn normalize_injection(
-    profile_path: &Path,
-    resources: Option<&ResourcesProfile>,
-    injection: &mut InjectionProfile,
-) -> Result<()> {
-    let InjectionProfile::Env(spec) = injection else {
+fn injection(path: &Path, resources: Option<&Resources>, injection: &mut Injection) -> Result<()> {
+    let Injection::Env(spec) = injection else {
         return Ok(());
     };
     for value in spec.vars.values_mut() {
-        normalize_env_value(profile_path, resources, value)?;
+        self::value(path, resources, value)?;
     }
     for op in &mut spec.ops {
-        normalize_op(profile_path, resources, op)?;
+        self::op(path, resources, op)?;
     }
     Ok(())
 }
 
-fn normalize_op(
-    profile_path: &Path,
-    resources: Option<&ResourcesProfile>,
-    op: &mut EnvOpProfile,
-) -> Result<()> {
+fn op(path: &Path, resources: Option<&Resources>, op: &mut Op) -> Result<()> {
     match op {
-        EnvOpProfile::Set { value, .. }
-        | EnvOpProfile::SetIfAbsent { value, .. }
-        | EnvOpProfile::Prepend { value, .. }
-        | EnvOpProfile::Append { value, .. } => normalize_env_value(profile_path, resources, value),
-        EnvOpProfile::Unset { .. } => Ok(()),
+        Op::Set { value, .. }
+        | Op::Absent { value, .. }
+        | Op::Prepend { value, .. }
+        | Op::Append { value, .. } => self::value(path, resources, value),
+        Op::Unset { .. } => Ok(()),
     }
 }
 
-fn normalize_env_value(
-    profile_path: &Path,
-    resources: Option<&ResourcesProfile>,
-    value: &mut String,
-) -> Result<()> {
+fn value(path: &Path, resources: Option<&Resources>, value: &mut String) -> Result<()> {
     if !value.starts_with("resource://") {
         return Ok(());
     }
-    *value = resolve_resource_uri(profile_path, resources, value)?
+    *value = resolve(path, resources, value)?
         .to_string_lossy()
         .into_owned();
     Ok(())
 }
 
-fn parse_resource_uri(uri: &str) -> Result<PathBuf> {
+fn parse(uri: &str) -> Result<PathBuf> {
     let Some(raw) = uri.strip_prefix("resource://") else {
         anyhow::bail!("expected resource URI to start with resource://");
     };
@@ -319,12 +291,12 @@ fn parse_resource_uri(uri: &str) -> Result<PathBuf> {
     Ok(path)
 }
 
-fn normalize_path(path: &Path, base_dir: &Path) -> Result<PathBuf> {
+fn normalize(path: &Path, base: &Path) -> Result<PathBuf> {
     let raw = path.to_string_lossy();
     let expanded = shellexpand::tilde(&raw);
-    let expanded_path = PathBuf::from(expanded.as_ref());
-    if expanded_path.is_absolute() {
-        return Ok(expanded_path);
+    let expanded = PathBuf::from(expanded.as_ref());
+    if expanded.is_absolute() {
+        return Ok(expanded);
     }
-    Ok(expanded_path.absolutize_from(base_dir)?.to_path_buf())
+    Ok(expanded.absolutize_from(base)?.to_path_buf())
 }

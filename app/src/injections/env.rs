@@ -2,15 +2,15 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, bail};
 
-use crate::core::app::AppContext;
-use crate::core::profile::{EnvOpProfile, EnvProfile};
+use crate::core::app::Context as App;
+use crate::core::profile::{Env as Spec, Op};
 
 pub(crate) struct Env {
-    cfg: EnvProfile,
+    cfg: Spec,
 }
 
 impl Env {
-    pub(crate) fn new(cfg: EnvProfile) -> Self {
+    pub(crate) fn new(cfg: Spec) -> Self {
         Self { cfg }
     }
 
@@ -32,7 +32,7 @@ impl Env {
         Ok(())
     }
 
-    pub(crate) fn export(&self, app: &dyn AppContext) -> Result<Vec<(String, String)>> {
+    pub(crate) fn export(&self, app: &dyn App) -> Result<Vec<(String, String)>> {
         let mut env: BTreeMap<String, String> = self
             .cfg
             .vars
@@ -51,24 +51,22 @@ impl Env {
 struct Check;
 
 impl Check {
-    fn op(op: &EnvOpProfile) -> Result<()> {
+    fn op(op: &Op) -> Result<()> {
         match op {
-            EnvOpProfile::Set { key, value } | EnvOpProfile::SetIfAbsent { key, value } => {
-                Self::value(key, value)
-            }
-            EnvOpProfile::Prepend {
+            Op::Set { key, value } | Op::Absent { key, value } => Self::value(key, value),
+            Op::Prepend {
                 key,
                 value,
                 separator,
                 ..
             }
-            | EnvOpProfile::Append {
+            | Op::Append {
                 key,
                 value,
                 separator,
                 ..
             } => Self::merge(key, value, separator),
-            EnvOpProfile::Unset { key } => Self::key(key),
+            Op::Unset { key } => Self::key(key),
         }
     }
 
@@ -97,34 +95,34 @@ impl Check {
 }
 
 struct Editor<'a> {
-    app: &'a dyn AppContext,
+    app: &'a dyn App,
     env: &'a mut BTreeMap<String, String>,
 }
 
 impl Editor<'_> {
-    fn apply(&mut self, ops: &[EnvOpProfile]) {
+    fn apply(&mut self, ops: &[Op]) {
         for op in ops {
             self.op(op);
         }
     }
 
-    fn op(&mut self, op: &EnvOpProfile) {
+    fn op(&mut self, op: &Op) {
         match op {
-            EnvOpProfile::Set { key, value } => self.set(key, value),
-            EnvOpProfile::SetIfAbsent { key, value } => self.absent(key, value),
-            EnvOpProfile::Prepend {
+            Op::Set { key, value } => self.set(key, value),
+            Op::Absent { key, value } => self.absent(key, value),
+            Op::Prepend {
                 key,
                 value,
                 separator,
                 dedup,
             } => self.merge(key, value, separator, *dedup, true),
-            EnvOpProfile::Append {
+            Op::Append {
                 key,
                 value,
                 separator,
                 dedup,
             } => self.merge(key, value, separator, *dedup, false),
-            EnvOpProfile::Unset { key } => self.unset(key),
+            Op::Unset { key } => self.unset(key),
         }
     }
 

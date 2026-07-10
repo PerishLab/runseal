@@ -3,8 +3,8 @@ use std::process;
 
 use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, Parser};
-use runseal::core::app::AppState;
-use runseal::core::config::{CliInput, RawEnv, RuntimeConfig};
+use runseal::core::app::App;
+use runseal::core::config::{Config, Env, Input};
 use runseal::core::internal_help;
 use runseal::core::tool;
 use runseal::run;
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
     }
 
     let config = build_runtime_config(cli)?;
-    let app = AppState::new(config);
+    let app = App::new(config);
     let result = run(&app)?;
     if let Some(code) = result.exit_code {
         process::exit(code);
@@ -72,14 +72,14 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn build_runtime_config(cli: Cli) -> Result<RuntimeConfig> {
+fn build_runtime_config(cli: Cli) -> Result<Config> {
     let cwd = std::env::current_dir().context("failed to read current directory")?;
-    RuntimeConfig::from_input(
-        CliInput {
+    Config::build(
+        Input {
             profile: cli.profile,
             command: normalize_command(cli.command),
         },
-        RawEnv::from_process(),
+        Env::process(),
         &cwd,
     )
 }

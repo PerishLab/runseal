@@ -2,15 +2,15 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 
-use crate::core::profile::{SymlinkOnExist, SymlinkProfile};
+use crate::core::profile::{Existing, Symlink as Spec};
 
 pub(crate) struct Symlink {
-    cfg: SymlinkProfile,
+    cfg: Spec,
     cleanup: bool,
 }
 
 impl Symlink {
-    pub(crate) fn new(cfg: SymlinkProfile) -> Self {
+    pub(crate) fn new(cfg: Spec) -> Self {
         Self {
             cfg,
             cleanup: false,
@@ -35,7 +35,7 @@ impl Symlink {
     }
 
     pub(crate) fn register(&mut self) -> Result<()> {
-        self.create(&self.cfg.source, &self.cfg.target, self.cfg.on_exist)?;
+        self.create(&self.cfg.source, &self.cfg.target, self.cfg.existing)?;
         self.cleanup = true;
         Ok(())
     }
@@ -52,9 +52,9 @@ impl Symlink {
         Ok(())
     }
 
-    fn create(&self, source: &Path, target: &Path, on_exist: SymlinkOnExist) -> Result<()> {
+    fn create(&self, source: &Path, target: &Path, existing: Existing) -> Result<()> {
         match std::fs::symlink_metadata(target) {
-            Ok(meta) => existing(target, on_exist, meta)?,
+            Ok(meta) => conflict(target, existing, meta)?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
             Err(err) => return Err(err.into()),
         }
@@ -87,10 +87,10 @@ impl Symlink {
     }
 }
 
-fn existing(target: &Path, on_exist: SymlinkOnExist, meta: std::fs::Metadata) -> Result<()> {
-    match on_exist {
-        SymlinkOnExist::Error => bail!("refusing to overwrite existing file: {}", target.display()),
-        SymlinkOnExist::Replace => replace(target, meta),
+fn conflict(target: &Path, existing: Existing, meta: std::fs::Metadata) -> Result<()> {
+    match existing {
+        Existing::Error => bail!("refusing to overwrite existing file: {}", target.display()),
+        Existing::Replace => replace(target, meta),
     }
 }
 

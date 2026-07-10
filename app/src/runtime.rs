@@ -2,11 +2,11 @@ use std::{collections::BTreeMap, path::PathBuf, process::Command};
 
 use anyhow::{Context, Result, bail};
 
-use super::app::AppContext;
-use super::config::RuntimeConfig;
-use super::env_key::is_valid_env_key;
+use super::app::Context as App;
+use super::config::Config;
 use super::internal_help;
-use super::profile::{DenoProfile, InjectionProfile, Profile};
+use super::key;
+use super::profile::{Deno, Injection, Profile};
 use super::{injections, profile};
 
 mod wrapper_paths;
@@ -34,14 +34,14 @@ struct ResolvedWrapper {
     file: PathBuf,
 }
 
-pub fn run(app: &dyn AppContext) -> Result<RunResult> {
+pub fn run(app: &dyn App) -> Result<RunResult> {
     let config = app.config();
     if let Some(command) = resolve_internal_dispatch(config)? {
         run_internal(config, command)?;
         return Ok(RunResult { exit_code: Some(0) });
     }
 
-    let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
+    let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
     let command = resolve_command(config, &profile)?;
     let run_result = injections::Lifecycle::with(app, profile.injections.clone(), |exports| {
         let env = to_env_map(exports.to_vec())?;
@@ -54,7 +54,7 @@ pub fn run(app: &dyn AppContext) -> Result<RunResult> {
     Ok(run_result)
 }
 
-fn resolve_internal_dispatch(config: &RuntimeConfig) -> Result<Option<InternalCommand>> {
+fn resolve_internal_dispatch(config: &Config) -> Result<Option<InternalCommand>> {
     if config.command.is_empty() {
         bail!("command mode requires at least one command token");
     }
@@ -64,7 +64,7 @@ fn resolve_internal_dispatch(config: &RuntimeConfig) -> Result<Option<InternalCo
     Ok(Some(resolve_internal_command(&name, &config.command[1..])?))
 }
 
-fn resolve_command(config: &RuntimeConfig, profile: &Profile) -> Result<ResolvedCommand> {
+fn resolve_command(config: &Config, profile: &Profile) -> Result<ResolvedCommand> {
     if config.command.is_empty() {
         bail!("command mode requires at least one command token");
     }
@@ -160,7 +160,7 @@ fn validate_symbol_name(name: &str) -> Result<()> {
     Ok(())
 }
 
-fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> {
+fn run_internal(config: &Config, command: InternalCommand) -> Result<()> {
     match command {
         InternalCommand::Help(help) => print!("{help}"),
         InternalCommand::Profile => print_profile(config)?,
@@ -173,12 +173,12 @@ fn run_internal(config: &RuntimeConfig, command: InternalCommand) -> Result<()> 
     Ok(())
 }
 
-fn print_profile(config: &RuntimeConfig) -> Result<()> {
-    println!("RUNSEAL_HOME={}", config.runseal_home.display());
-    println!("RUNSEAL_PROFILE_HOME={}", config.profile_home.display());
-    println!("RUNSEAL_PROFILE_PATH={}", config.profile_path.display());
-    if let Ok(Some(resources)) = profile::load_resources(&config.profile_path)
-        && let Ok(root) = profile::resolve_resource_root(&config.profile_path, Some(&resources))
+fn print_profile(config: &Config) -> Result<()> {
+    println!("RUNSEAL_HOME={}", config.home.display());
+    println!("RUNSEAL_PROFILE_HOME={}", config.profiles.display());
+    println!("RUNSEAL_PROFILE_PATH={}", config.profile.display());
+    if let Ok(Some(resources)) = profile::resources(&config.profile)
+        && let Ok(root) = profile::root(&config.profile, Some(&resources))
     {
         println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
     }
@@ -189,7 +189,7 @@ fn print_profile(config: &RuntimeConfig) -> Result<()> {
     Ok(())
 }
 
-fn print_wrappers(config: &RuntimeConfig) -> Result<()> {
+fn print_wrappers(config: &Config) -> Result<()> {
     for wrapper in wrapper_paths::effective(config)? {
         println!(
             ":{:<20} {}\t{}",
@@ -201,40 +201,36 @@ fn print_wrappers(config: &RuntimeConfig) -> Result<()> {
     Ok(())
 }
 
-fn print_resolve_resources(config: &RuntimeConfig, uris: &[String]) -> Result<()> {
-    let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
+fn print_resolve_resources(config: &Config, uris: &[String]) -> Result<()> {
+    let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
     for uri in uris {
-        let path =
-            profile::resolve_resource_uri(&config.profile_path, profile.resources.as_ref(), uri)?;
+        let path = profile::resolve(&config.profile, profile.resources.as_ref(), uri)?;
         println!("{}", path.display());
     }
     Ok(())
 }
 
-fn print_resources(config: &RuntimeConfig) -> Result<()> {
-    let profile = profile::load(&config.profile_path).context("unable to load runseal profile")?;
-    let root = profile::resolve_resource_root(&config.profile_path, profile.resources.as_ref())?;
+fn print_resources(config: &Config) -> Result<()> {
+    let profile = profile::load(&config.profile).context("unable to load runseal profile")?;
+    let root = profile::root(&config.profile, profile.resources.as_ref())?;
     println!("RUNSEAL_RESOURCE_ROOT={}", root.display());
     Ok(())
 }
 
-fn print_which_wrapper(config: &RuntimeConfig, name: &str) -> Result<()> {
+fn print_which_wrapper(config: &Config, name: &str) -> Result<()> {
     let file = wrapper_paths::resolve(config, name)?;
     println!("{}", file.display());
     Ok(())
 }
 
-fn apply_argv_injections(
-    command: &[String],
-    injections: &[InjectionProfile],
-) -> Result<Vec<String>> {
+fn apply_argv_injections(command: &[String], injections: &[Injection]) -> Result<Vec<String>> {
     if command.is_empty() {
         bail!("command mode requires at least one command token");
     }
 
     let mut prefix_args = Vec::new();
     for injection in injections {
-        let InjectionProfile::Argv(spec) = injection else {
+        let Injection::Argv(spec) = injection else {
             continue;
         };
         if !spec.enabled {
@@ -264,7 +260,7 @@ fn apply_argv_injections(
 fn to_env_map(exports: Vec<(String, String)>) -> Result<BTreeMap<String, String>> {
     let mut env = BTreeMap::new();
     for (key, value) in exports {
-        if !is_valid_env_key(&key) {
+        if !key::valid(&key) {
             bail!("invalid exported key: {}", key);
         }
         env.insert(key, value);
@@ -273,7 +269,7 @@ fn to_env_map(exports: Vec<(String, String)>) -> Result<BTreeMap<String, String>
 }
 
 fn run_command(
-    config: &RuntimeConfig,
+    config: &Config,
     profile: &Profile,
     resolved: &ResolvedCommand,
     exports: &[(String, String)],
@@ -297,8 +293,8 @@ fn run_command(
 }
 
 fn run_deno_wrapper(
-    config: &RuntimeConfig,
-    deno: Option<&DenoProfile>,
+    config: &Config,
+    deno: Option<&Deno>,
     resolved: &ResolvedCommand,
     exports: &[(String, String)],
 ) -> Result<i32> {
@@ -357,22 +353,22 @@ fn wait_for_child(mut child: Command) -> Result<i32> {
 }
 
 fn run_env(
-    config: &RuntimeConfig,
+    config: &Config,
     resolved: &ResolvedCommand,
     exports: &[(String, String)],
 ) -> Result<Vec<(String, String)>> {
     let mut env = exports.to_vec();
     env.push((
         "RUNSEAL_HOME".to_string(),
-        config.runseal_home.to_string_lossy().into_owned(),
+        config.home.to_string_lossy().into_owned(),
     ));
     env.push((
         "RUNSEAL_PROFILE_HOME".to_string(),
-        config.profile_home.to_string_lossy().into_owned(),
+        config.profiles.to_string_lossy().into_owned(),
     ));
     env.push((
         "RUNSEAL_PROFILE_PATH".to_string(),
-        config.profile_path.to_string_lossy().into_owned(),
+        config.profile.to_string_lossy().into_owned(),
     ));
     env.push((
         "RUNSEAL_WRAPPER_PATH".to_string(),

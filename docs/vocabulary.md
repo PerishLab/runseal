@@ -21,3 +21,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   namespaces; no vocabulary entries were added.
 - Injection lifecycle, environment editing, and symlink internals moved into
   type and module namespaces; no vocabulary entries were added.
+- Application context, runtime configuration, and profile schema compounds
+  moved into module and type namespaces; no vocabulary entries were added.

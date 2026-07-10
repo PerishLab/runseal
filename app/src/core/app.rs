@@ -1,42 +1,42 @@
-use super::config::RuntimeConfig;
+use super::config::Config;
 
-pub trait EnvReader: Send + Sync {
+pub trait Env: Send + Sync {
     fn var(&self, key: &str) -> Option<String>;
 }
 
-pub trait AppContext: Send + Sync {
-    fn config(&self) -> &RuntimeConfig;
-    fn env(&self) -> &dyn EnvReader;
+pub trait Context: Send + Sync {
+    fn config(&self) -> &Config;
+    fn env(&self) -> &dyn Env;
 }
 
-pub struct ProcessEnv;
+pub struct Process;
 
-impl EnvReader for ProcessEnv {
+impl Env for Process {
     fn var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
     }
 }
 
-pub struct AppState {
-    config: RuntimeConfig,
-    env: ProcessEnv,
+pub struct App {
+    config: Config,
+    env: Process,
 }
 
-impl AppState {
-    pub fn new(config: RuntimeConfig) -> Self {
+impl App {
+    pub fn new(config: Config) -> Self {
         Self {
             config,
-            env: ProcessEnv,
+            env: Process,
         }
     }
 }
 
-impl AppContext for AppState {
-    fn config(&self) -> &RuntimeConfig {
+impl Context for App {
+    fn config(&self) -> &Config {
         &self.config
     }
 
-    fn env(&self) -> &dyn EnvReader {
+    fn env(&self) -> &dyn Env {
         &self.env
     }
 }

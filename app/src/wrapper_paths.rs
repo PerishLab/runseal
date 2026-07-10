@@ -7,7 +7,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 use path_absolutize::Absolutize;
 
-use crate::core::config::RuntimeConfig;
+use crate::core::config::Config;
 
 #[derive(Debug)]
 pub(super) struct Listed {
@@ -16,7 +16,7 @@ pub(super) struct Listed {
     pub(super) file: PathBuf,
 }
 
-pub(super) fn resolve(config: &RuntimeConfig, name: &str) -> Result<PathBuf> {
+pub(super) fn resolve(config: &Config, name: &str) -> Result<PathBuf> {
     let searched = search_paths(config, name);
     for candidate in &searched {
         if is_runnable(candidate) {
@@ -35,7 +35,7 @@ pub(super) fn resolve(config: &RuntimeConfig, name: &str) -> Result<PathBuf> {
     bail!("wrapper not found: :{name}\nsearched:\n{searched}")
 }
 
-pub(super) fn effective(config: &RuntimeConfig) -> Result<Vec<Listed>> {
+pub(super) fn effective(config: &Config) -> Result<Vec<Listed>> {
     let dirs = search_dirs(config);
     let mut names = BTreeSet::new();
 
@@ -82,7 +82,7 @@ fn source(file: &Path, profile: &Path) -> &'static str {
     }
 }
 
-pub(super) fn path_env(config: &RuntimeConfig) -> Result<std::ffi::OsString> {
+pub(super) fn path_env(config: &Config) -> Result<std::ffi::OsString> {
     env::join_paths(search_dirs(config)).context("failed to build RUNSEAL_WRAPPER_PATH")
 }
 
@@ -97,19 +97,19 @@ fn is_runnable(path: &Path) -> bool {
     is_executable(path)
 }
 
-fn search_paths(config: &RuntimeConfig, name: &str) -> Vec<PathBuf> {
+fn search_paths(config: &Config, name: &str) -> Vec<PathBuf> {
     search_dirs(config)
         .into_iter()
         .flat_map(|dir| candidates(&dir, name))
         .collect()
 }
 
-fn search_dirs(config: &RuntimeConfig) -> Vec<PathBuf> {
+fn search_dirs(config: &Config) -> Vec<PathBuf> {
     vec![
-        profile_root(&config.profile_path)
+        profile_root(&config.profile)
             .join(".runseal")
             .join("wrappers"),
-        config.runseal_home.join("wrappers"),
+        config.home.join("wrappers"),
     ]
 }
 
