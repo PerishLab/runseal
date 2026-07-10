@@ -29,3 +29,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   behavior namespaces; no vocabulary entries were added.
 - CLI tests moved shell, script, probe, and wrapper setup into type namespaces;
   no vocabulary entries were added.
+- Internal command and wrapper behavior tests moved file, fixture, path, and
+  assertion compounds into type namespaces; no vocabulary entries were added.
