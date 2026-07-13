@@ -1,7 +1,10 @@
 use anyhow::{Result, bail};
 use serde_json::Value as JsonValue;
 
-use super::github_support::{Body as Input, Branch, Options, Prefix, Repo, Request, Token};
+pub(super) mod help;
+mod support;
+
+use self::support::{Body as Input, Branch, Options, Prefix, Repo, Request, Token};
 
 struct Checks;
 

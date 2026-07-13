@@ -2,14 +2,9 @@ use anyhow::{Result, bail};
 
 mod client;
 mod cloudflare;
-mod cloudflare_help;
-mod dns_record;
 mod forgejo;
 mod github;
-mod github_help;
-mod github_support;
 mod help;
-mod redirect_rule;
 
 pub fn help() -> &'static str {
     help::top()

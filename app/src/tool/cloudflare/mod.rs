@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, path::PathBuf, time::Duration};
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 
-use super::{dns_record, redirect_rule};
+pub(super) mod help;
+mod record;
+mod rule;
 
 #[derive(Debug, Clone)]
 pub(super) struct Config {
@@ -47,7 +49,7 @@ pub fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
         "api" => api(args),
         "zone" => zone(args),
         "account" => account(args),
-        "redirect-rule" => redirect_rule::eval(args),
+        "redirect-rule" => rule::eval(args),
         _ => bail!("unknown tool command: cloudflare {command}"),
     }
 }
@@ -111,7 +113,7 @@ fn zone(args: &[String]) -> Result<Option<String>> {
     match args {
         [command, rest @ ..] if command == "get" => Zone::get(rest),
         [ruleset, rest @ ..] if ruleset == "ruleset" => Ruleset::eval(rest),
-        [dns, command, rest @ ..] if dns == "dns-record" => dns_record::eval(command, rest),
+        [dns, command, rest @ ..] if dns == "dns-record" => record::eval(command, rest),
         _ => bail!("usage: runseal @tool cloudflare zone get|ruleset|dns-record ..."),
     }
 }

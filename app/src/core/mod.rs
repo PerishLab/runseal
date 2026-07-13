@@ -1,8 +1,8 @@
 pub mod app;
 pub mod config;
+pub mod help;
 #[path = "../injections/mod.rs"]
 pub mod injections;
-pub mod internal_help;
 pub(crate) mod key;
 pub mod profile;
 #[path = "../runtime.rs"]

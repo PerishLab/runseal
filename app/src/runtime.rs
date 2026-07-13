@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 
 use super::app::Context as App;
 use super::config::Config;
-use super::internal_help;
+use super::help;
 use super::key;
 use super::profile::{Deno, Injection, Profile};
 use super::symbol;
@@ -99,7 +99,7 @@ impl Parser {
     }
 
     fn resolve(name: &str, args: &[String]) -> Result<Internal> {
-        if let Some(help) = internal_help::resolve(name, args)? {
+        if let Some(help) = help::resolve(name, args)? {
             return Ok(Internal::Help(help));
         }
 

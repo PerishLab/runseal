@@ -33,3 +33,5 @@ in `vocabulary.toml` and a matching meaning delta here.
   assertion compounds into type namespaces; no vocabulary entries were added.
 - Operator repository tests moved fixture, stub, path, land, and release
   compounds into type and module namespaces; no vocabulary entries were added.
+- Compound file names moved into owner module namespaces (cloudflare, github,
+  core help); no vocabulary entries were added.

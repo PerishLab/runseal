@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, Parser};
 use runseal::core::app::App;
 use runseal::core::config::{Config, Env, Input};
-use runseal::core::internal_help;
+use runseal::core::help;
 use runseal::core::tool;
 use runseal::run;
 
@@ -101,7 +101,7 @@ fn help(command: &[String]) -> Result<bool> {
     if name.is_empty() {
         bail!("internal command name must not be empty");
     }
-    let Some(help) = internal_help::resolve(name, &command[1..])? else {
+    let Some(help) = help::resolve(name, &command[1..])? else {
         return Ok(false);
     };
     print!("{help}");

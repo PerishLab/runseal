@@ -1,4 +1,4 @@
-use super::help::{Entry, Section};
+use super::super::help::{Entry, Section};
 
 pub const CLOUDFLARE: Entry = Entry {
     key: "cloudflare",

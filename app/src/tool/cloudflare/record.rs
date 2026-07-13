@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 
-use super::cloudflare::{Config, optional, request, required};
+use super::{Config, optional, request, required};
 
 pub(super) fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
     match command {

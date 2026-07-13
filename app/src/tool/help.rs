@@ -1,4 +1,4 @@
-use super::{cloudflare_help as cloudflare, github_help as github};
+use super::{cloudflare::help as cloudflare, github::help as github};
 
 #[derive(Clone, Copy)]
 pub(super) struct Entry {
