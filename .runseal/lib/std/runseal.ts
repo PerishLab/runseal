@@ -1,11 +1,11 @@
-import { cmd } from "@/lib/std/cmd.ts";
+import { bin } from "@/lib/std/cmd.ts";
 
 async function run(args: string[]): Promise<void> {
-  await cmd.run("runseal", args);
+  await bin("runseal").run(args);
 }
 
 async function text(args: string[]): Promise<string> {
-  return await cmd.text("runseal", args);
+  return await bin("runseal").text(args);
 }
 
 export const runseal = {

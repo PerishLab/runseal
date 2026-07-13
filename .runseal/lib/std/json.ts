@@ -1,10 +1,8 @@
 type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
-
 type Picked = {
   current: Value;
   input: string;
 };
-
 class Source {
   static parse(json: string | Value): Value {
     return typeof json === "string" ? JSON.parse(json) as Value : json;
@@ -18,7 +16,6 @@ class Source {
     return value;
   }
 }
-
 class Field {
   static string(value: Value, field: string): string | undefined {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -40,7 +37,6 @@ class Field {
     return JSON.stringify(selected);
   }
 }
-
 class Path {
   static select(value: Value, path: string): Value {
     let input = path.startsWith(".") ? path.slice(1) : path;
@@ -62,82 +58,6 @@ class Path {
     return current;
   }
 }
-
-function get(json: string | Value, path: string): string {
-  const selected = Path.select(Source.parse(json), path);
-  if (selected === null) {
-    return "";
-  }
-  switch (typeof selected) {
-    case "string":
-      return selected;
-    case "boolean":
-    case "number":
-      return String(selected);
-    case "object":
-      return JSON.stringify(selected);
-  }
-}
-
-function has(json: string | Value, path: string): boolean {
-  try {
-    Path.select(Source.parse(json), path);
-    return true;
-  } catch (err) {
-    if (err instanceof Error && err.message === "json path missing") {
-      return false;
-    }
-    throw err;
-  }
-}
-
-function empty(json: string | Value): boolean {
-  const value = Source.parse(json);
-  if (value === null) {
-    return true;
-  }
-  if (typeof value === "string" || Array.isArray(value)) {
-    return value.length === 0;
-  }
-  if (typeof value === "object") {
-    return Object.keys(value).length === 0;
-  }
-  return false;
-}
-
-function len(json: string | Value): number {
-  const value = Source.parse(json);
-  if (value === null) {
-    return 0;
-  }
-  if (typeof value === "string" || Array.isArray(value)) {
-    return value.length;
-  }
-  if (typeof value === "object") {
-    return Object.keys(value).length;
-  }
-  return 1;
-}
-
-function find(json: string | Value, field: string, expected: string): string {
-  const array = Source.array(json);
-  const found = array.find((item) => Field.string(item, field) === expected);
-  return found === undefined ? "" : JSON.stringify(found);
-}
-
-function filter(json: string | Value, field: string, expected: string[]): string {
-  const array = Source.array(json);
-  const filtered = array.filter((item) => {
-    const actual = Field.string(item, field);
-    return actual !== undefined && expected.includes(actual);
-  });
-  return JSON.stringify(filtered);
-}
-
-function pretty(json: string | Value): string {
-  return JSON.stringify(Source.parse(json), null, 2);
-}
-
 function index(current: Value, input: string, path: string): Picked {
   const end = input.indexOf("]");
   if (end === -1) {
@@ -152,7 +72,6 @@ function index(current: Value, input: string, path: string): Picked {
   }
   return { current: current[slot], input: rest(input, end + 1) };
 }
-
 function field(current: Value, input: string): Picked {
   const dot = input.indexOf(".");
   const bracket = input.indexOf("[");
@@ -171,18 +90,90 @@ function field(current: Value, input: string): Picked {
   }
   return { current: selected, input: rest(input, end) };
 }
-
 function rest(input: string, end: number): string {
   const next = input.slice(end);
   return next.startsWith(".") ? next.slice(1) : next;
 }
 
-export const json = {
-  get,
-  has,
-  empty,
-  len,
-  find,
-  filter,
-  pretty,
-};
+export class Doc {
+  constructor(private readonly json: string | Value) {}
+
+  get(path: string): string {
+    const selected = Path.select(Source.parse(this.json), path);
+    if (selected === null) {
+      return "";
+    }
+    switch (typeof selected) {
+      case "string":
+        return selected;
+      case "boolean":
+      case "number":
+        return String(selected);
+      case "object":
+        return JSON.stringify(selected);
+    }
+  }
+
+  has(path: string): boolean {
+    try {
+      Path.select(Source.parse(this.json), path);
+      return true;
+    } catch (err) {
+      if (err instanceof Error && err.message === "this.json path missing") {
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  empty(): boolean {
+    const value = Source.parse(this.json);
+    if (value === null) {
+      return true;
+    }
+    if (typeof value === "string" || Array.isArray(value)) {
+      return value.length === 0;
+    }
+    if (typeof value === "object") {
+      return Object.keys(value).length === 0;
+    }
+    return false;
+  }
+
+  len(): number {
+    const value = Source.parse(this.json);
+    if (value === null) {
+      return 0;
+    }
+    if (typeof value === "string" || Array.isArray(value)) {
+      return value.length;
+    }
+    if (typeof value === "object") {
+      return Object.keys(value).length;
+    }
+    return 1;
+  }
+
+  find(field: string, expected: string): string {
+    const array = Source.array(this.json);
+    const found = array.find((item) => Field.string(item, field) === expected);
+    return found === undefined ? "" : JSON.stringify(found);
+  }
+
+  filter(field: string, expected: string[]): string {
+    const array = Source.array(this.json);
+    const filtered = array.filter((item) => {
+      const actual = Field.string(item, field);
+      return actual !== undefined && expected.includes(actual);
+    });
+    return JSON.stringify(filtered);
+  }
+
+  pretty(): string {
+    return JSON.stringify(Source.parse(this.json), null, 2);
+  }
+}
+
+export function doc(json: string | Value): Doc {
+  return new Doc(json);
+}

@@ -1,8 +1,8 @@
-import { cli } from "@/lib/cli.ts";
-import { cmd } from "@/lib/std/cmd.ts";
+import { cli, flags } from "@/lib/cli.ts";
+import { bin } from "@/lib/std/cmd.ts";
 import { env } from "@/lib/std/env.ts";
 import { io } from "@/lib/std/io.ts";
-import { json } from "@/lib/std/json.ts";
+import { doc } from "@/lib/std/json.ts";
 import { hash } from "@/lib/hash.ts";
 import { negentropy } from "@/lib/negentropy.ts";
 import { version } from "@/lib/version.ts";
@@ -19,8 +19,8 @@ function usage(): void {
 
 let mode = "full";
 const args = cli.parse(Deno.args, { boolean: ["help", "h"] });
-if (cli.help(args)) {
-  cli.positionals(args, "guard", { allowHelp: true });
+if (flags(args).help()) {
+  flags(args).positionals("guard", { allowHelp: true });
   usage();
   Deno.exit(0);
 }
@@ -53,8 +53,8 @@ class Policy {
       `${base}/stable/latest/metadata.json`,
     );
 
-    const cargo = await cmd.text("cargo", ["metadata", "--no-deps", "--format-version", "1"]);
-    const current = json.get(cargo, ".packages[0].version");
+    const cargo = await bin("cargo").text(["metadata", "--no-deps", "--format-version", "1"]);
+    const current = doc(cargo).get(".packages[0].version");
     const digest = await this.hash();
     const response = await fetch(`${url}?version=${encodeURIComponent(current)}`);
     if (response.status === 404) {
@@ -66,17 +66,17 @@ class Policy {
     }
 
     const metadata = await response.text();
-    const prior = json.has(metadata, ".guard.version.hash")
-      ? json.get(metadata, ".guard.version.hash")
+    const prior = doc(metadata).has(".guard.version.hash")
+      ? doc(metadata).get(".guard.version.hash")
       : "";
     if (prior === "") {
       io.print("guard version policy: stable metadata has no guard.version.hash; skipping");
       return;
     }
 
-    let stable = json.has(metadata, ".stableVersion") ? json.get(metadata, ".stableVersion") : "";
-    if (stable === "" && json.has(metadata, ".releaseVersion")) {
-      stable = json.get(metadata, ".releaseVersion");
+    let stable = doc(metadata).has(".stableVersion") ? doc(metadata).get(".stableVersion") : "";
+    if (stable === "" && doc(metadata).has(".releaseVersion")) {
+      stable = doc(metadata).get(".releaseVersion");
     }
     if (stable === "") {
       io.fail("guard version policy: stable metadata is missing stableVersion/releaseVersion");
@@ -127,10 +127,10 @@ if (mode === "version-check") {
 }
 
 io.print("==> cargo fmt");
-await cmd.run("cargo", ["fmt", "--all", "--check"]);
+await bin("cargo").run(["fmt", "--all", "--check"]);
 
 io.print("==> cargo clippy");
-await cmd.run("cargo", [
+await bin("cargo").run([
   "clippy",
   "--locked",
   "--workspace",
@@ -141,13 +141,13 @@ await cmd.run("cargo", [
 ]);
 
 io.print("==> cargo test");
-await cmd.run("cargo", ["test", "--locked", "--workspace"]);
+await bin("cargo").run(["test", "--locked", "--workspace"]);
 
 io.print("==> deno fmt");
-await cmd.run("deno", ["fmt", "--check", ".runseal"]);
+await bin("deno").run(["fmt", "--check", ".runseal"]);
 
 io.print("==> deno check");
-await cmd.run("deno", [
+await bin("deno").run([
   "check",
   "--config",
   ".runseal/deno.json",
@@ -165,7 +165,7 @@ await cmd.run("deno", [
 
 io.print("==> negentropy");
 await negentropy.verify();
-await cmd.run("negentropy", ["--strict", "."]);
+await bin("negentropy").run(["--strict", "."]);
 
 io.print("==> shell syntax");
 for (
@@ -181,5 +181,5 @@ for (
     ["sh", ".forgejo/scripts/release/smoke/smoke.sh"],
   ]
 ) {
-  await cmd.run(command, ["-n", script]);
+  await bin(command).run(["-n", script]);
 }

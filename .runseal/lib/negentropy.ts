@@ -1,4 +1,4 @@
-import { cmd } from "@/lib/std/cmd.ts";
+import { bin, exists } from "@/lib/std/cmd.ts";
 import { fs } from "@/lib/std/fs.ts";
 import { io } from "@/lib/std/io.ts";
 
@@ -13,11 +13,11 @@ async function version(): Promise<string> {
 }
 
 async function verify(): Promise<void> {
-  if (!(await cmd.exists("negentropy"))) {
+  if (!(await exists("negentropy"))) {
     io.fail("missing required tool: negentropy");
   }
   const expected = await version();
-  const actual = await cmd.text("negentropy", ["--version"]);
+  const actual = await bin("negentropy").text(["--version"]);
   if (actual !== `negentropy ${expected}`) {
     io.fail(`negentropy: expected ${expected}, got ${actual}`);
   }

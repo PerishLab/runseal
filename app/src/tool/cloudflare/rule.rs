@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 
-use super::{optional, required};
+use super::cmd;
 
 pub(super) fn eval(args: &[String]) -> Result<Option<String>> {
     let [command, rest @ ..] = args else {
@@ -10,12 +10,13 @@ pub(super) fn eval(args: &[String]) -> Result<Option<String>> {
     if command != "exact" {
         bail!("usage: runseal @tool cloudflare redirect-rule exact ...");
     }
-    let reference = required(rest, "--ref")?;
-    let description = required(rest, "--description")?;
-    let host = required(rest, "--host")?;
-    let path = required(rest, "--path")?;
-    let url = required(rest, "--target-url")?;
-    let status = optional(rest, "--status-code")
+    let reference = cmd(rest).required("--ref")?;
+    let description = cmd(rest).required("--description")?;
+    let host = cmd(rest).required("--host")?;
+    let path = cmd(rest).required("--path")?;
+    let url = cmd(rest).required("--target-url")?;
+    let status = cmd(rest)
+        .optional("--status-code")
         .unwrap_or_else(|| "302".to_string())
         .parse::<u16>()
         .context("invalid redirect status code")?;

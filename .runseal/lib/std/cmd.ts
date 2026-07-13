@@ -1,6 +1,5 @@
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
-
 export type Options = {
   cwd?: string;
   env?: Record<string, string>;
@@ -8,7 +7,6 @@ export type Options = {
   stdout?: "inherit" | "null" | "piped";
   stderr?: "inherit" | "null" | "piped";
 };
-
 const blocked = new Set([
   "DYLD_FALLBACK_LIBRARY_PATH",
   "DYLD_INSERT_LIBRARIES",
@@ -16,7 +14,6 @@ const blocked = new Set([
   "LD_PRELOAD",
   "LD_LIBRARY_PATH",
 ]);
-
 class Inherited {
   static present(): boolean {
     for (const key of blocked) {
@@ -44,70 +41,7 @@ class Inherited {
     return extra === undefined ? {} : { env: extra };
   }
 }
-
-async function run(command: string, args: string[] = [], options: Options = {}) {
-  const code = await status(command, args, options);
-  if (code !== 0) {
-    Deno.exit(code);
-  }
-}
-
-async function status(command: string, args: string[] = [], options: Options = {}) {
-  const status = await new Deno.Command(command, {
-    args,
-    cwd: options.cwd,
-    ...Inherited.options(options.env),
-    stdin: options.stdin ?? "inherit",
-    stdout: options.stdout ?? "inherit",
-    stderr: options.stderr ?? "inherit",
-  }).spawn().status;
-  return status.code;
-}
-
-async function text(
-  command: string,
-  args: string[] = [],
-  options: Omit<Options, "stdout"> = {},
-): Promise<string> {
-  const output = await new Deno.Command(command, {
-    args,
-    cwd: options.cwd,
-    ...Inherited.options(options.env),
-    stdin: options.stdin ?? "null",
-    stdout: "piped",
-    stderr: options.stderr ?? "inherit",
-  }).output();
-  if (!output.success) {
-    Deno.exit(output.code);
-  }
-  return decoder.decode(output.stdout).trimEnd();
-}
-
-async function input(
-  command: string,
-  args: string[],
-  input: string,
-  options: Omit<Options, "stdin"> = {},
-): Promise<string> {
-  const child = new Deno.Command(command, {
-    args,
-    cwd: options.cwd,
-    ...Inherited.options(options.env),
-    stdin: "piped",
-    stdout: options.stdout ?? "piped",
-    stderr: options.stderr ?? "inherit",
-  }).spawn();
-  const writer = child.stdin.getWriter();
-  await writer.write(encoder.encode(input));
-  await writer.close();
-  const output = await child.output();
-  if (!output.success) {
-    Deno.exit(output.code);
-  }
-  return decoder.decode(output.stdout).trimEnd();
-}
-
-async function exists(name: string): Promise<boolean> {
+export async function exists(name: string): Promise<boolean> {
   try {
     await new Deno.Command(name, {
       args: ["--version"],
@@ -125,10 +59,67 @@ async function exists(name: string): Promise<boolean> {
   }
 }
 
-export const cmd = {
-  run,
-  status,
-  text,
-  input,
-  exists,
-};
+export class Bin {
+  constructor(private readonly command: string) {}
+
+  async run(args: string[] = [], options: Options = {}) {
+    const code = await this.status(args, options);
+    if (code !== 0) {
+      Deno.exit(code);
+    }
+  }
+
+  async status(args: string[] = [], options: Options = {}) {
+    const status = await new Deno.Command(this.command, {
+      args,
+      cwd: options.cwd,
+      ...Inherited.options(options.env),
+      stdin: options.stdin ?? "inherit",
+      stdout: options.stdout ?? "inherit",
+      stderr: options.stderr ?? "inherit",
+    }).spawn().status;
+    return status.code;
+  }
+
+  async text(args: string[] = [], options: Omit<Options, "stdout"> = {}): Promise<string> {
+    const output = await new Deno.Command(this.command, {
+      args,
+      cwd: options.cwd,
+      ...Inherited.options(options.env),
+      stdin: options.stdin ?? "null",
+      stdout: "piped",
+      stderr: options.stderr ?? "inherit",
+    }).output();
+    if (!output.success) {
+      Deno.exit(output.code);
+    }
+    return decoder.decode(output.stdout).trimEnd();
+  }
+
+  async input(
+    args: string[],
+    input: string,
+    options: Omit<Options, "stdin"> = {},
+  ): Promise<string> {
+    const child = new Deno.Command(this.command, {
+      args,
+      cwd: options.cwd,
+      ...Inherited.options(options.env),
+      stdin: "piped",
+      stdout: options.stdout ?? "piped",
+      stderr: options.stderr ?? "inherit",
+    }).spawn();
+    const writer = child.stdin.getWriter();
+    await writer.write(encoder.encode(input));
+    await writer.close();
+    const output = await child.output();
+    if (!output.success) {
+      Deno.exit(output.code);
+    }
+    return decoder.decode(output.stdout).trimEnd();
+  }
+}
+
+export function bin(command: string): Bin {
+  return new Bin(command);
+}

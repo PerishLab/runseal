@@ -1,12 +1,9 @@
-use std::{collections::BTreeMap, path::PathBuf, time::Duration};
-
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
-
+use std::{collections::BTreeMap, path::PathBuf, time::Duration};
 pub(super) mod help;
 mod record;
 mod rule;
-
 #[derive(Debug, Clone)]
 pub(super) struct Config {
     account: Account,
@@ -14,54 +11,37 @@ pub(super) struct Config {
     zone: Zone,
     manage: Manage,
 }
-
 #[derive(Debug, Clone)]
 struct Account {
     id: String,
 }
-
 #[derive(Debug, Clone)]
 struct Zone {
     name: String,
 }
-
 #[derive(Debug, Clone)]
 struct Manage {
     host: String,
     origin: String,
     prefix: String,
 }
-
 struct Ruleset;
-
 struct Bucket;
-
 struct Env(BTreeMap<String, String>);
-
 struct Options {
     query: Vec<(String, String)>,
     body: Option<JsonValue>,
 }
-
 pub fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
     match command {
-        "config" => config(args),
-        "api" => api(args),
-        "zone" => zone(args),
-        "account" => account(args),
+        "config" => cmd(args).config(),
+        "api" => cmd(args).api(),
+        "zone" => cmd(args).zone(),
+        "account" => cmd(args).account(),
         "redirect-rule" => rule::eval(args),
         _ => bail!("unknown tool command: cloudflare {command}"),
     }
 }
-
-fn config(args: &[String]) -> Result<Option<String>> {
-    match args {
-        [command, key] if command == "get" => Config::fetch(key),
-        [command] if command == "json" => Config::dump(),
-        _ => bail!("usage: runseal @tool cloudflare config get <key>|json"),
-    }
-}
-
 impl Config {
     fn fetch(key: &str) -> Result<Option<String>> {
         let config = Self::load()?;
@@ -87,40 +67,9 @@ impl Config {
         }))?))
     }
 }
-
-fn api(args: &[String]) -> Result<Option<String>> {
-    let [command, rest @ ..] = args else {
-        bail!(
-            "usage: runseal @tool cloudflare api request <method> <path> [--query k=v]... [--json <json>]"
-        );
-    };
-    if command != "request" {
-        bail!(
-            "usage: runseal @tool cloudflare api request <method> <path> [--query k=v]... [--json <json>]"
-        );
-    }
-    let [method, path, options @ ..] = rest else {
-        bail!(
-            "usage: runseal @tool cloudflare api request <method> <path> [--query k=v]... [--json <json>]"
-        );
-    };
-    let parsed = Options::parse(options)?;
-    let config = Config::load()?;
-    request(&config, method, path, parsed.query, parsed.body)
-}
-
-fn zone(args: &[String]) -> Result<Option<String>> {
-    match args {
-        [command, rest @ ..] if command == "get" => Zone::get(rest),
-        [ruleset, rest @ ..] if ruleset == "ruleset" => Ruleset::eval(rest),
-        [dns, command, rest @ ..] if dns == "dns-record" => record::eval(command, rest),
-        _ => bail!("usage: runseal @tool cloudflare zone get|ruleset|dns-record ..."),
-    }
-}
-
 impl Zone {
     fn get(args: &[String]) -> Result<Option<String>> {
-        let name = required(args, "--name")?;
+        let name = cmd(args).required("--name")?;
         let config = Config::load()?;
         let payload = request(
             &config,
@@ -143,7 +92,6 @@ impl Zone {
         Ok(Some(serde_json::to_string(&result[0])?))
     }
 }
-
 impl Ruleset {
     fn eval(args: &[String]) -> Result<Option<String>> {
         match args {
@@ -156,7 +104,7 @@ impl Ruleset {
     }
 
     fn list(args: &[String]) -> Result<Option<String>> {
-        let zone = required(args, "--zone-id")?;
+        let zone = cmd(args).required("--zone-id")?;
         let config = Config::load()?;
         let payload = request(
             &config,
@@ -172,8 +120,8 @@ impl Ruleset {
     }
 
     fn get(args: &[String]) -> Result<Option<String>> {
-        let zone = required(args, "--zone-id")?;
-        let ruleset = required(args, "--ruleset-id")?;
+        let zone = cmd(args).required("--zone-id")?;
+        let ruleset = cmd(args).required("--ruleset-id")?;
         let config = Config::load()?;
         let payload = request(
             &config,
@@ -189,9 +137,9 @@ impl Ruleset {
     }
 
     fn create(args: &[String]) -> Result<Option<String>> {
-        let zone = required(args, "--zone-id")?;
-        let phase = required(args, "--phase")?;
-        let name = required(args, "--name")?;
+        let zone = cmd(args).required("--zone-id")?;
+        let phase = cmd(args).required("--phase")?;
+        let name = cmd(args).required("--name")?;
         let body = serde_json::json!({
             "kind": "zone",
             "name": name,
@@ -221,14 +169,14 @@ impl Ruleset {
     }
 
     fn update(rest: &[String]) -> Result<Option<String>> {
-        let rule = required(rest, "--rule-id")?;
+        let rule = cmd(rest).required("--rule-id")?;
         Self::change("PATCH", rest, Some(rule))
     }
 
     fn change(method: &str, rest: &[String], rule: Option<String>) -> Result<Option<String>> {
-        let zone = required(rest, "--zone-id")?;
-        let ruleset = required(rest, "--ruleset-id")?;
-        let payload = required(rest, "--json")?;
+        let zone = cmd(rest).required("--zone-id")?;
+        let ruleset = cmd(rest).required("--ruleset-id")?;
+        let payload = cmd(rest).required("--json")?;
         let body: JsonValue = serde_json::from_str(&payload).context("invalid rule JSON")?;
         let path = Self::route(&zone, &ruleset, rule);
         let config = Config::load()?;
@@ -246,22 +194,9 @@ impl Ruleset {
         }
     }
 }
-
-fn account(args: &[String]) -> Result<Option<String>> {
-    match args {
-        [command, rest @ ..] if command == "get" => Account::get(rest),
-        [r2, bucket, command, rest @ ..]
-            if r2 == "r2" && bucket == "bucket" && command == "list" =>
-        {
-            Bucket::list(rest)
-        }
-        _ => bail!("usage: runseal @tool cloudflare account get|r2 bucket list ..."),
-    }
-}
-
 impl Account {
     fn get(args: &[String]) -> Result<Option<String>> {
-        let account = required(args, "--account-id")?;
+        let account = cmd(args).required("--account-id")?;
         let config = Config::load()?;
         let payload = request(
             &config,
@@ -276,10 +211,9 @@ impl Account {
         )?))
     }
 }
-
 impl Bucket {
     fn list(args: &[String]) -> Result<Option<String>> {
-        let account = required(args, "--account-id")?;
+        let account = cmd(args).required("--account-id")?;
         let config = Config::load()?;
         let payload = request(
             &config,
@@ -297,50 +231,23 @@ impl Bucket {
         )?))
     }
 }
-
 impl Options {
     fn parse(args: &[String]) -> Result<Self> {
         let mut query = Vec::new();
         let mut body = None;
         let mut index = 0;
         while index < args.len() {
-            index += parse(&args[index..], &mut query, &mut body)?;
+            index += cmd(&args[index..]).parse(&mut query, &mut body)?;
         }
         Ok(Self { query, body })
     }
 }
-
-fn parse(
-    args: &[String],
-    query: &mut Vec<(String, String)>,
-    body: &mut Option<JsonValue>,
-) -> Result<usize> {
-    match args.first().map(String::as_str) {
-        Some("--query") => query.push(pair(need(args, "--query")?)?),
-        Some("--json") => {
-            *body = Some(
-                serde_json::from_str(need(args, "--json")?).context("invalid --json payload")?,
-            )
-        }
-        Some(other) => bail!("unknown Cloudflare option: {other}"),
-        None => bail!("missing Cloudflare option"),
-    }
-    Ok(2)
-}
-
-fn need<'a>(args: &'a [String], name: &str) -> Result<&'a str> {
-    args.get(1)
-        .map(String::as_str)
-        .with_context(|| format!("{name} requires a value"))
-}
-
 fn pair(value: &str) -> Result<(String, String)> {
     let Some((key, value)) = value.split_once('=') else {
         bail!("invalid --query value: {value}; expected key=value");
     };
     Ok((key.to_string(), value.to_string()))
 }
-
 impl Config {
     pub(super) fn load() -> Result<Self> {
         let env = Env::load()?;
@@ -369,7 +276,6 @@ impl Config {
         })
     }
 }
-
 impl Env {
     fn load() -> Result<Self> {
         let path = Self::path();
@@ -416,7 +322,6 @@ impl Env {
         })
     }
 }
-
 pub(super) fn request(
     config: &Config,
     method: &str,
@@ -478,22 +383,108 @@ pub(super) fn request(
     Ok(Some(serde_json::to_string(&payload)?))
 }
 
-pub(super) fn required(args: &[String], name: &str) -> Result<String> {
-    optional(args, name).ok_or_else(|| anyhow::anyhow!("{name} is required"))
+pub(super) struct Cmd<'a> {
+    args: &'a [String],
 }
 
-pub(super) fn optional(args: &[String], name: &str) -> Option<String> {
-    let prefix = format!("{name}=");
-    let mut index = 0;
-    while index < args.len() {
-        let arg = &args[index];
-        if arg == name {
-            return args.get(index + 1).cloned();
+pub(super) fn cmd(args: &[String]) -> Cmd<'_> {
+    Cmd { args }
+}
+
+impl Cmd<'_> {
+    fn config(&self) -> Result<Option<String>> {
+        match self.args {
+            [command, key] if command == "get" => Config::fetch(key),
+            [command] if command == "json" => Config::dump(),
+            _ => bail!("usage: runseal @tool cloudflare config get <key>|json"),
         }
-        if let Some(value) = arg.strip_prefix(&prefix) {
-            return Some(value.to_string());
-        }
-        index += 1;
     }
-    None
+
+    fn api(&self) -> Result<Option<String>> {
+        let [command, rest @ ..] = self.args else {
+            bail!(
+                "usage: runseal @tool cloudflare api request <method> <path> [--query k=v]... [--json <json>]"
+            );
+        };
+        if command != "request" {
+            bail!(
+                "usage: runseal @tool cloudflare api request <method> <path> [--query k=v]... [--json <json>]"
+            );
+        }
+        let [method, path, options @ ..] = rest else {
+            bail!(
+                "usage: runseal @tool cloudflare api request <method> <path> [--query k=v]... [--json <json>]"
+            );
+        };
+        let parsed = Options::parse(options)?;
+        let config = Config::load()?;
+        request(&config, method, path, parsed.query, parsed.body)
+    }
+
+    fn zone(&self) -> Result<Option<String>> {
+        match self.args {
+            [command, rest @ ..] if command == "get" => Zone::get(rest),
+            [ruleset, rest @ ..] if ruleset == "ruleset" => Ruleset::eval(rest),
+            [dns, command, rest @ ..] if dns == "dns-record" => record::eval(command, rest),
+            _ => bail!("usage: runseal @tool cloudflare zone get|ruleset|dns-record ..."),
+        }
+    }
+
+    fn account(&self) -> Result<Option<String>> {
+        match self.args {
+            [command, rest @ ..] if command == "get" => Account::get(rest),
+            [r2, bucket, command, rest @ ..]
+                if r2 == "r2" && bucket == "bucket" && command == "list" =>
+            {
+                Bucket::list(rest)
+            }
+            _ => bail!("usage: runseal @tool cloudflare account get|r2 bucket list ..."),
+        }
+    }
+
+    fn parse(
+        &self,
+        query: &mut Vec<(String, String)>,
+        body: &mut Option<JsonValue>,
+    ) -> Result<usize> {
+        match self.args.first().map(String::as_str) {
+            Some("--query") => query.push(pair(self.need("--query")?)?),
+            Some("--json") => {
+                *body = Some(
+                    serde_json::from_str(self.need("--json")?).context("invalid --json payload")?,
+                )
+            }
+            Some(other) => bail!("unknown Cloudflare option: {other}"),
+            None => bail!("missing Cloudflare option"),
+        }
+        Ok(2)
+    }
+
+    fn need(&self, name: &str) -> Result<&str> {
+        self.args
+            .get(1)
+            .map(String::as_str)
+            .with_context(|| format!("{name} requires a value"))
+    }
+
+    fn required(&self, name: &str) -> Result<String> {
+        self.optional(name)
+            .ok_or_else(|| anyhow::anyhow!("{name} is required"))
+    }
+
+    fn optional(&self, name: &str) -> Option<String> {
+        let prefix = format!("{name}=");
+        let mut index = 0;
+        while index < self.args.len() {
+            let arg = &self.args[index];
+            if arg == name {
+                return self.args.get(index + 1).cloned();
+            }
+            if let Some(value) = arg.strip_prefix(&prefix) {
+                return Some(value.to_string());
+            }
+            index += 1;
+        }
+        None
+    }
 }

@@ -1,7 +1,7 @@
-import { cli } from "@/lib/cli.ts";
-import { cmd } from "@/lib/std/cmd.ts";
+import { cli, flags } from "@/lib/cli.ts";
+import { bin } from "@/lib/std/cmd.ts";
 import { io } from "@/lib/std/io.ts";
-import { json } from "@/lib/std/json.ts";
+import { doc } from "@/lib/std/json.ts";
 import { runseal } from "@/lib/std/runseal.ts";
 
 type Options = {
@@ -44,15 +44,15 @@ function parse(args: string[]): Options & { help: boolean; argc: number } {
     string: ["channel", "repo", "ref", "version"],
     boolean: ["watch", "dry-run", "help", "h"],
   });
-  cli.positionals(parsed, "release", { allowHelp: true });
+  flags(parsed).positionals("release", { allowHelp: true });
   return {
-    channel: cli.string(parsed, "channel"),
-    repo: cli.string(parsed, "repo"),
-    ref: cli.string(parsed, "ref", "main"),
-    version: cli.string(parsed, "version"),
-    watch: cli.boolean(parsed, "watch"),
-    dryRun: cli.boolean(parsed, "dry-run"),
-    help: cli.help(parsed),
+    channel: flags(parsed).string("channel"),
+    repo: flags(parsed).string("repo"),
+    ref: flags(parsed).string("ref", "main"),
+    version: flags(parsed).string("version"),
+    watch: flags(parsed).boolean("watch"),
+    dryRun: flags(parsed).boolean("dry-run"),
+    help: flags(parsed).help(),
     argc: args.length,
   };
 }
@@ -90,7 +90,7 @@ const raw = await runseal.text([
   "--input",
   `version_override=${options.version}`,
 ]);
-const id = json.get(raw, ".id");
+const id = doc(raw).get(".id");
 io.print(`triggered ${file} run ${id} for ref ${options.ref}`);
 
 if (options.watch) {
@@ -109,7 +109,7 @@ if (options.watch) {
 }
 
 async function target(): Promise<string> {
-  const origin = (await cmd.text("git", ["remote", "get-url", "origin"])).replace(/\.git$/, "");
+  const origin = (await bin("git").text(["remote", "get-url", "origin"])).replace(/\.git$/, "");
   const found = origin.match(/[:/]([^/:]+)\/([^/]+)$/);
   if (found === null) {
     return io.fail(`release: cannot derive Forgejo owner/name from origin: ${origin}`);

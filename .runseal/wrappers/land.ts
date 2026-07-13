@@ -1,7 +1,7 @@
-import { cli } from "@/lib/cli.ts";
-import { cmd } from "@/lib/std/cmd.ts";
+import { cli, flags } from "@/lib/cli.ts";
+import { bin } from "@/lib/std/cmd.ts";
 import { io } from "@/lib/std/io.ts";
-import { json } from "@/lib/std/json.ts";
+import { doc } from "@/lib/std/json.ts";
 import { runseal } from "@/lib/std/runseal.ts";
 
 type Options = {
@@ -32,14 +32,14 @@ function parse(args: string[]): Options & { help: boolean } {
     string: ["base", "body", "repo"],
     boolean: ["dry-run", "no-delete", "help", "h"],
   });
-  cli.positionals(parsed, "land", { allowHelp: true });
+  flags(parsed).positionals("land", { allowHelp: true });
   return {
-    base: cli.string(parsed, "base", "main"),
-    body: cli.string(parsed, "body"),
-    repo: cli.string(parsed, "repo"),
-    dryRun: cli.boolean(parsed, "dry-run"),
-    deleteBranch: !cli.boolean(parsed, "no-delete"),
-    help: cli.help(parsed),
+    base: flags(parsed).string("base", "main"),
+    body: flags(parsed).string("body"),
+    repo: flags(parsed).string("repo"),
+    dryRun: flags(parsed).boolean("dry-run"),
+    deleteBranch: !flags(parsed).boolean("no-delete"),
+    help: flags(parsed).help(),
   };
 }
 
@@ -49,7 +49,7 @@ if (options.help) {
   Deno.exit(0);
 }
 
-await cmd.run("git", ["--version"], { stdout: "null" });
+await bin("git").run(["--version"], { stdout: "null" });
 
 const branch = await current();
 const repo = options.repo === "" ? await target() : options.repo;
@@ -60,22 +60,22 @@ if (options.dryRun) {
 }
 
 await landable(options.base, branch, { fetch: true });
-await cmd.run("git", ["push", "-u", "origin", branch]);
+await bin("git").run(["push", "-u", "origin", branch]);
 
 const pr = await pull(options, repo, branch);
-const number = json.get(pr, ".number");
-const url = json.get(pr, ".html_url");
+const number = doc(pr).get(".number");
+const url = doc(pr).get(".html_url");
 io.print(url);
 const sha = await guarded(repo, number);
 await merge(repo, number, sha, options.deleteBranch);
-await cmd.run("git", ["checkout", options.base]);
-await cmd.run("git", ["pull", "--ff-only", "origin", options.base]);
+await bin("git").run(["checkout", options.base]);
+await bin("git").run(["pull", "--ff-only", "origin", options.base]);
 if (options.deleteBranch && await ok(["rev-parse", "--verify", `refs/heads/${branch}`])) {
-  await cmd.run("git", ["branch", "-D", branch]);
+  await bin("git").run(["branch", "-D", branch]);
 }
 
 async function current(): Promise<string> {
-  const branch = await cmd.text("git", ["branch", "--show-current"]);
+  const branch = await bin("git").text(["branch", "--show-current"]);
   if (branch === "") {
     io.fail("land: detached HEAD is not a landable topic branch");
   }
@@ -90,12 +90,12 @@ async function landable(
   if (branch === base || branch === "main" || branch === "master") {
     io.fail(`land: must run on a topic branch, not ${branch}`);
   }
-  const dirty = await cmd.text("git", ["status", "--short"]);
+  const dirty = await bin("git").text(["status", "--short"]);
   if (dirty.trim() !== "") {
     io.fail("land: working tree must be clean; commit or discard changes first");
   }
   if (options.fetch) {
-    await cmd.run("git", ["fetch", "origin", base]);
+    await bin("git").run(["fetch", "origin", base]);
   }
   const remote = `origin/${base}`;
   if (!await ok(["rev-parse", "--verify", remote])) {
@@ -104,14 +104,14 @@ async function landable(
   if (!await ok(["merge-base", "--is-ancestor", remote, "HEAD"])) {
     io.fail(`land: current branch must contain latest ${remote}; rebase onto ${base} first`);
   }
-  const ahead = Number(await cmd.text("git", ["rev-list", "--count", `${remote}..HEAD`]));
+  const ahead = Number(await bin("git").text(["rev-list", "--count", `${remote}..HEAD`]));
   if (!Number.isFinite(ahead) || ahead <= 0) {
     io.fail(`land: current branch has no commits ahead of ${remote}`);
   }
 }
 
 async function ok(args: string[]): Promise<boolean> {
-  return await cmd.status("git", args, {
+  return await bin("git").status(args, {
     stdin: "null",
     stdout: "null",
     stderr: "null",
@@ -131,7 +131,7 @@ async function pull(options: Options, repo: string, branch: string): Promise<str
     "--base",
     options.base,
   ]);
-  if (!json.empty(existing)) {
+  if (!doc(existing).empty()) {
     return existing;
   }
 
@@ -156,7 +156,7 @@ async function pull(options: Options, repo: string, branch: string): Promise<str
 }
 
 async function title(base: string): Promise<string> {
-  const subjects = await cmd.text("git", [
+  const subjects = await bin("git").text([
     "log",
     "--reverse",
     "--format=%s",
@@ -177,7 +177,7 @@ async function guarded(repo: string, number: string): Promise<string> {
     "--number",
     number,
   ]);
-  return json.get(run, ".commit_sha");
+  return doc(run).get(".commit_sha");
 }
 
 async function merge(repo: string, number: string, sha: string, remove: boolean): Promise<void> {
@@ -198,7 +198,7 @@ async function merge(repo: string, number: string, sha: string, remove: boolean)
 }
 
 async function target(): Promise<string> {
-  const origin = (await cmd.text("git", ["remote", "get-url", "origin"])).replace(/\.git$/, "");
+  const origin = (await bin("git").text(["remote", "get-url", "origin"])).replace(/\.git$/, "");
   const found = origin.match(/[:/]([^/:]+)\/([^/]+)$/);
   if (found === null) {
     return io.fail(`land: cannot derive Forgejo owner/name from origin: ${origin}`);

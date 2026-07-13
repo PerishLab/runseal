@@ -71,7 +71,7 @@ impl Parser {
             bail!("command mode requires at least one command token");
         }
         if let Some(name) = Self::wrapper(&config.command[0])? {
-            let file = wrappers::resolve(config, &name)?;
+            let file = (wrappers::Fleet { config }).resolve(&name)?;
             let mut argv = Vec::with_capacity(config.command.len());
             argv.push(file.to_string_lossy().into_owned());
             argv.extend_from_slice(&config.command[1..]);
@@ -173,13 +173,13 @@ impl Internal {
         }
         println!(
             "RUNSEAL_WRAPPER_PATH={}",
-            wrappers::env(config)?.to_string_lossy()
+            (wrappers::Fleet { config }).env()?.to_string_lossy()
         );
         Ok(())
     }
 
     fn wrappers(config: &Config) -> Result<()> {
-        for wrapper in wrappers::effective(config)? {
+        for wrapper in (wrappers::Fleet { config }).effective()? {
             println!(
                 ":{:<20} {}\t{}",
                 wrapper.name,
@@ -207,7 +207,7 @@ impl Internal {
     }
 
     fn which(config: &Config, name: &str) -> Result<()> {
-        let file = wrappers::resolve(config, name)?;
+        let file = (wrappers::Fleet { config }).resolve(name)?;
         println!("{}", file.display());
         Ok(())
     }
@@ -280,7 +280,10 @@ impl Runner {
             bail!("command mode requires at least one command token");
         }
         if let Some(wrapper) = &resolved.wrapper
-            && wrappers::deno(&wrapper.file)
+            && (wrappers::Bin {
+                path: &wrapper.file,
+            })
+            .deno()
         {
             return Self::deno(config, profile.deno.as_ref(), resolved, exports);
         }
@@ -361,7 +364,10 @@ impl Runner {
         ));
         env.push((
             "RUNSEAL_WRAPPER_PATH".to_string(),
-            wrappers::env(config)?.to_string_lossy().into_owned(),
+            (wrappers::Fleet { config })
+                .env()?
+                .to_string_lossy()
+                .into_owned(),
         ));
         if let Some(wrapper) = &resolved.wrapper {
             env.push(("RUNSEAL_WRAPPER_NAME".to_string(), wrapper.name.clone()));

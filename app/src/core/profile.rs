@@ -1,20 +1,16 @@
+use anyhow::{Context, Result};
+use path_absolutize::Absolutize;
+use serde::Deserialize;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
-
-use anyhow::{Context, Result};
-use path_absolutize::Absolutize;
-use serde::Deserialize;
-
 fn enabled() -> bool {
     true
 }
-
 fn cleanup() -> bool {
     true
 }
-
 #[derive(Debug, Deserialize)]
 pub struct Profile {
     #[serde(default)]
@@ -24,18 +20,15 @@ pub struct Profile {
     #[serde(default)]
     pub injections: Vec<Injection>,
 }
-
 #[derive(Debug, Deserialize)]
 struct Metadata {
     #[serde(default)]
     resources: Option<Resources>,
 }
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct Resources {
     pub root: PathBuf,
 }
-
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Deno {
     #[serde(default)]
@@ -45,7 +38,6 @@ pub struct Deno {
     #[serde(default)]
     pub permissions: Vec<String>,
 }
-
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Injection {
@@ -53,7 +45,6 @@ pub enum Injection {
     Symlink(Symlink),
     Argv(Argv),
 }
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct Env {
     #[serde(default = "enabled")]
@@ -63,7 +54,6 @@ pub struct Env {
     #[serde(default)]
     pub ops: Vec<Op>,
 }
-
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Op {
@@ -96,7 +86,6 @@ pub enum Op {
         key: String,
     },
 }
-
 impl Op {
     pub fn key(&self) -> &str {
         match self {
@@ -108,7 +97,6 @@ impl Op {
         }
     }
 }
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct Symlink {
     #[serde(default = "enabled")]
@@ -120,7 +108,6 @@ pub struct Symlink {
     #[serde(default = "cleanup")]
     pub cleanup: bool,
 }
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct Argv {
     #[serde(default = "enabled")]
@@ -128,7 +115,6 @@ pub struct Argv {
     pub command: String,
     pub args: Vec<String>,
 }
-
 #[derive(Debug, Deserialize, Clone, Copy, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Existing {
@@ -136,7 +122,6 @@ pub enum Existing {
     Error,
     Replace,
 }
-
 pub fn load(path: &Path) -> Result<Profile> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read profile file: {}", path.display()))?;
@@ -152,13 +137,13 @@ pub fn load(path: &Path) -> Result<Profile> {
             path.display()
         ),
     };
-    deno(path, &mut profile)?;
-    symlinks(path, &mut profile)?;
+    let doc = Doc { path };
+    doc.deno(&mut profile)?;
+    doc.symlinks(&mut profile)?;
     let resources = profile.resources.clone();
-    env(path, resources.as_ref(), &mut profile)?;
+    doc.env(resources.as_ref(), &mut profile)?;
     Ok(profile)
 }
-
 pub fn resources(path: &Path) -> Result<Option<Resources>> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read profile file: {}", path.display()))?;
@@ -176,7 +161,6 @@ pub fn resources(path: &Path) -> Result<Option<Resources>> {
     };
     Ok(metadata.resources)
 }
-
 pub fn resolve(profile: &Path, resources: Option<&Resources>, uri: &str) -> Result<PathBuf> {
     let relative = parse(uri)?;
     root(profile, resources)?
@@ -185,7 +169,6 @@ pub fn resolve(profile: &Path, resources: Option<&Resources>, uri: &str) -> Resu
         .with_context(|| format!("failed to absolutize resource URI: {uri}"))
         .map(|path| path.to_path_buf())
 }
-
 pub fn root(profile: &Path, resources: Option<&Resources>) -> Result<PathBuf> {
     let resources = resources.ok_or_else(|| {
         anyhow::anyhow!(
@@ -198,72 +181,6 @@ pub fn root(profile: &Path, resources: Option<&Resources>) -> Result<PathBuf> {
     }
     normalize(&resources.root, profile.parent().unwrap_or(Path::new(".")))
 }
-
-fn symlinks(path: &Path, profile: &mut Profile) -> Result<()> {
-    let base = path.parent().unwrap_or(Path::new("."));
-    for injection in &mut profile.injections {
-        if let Injection::Symlink(spec) = injection {
-            spec.source = normalize(&spec.source, base)?;
-            spec.target = normalize(&spec.target, base)?;
-        }
-    }
-    Ok(())
-}
-
-fn deno(path: &Path, profile: &mut Profile) -> Result<()> {
-    let Some(deno) = &mut profile.deno else {
-        return Ok(());
-    };
-    let base = path.parent().unwrap_or(Path::new("."));
-    if let Some(config) = &mut deno.config {
-        *config = normalize(config, base)?;
-    }
-    if let Some(lock) = &mut deno.lock {
-        *lock = normalize(lock, base)?;
-    }
-    Ok(())
-}
-
-fn env(path: &Path, resources: Option<&Resources>, profile: &mut Profile) -> Result<()> {
-    for injection in &mut profile.injections {
-        self::injection(path, resources, injection)?;
-    }
-    Ok(())
-}
-
-fn injection(path: &Path, resources: Option<&Resources>, injection: &mut Injection) -> Result<()> {
-    let Injection::Env(spec) = injection else {
-        return Ok(());
-    };
-    for value in spec.vars.values_mut() {
-        self::value(path, resources, value)?;
-    }
-    for op in &mut spec.ops {
-        self::op(path, resources, op)?;
-    }
-    Ok(())
-}
-
-fn op(path: &Path, resources: Option<&Resources>, op: &mut Op) -> Result<()> {
-    match op {
-        Op::Set { value, .. }
-        | Op::Absent { value, .. }
-        | Op::Prepend { value, .. }
-        | Op::Append { value, .. } => self::value(path, resources, value),
-        Op::Unset { .. } => Ok(()),
-    }
-}
-
-fn value(path: &Path, resources: Option<&Resources>, value: &mut String) -> Result<()> {
-    if !value.starts_with("resource://") {
-        return Ok(());
-    }
-    *value = resolve(path, resources, value)?
-        .to_string_lossy()
-        .into_owned();
-    Ok(())
-}
-
 fn parse(uri: &str) -> Result<PathBuf> {
     let Some(raw) = uri.strip_prefix("resource://") else {
         anyhow::bail!("expected resource URI to start with resource://");
@@ -290,7 +207,6 @@ fn parse(uri: &str) -> Result<PathBuf> {
     }
     Ok(path)
 }
-
 fn normalize(path: &Path, base: &Path) -> Result<PathBuf> {
     let raw = path.to_string_lossy();
     let expanded = shellexpand::tilde(&raw);
@@ -299,4 +215,75 @@ fn normalize(path: &Path, base: &Path) -> Result<PathBuf> {
         return Ok(expanded);
     }
     Ok(expanded.absolutize_from(base)?.to_path_buf())
+}
+
+struct Doc<'a> {
+    path: &'a Path,
+}
+
+impl Doc<'_> {
+    fn symlinks(&self, profile: &mut Profile) -> Result<()> {
+        let base = self.path.parent().unwrap_or(Path::new("."));
+        for injection in &mut profile.injections {
+            if let Injection::Symlink(spec) = injection {
+                spec.source = normalize(&spec.source, base)?;
+                spec.target = normalize(&spec.target, base)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn deno(&self, profile: &mut Profile) -> Result<()> {
+        let Some(deno) = &mut profile.deno else {
+            return Ok(());
+        };
+        let base = self.path.parent().unwrap_or(Path::new("."));
+        if let Some(config) = &mut deno.config {
+            *config = normalize(config, base)?;
+        }
+        if let Some(lock) = &mut deno.lock {
+            *lock = normalize(lock, base)?;
+        }
+        Ok(())
+    }
+
+    fn env(&self, resources: Option<&Resources>, profile: &mut Profile) -> Result<()> {
+        for injection in &mut profile.injections {
+            self.injection(resources, injection)?;
+        }
+        Ok(())
+    }
+
+    fn injection(&self, resources: Option<&Resources>, injection: &mut Injection) -> Result<()> {
+        let Injection::Env(spec) = injection else {
+            return Ok(());
+        };
+        for value in spec.vars.values_mut() {
+            self.value(resources, value)?;
+        }
+        for op in &mut spec.ops {
+            self.op(resources, op)?;
+        }
+        Ok(())
+    }
+
+    fn op(&self, resources: Option<&Resources>, op: &mut Op) -> Result<()> {
+        match op {
+            Op::Set { value, .. }
+            | Op::Absent { value, .. }
+            | Op::Prepend { value, .. }
+            | Op::Append { value, .. } => self.value(resources, value),
+            Op::Unset { .. } => Ok(()),
+        }
+    }
+
+    fn value(&self, resources: Option<&Resources>, value: &mut String) -> Result<()> {
+        if !value.starts_with("resource://") {
+            return Ok(());
+        }
+        *value = resolve(self.path, resources, value)?
+            .to_string_lossy()
+            .into_owned();
+        Ok(())
+    }
 }
