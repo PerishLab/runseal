@@ -43,7 +43,7 @@ pub fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
     }
 }
 impl Config {
-    fn fetch(key: &str) -> Result<Option<String>> {
+    fn get(key: &str) -> Result<Option<String>> {
         let config = Self::load()?;
         let value = match key {
             "account_id" => config.account.id,
@@ -381,7 +381,7 @@ pub(super) fn cmd(args: &[String]) -> Cmd<'_> {
 impl Cmd<'_> {
     fn config(&self) -> Result<Option<String>> {
         match self.args {
-            [command, key] if command == "get" => Config::fetch(key),
+            [command, key] if command == "get" => Config::get(key),
             [command] if command == "json" => Config::dump(),
             _ => bail!("usage: runseal @tool cloudflare config get <key>|json"),
         }
