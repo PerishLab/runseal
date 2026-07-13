@@ -26,3 +26,10 @@ allow = false
 
 [word]
 single = true
+
+[[grant]]
+syntax = "test"
+paths = [
+  "app/tests/**/*.rs",
+  ".runseal/**/*.test.ts",
+]
