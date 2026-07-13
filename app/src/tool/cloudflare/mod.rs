@@ -71,8 +71,7 @@ impl Zone {
     fn get(args: &[String]) -> Result<Option<String>> {
         let name = cmd(args).required("--name")?;
         let config = Config::load()?;
-        let payload = request(
-            &config,
+        let payload = config.request(
             "GET",
             "/zones",
             vec![("name".to_string(), name.clone())],
@@ -106,13 +105,8 @@ impl Ruleset {
     fn list(args: &[String]) -> Result<Option<String>> {
         let zone = cmd(args).required("--zone-id")?;
         let config = Config::load()?;
-        let payload = request(
-            &config,
-            "GET",
-            &format!("/zones/{zone}/rulesets"),
-            Vec::new(),
-            None,
-        )?;
+        let payload =
+            config.request("GET", &format!("/zones/{zone}/rulesets"), Vec::new(), None)?;
         let value: JsonValue = serde_json::from_str(&payload.unwrap_or_default())?;
         Ok(Some(serde_json::to_string(
             value.get("result").unwrap_or(&JsonValue::Array(Vec::new())),
@@ -123,8 +117,7 @@ impl Ruleset {
         let zone = cmd(args).required("--zone-id")?;
         let ruleset = cmd(args).required("--ruleset-id")?;
         let config = Config::load()?;
-        let payload = request(
-            &config,
+        let payload = config.request(
             "GET",
             &format!("/zones/{zone}/rulesets/{ruleset}"),
             Vec::new(),
@@ -147,8 +140,7 @@ impl Ruleset {
             "rules": [],
         });
         let config = Config::load()?;
-        let payload = request(
-            &config,
+        let payload = config.request(
             "POST",
             &format!("/zones/{zone}/rulesets"),
             Vec::new(),
@@ -180,7 +172,7 @@ impl Ruleset {
         let body: JsonValue = serde_json::from_str(&payload).context("invalid rule JSON")?;
         let path = Self::route(&zone, &ruleset, rule);
         let config = Config::load()?;
-        let payload = request(&config, method, &path, Vec::new(), Some(body))?;
+        let payload = config.request(method, &path, Vec::new(), Some(body))?;
         let value: JsonValue = serde_json::from_str(&payload.unwrap_or_default())?;
         Ok(Some(serde_json::to_string(
             value.get("result").unwrap_or(&JsonValue::Null),
@@ -198,13 +190,7 @@ impl Account {
     fn get(args: &[String]) -> Result<Option<String>> {
         let account = cmd(args).required("--account-id")?;
         let config = Config::load()?;
-        let payload = request(
-            &config,
-            "GET",
-            &format!("/accounts/{account}"),
-            Vec::new(),
-            None,
-        )?;
+        let payload = config.request("GET", &format!("/accounts/{account}"), Vec::new(), None)?;
         let value: JsonValue = serde_json::from_str(&payload.unwrap_or_default())?;
         Ok(Some(serde_json::to_string(
             value.get("result").unwrap_or(&JsonValue::Null),
@@ -215,8 +201,7 @@ impl Bucket {
     fn list(args: &[String]) -> Result<Option<String>> {
         let account = cmd(args).required("--account-id")?;
         let config = Config::load()?;
-        let payload = request(
-            &config,
+        let payload = config.request(
             "GET",
             &format!("/accounts/{account}/r2/buckets"),
             Vec::new(),
@@ -322,65 +307,67 @@ impl Env {
         })
     }
 }
-pub(super) fn request(
-    config: &Config,
-    method: &str,
-    path: &str,
-    query: Vec<(String, String)>,
-    body: Option<JsonValue>,
-) -> Result<Option<String>> {
-    let base = std::env::var("RUNSEAL_CLOUDFLARE_API_BASE")
-        .unwrap_or_else(|_| "https://api.cloudflare.com/client/v4".to_string());
-    let path = if path.starts_with('/') {
-        path.to_string()
-    } else {
-        format!("/{path}")
-    };
-    let url = format!("{base}{path}");
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()?;
-    let method = method
-        .parse::<reqwest::Method>()
-        .with_context(|| format!("invalid HTTP method: {method}"))?;
-    let mut request = client
-        .request(method.clone(), &url)
-        .bearer_auth(&config.token)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .header(reqwest::header::CONTENT_TYPE, "application/json");
-    if !query.is_empty() {
-        request = request.query(&query);
+impl Config {
+    pub(super) fn request(
+        &self,
+        method: &str,
+        path: &str,
+        query: Vec<(String, String)>,
+        body: Option<JsonValue>,
+    ) -> Result<Option<String>> {
+        let base = std::env::var("RUNSEAL_CLOUDFLARE_API_BASE")
+            .unwrap_or_else(|_| "https://api.cloudflare.com/client/v4".to_string());
+        let path = if path.starts_with('/') {
+            path.to_string()
+        } else {
+            format!("/{path}")
+        };
+        let url = format!("{base}{path}");
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()?;
+        let method = method
+            .parse::<reqwest::Method>()
+            .with_context(|| format!("invalid HTTP method: {method}"))?;
+        let mut request = client
+            .request(method.clone(), &url)
+            .bearer_auth(&self.token)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::CONTENT_TYPE, "application/json");
+        if !query.is_empty() {
+            request = request.query(&query);
+        }
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        let response = request
+            .send()
+            .with_context(|| format!("Cloudflare API {method} {path} unreachable"))?;
+        let status = response.status();
+        let raw = response
+            .text()
+            .with_context(|| format!("Cloudflare API {method} {path} returned unreadable body"))?;
+        if !status.is_success() {
+            bail!(
+                "Cloudflare API {method} {path} -> {}: {raw}",
+                status.as_u16()
+            );
+        }
+        let payload: JsonValue = if raw.trim().is_empty() {
+            JsonValue::Object(Default::default())
+        } else {
+            serde_json::from_str(&raw)
+                .with_context(|| format!("Cloudflare API returned invalid JSON for {path}"))?
+        };
+        if payload
+            .get("success")
+            .and_then(JsonValue::as_bool)
+            .is_some_and(|success| !success)
+        {
+            bail!("Cloudflare API {method} {path} failed: {payload}");
+        }
+        Ok(Some(serde_json::to_string(&payload)?))
     }
-    if let Some(body) = body {
-        request = request.json(&body);
-    }
-    let response = request
-        .send()
-        .with_context(|| format!("Cloudflare API {method} {path} unreachable"))?;
-    let status = response.status();
-    let raw = response
-        .text()
-        .with_context(|| format!("Cloudflare API {method} {path} returned unreadable body"))?;
-    if !status.is_success() {
-        bail!(
-            "Cloudflare API {method} {path} -> {}: {raw}",
-            status.as_u16()
-        );
-    }
-    let payload: JsonValue = if raw.trim().is_empty() {
-        JsonValue::Object(Default::default())
-    } else {
-        serde_json::from_str(&raw)
-            .with_context(|| format!("Cloudflare API returned invalid JSON for {path}"))?
-    };
-    if payload
-        .get("success")
-        .and_then(JsonValue::as_bool)
-        .is_some_and(|success| !success)
-    {
-        bail!("Cloudflare API {method} {path} failed: {payload}");
-    }
-    Ok(Some(serde_json::to_string(&payload)?))
 }
 
 pub(super) struct Cmd<'a> {
@@ -418,7 +405,7 @@ impl Cmd<'_> {
         };
         let parsed = Options::parse(options)?;
         let config = Config::load()?;
-        request(&config, method, path, parsed.query, parsed.body)
+        config.request(method, path, parsed.query, parsed.body)
     }
 
     fn zone(&self) -> Result<Option<String>> {

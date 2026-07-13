@@ -20,31 +20,35 @@ pub(super) fn eval(args: &[String]) -> Result<Option<String>> {
         .unwrap_or_else(|| "302".to_string())
         .parse::<u16>()
         .context("invalid redirect status code")?;
-    Ok(Some(serde_json::to_string(&redirect(
+    Ok(Some(serde_json::to_string(&redirect(Spec {
         reference,
         description,
         host,
         path,
         url,
         status,
-    ))?))
+    }))?))
 }
 
-fn redirect(
+struct Spec {
     reference: String,
     description: String,
     host: String,
     path: String,
     url: String,
     status: u16,
-) -> JsonValue {
+}
+
+fn redirect(spec: Spec) -> JsonValue {
+    let host = spec.host;
+    let path = spec.path;
     serde_json::json!({
-        "ref": reference,
-        "description": description,
+        "ref": spec.reference,
+        "description": spec.description,
         "expression": format!("(http.host eq \"{host}\" and http.request.uri.path eq \"{path}\")"),
         "action": "redirect",
         "enabled": true,
-        "action_parameters": params(url, status),
+        "action_parameters": params(spec.url, spec.status),
     })
 }
 

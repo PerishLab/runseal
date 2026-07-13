@@ -126,9 +126,12 @@ async function resolve(zone: string): Promise<string> {
   ]);
   return ruleset;
 }
+type Slot = {
+  zone: string;
+  ruleset: string;
+};
 async function upsert(
-  zone: string,
-  ruleset: string,
+  slot: Slot,
   current: string,
   ref: string,
   payload: string,
@@ -142,9 +145,9 @@ async function upsert(
       "rule",
       "add",
       "--zone-id",
-      zone,
+      slot.zone,
       "--ruleset-id",
-      ruleset,
+      slot.ruleset,
       "--json",
       payload,
     ]);
@@ -159,9 +162,9 @@ async function upsert(
     "rule",
     "update",
     "--zone-id",
-    zone,
+    slot.zone,
     "--ruleset-id",
-    ruleset,
+    slot.ruleset,
     "--rule-id",
     id,
     "--json",
@@ -327,8 +330,7 @@ class Op {
     const rid = doc(ruleset).get(".id");
     const current = doc(ruleset).get(".rules");
     const change = await upsert(
-      id,
-      rid,
+      { zone: id, ruleset: rid },
       doc(current).find("ref", "runseal_manage_sh_redirect"),
       "runseal_manage_sh_redirect",
       rules.ruleSh,

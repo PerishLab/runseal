@@ -94,6 +94,12 @@ impl Check {
     }
 }
 
+struct Join<'a> {
+    separator: &'a Option<String>,
+    dedup: bool,
+    prepend: bool,
+}
+
 struct Editor<'a> {
     app: &'a dyn App,
     env: &'a mut BTreeMap<String, String>,
@@ -115,13 +121,29 @@ impl Editor<'_> {
                 value,
                 separator,
                 dedup,
-            } => self.merge(key, value, separator, *dedup, true),
+            } => self.merge(
+                key,
+                value,
+                Join {
+                    separator,
+                    dedup: *dedup,
+                    prepend: true,
+                },
+            ),
             Op::Append {
                 key,
                 value,
                 separator,
                 dedup,
-            } => self.merge(key, value, separator, *dedup, false),
+            } => self.merge(
+                key,
+                value,
+                Join {
+                    separator,
+                    dedup: *dedup,
+                    prepend: false,
+                },
+            ),
             Op::Unset { key } => self.unset(key),
         }
     }
@@ -136,25 +158,18 @@ impl Editor<'_> {
         }
     }
 
-    fn merge(
-        &mut self,
-        key: &str,
-        value: &str,
-        delimiter: &Option<String>,
-        dedup: bool,
-        prepend: bool,
-    ) {
-        let delimiter = separator(delimiter);
+    fn merge(&mut self, key: &str, value: &str, join: Join) {
+        let delimiter = separator(join.separator);
         let base = self
             .env
             .get(key)
             .cloned()
             .or_else(|| self.app.env().var(key))
             .unwrap_or_default();
-        let merged = if prepend {
-            merge(value, &base, delimiter, dedup)
+        let merged = if join.prepend {
+            merge(value, &base, delimiter, join.dedup)
         } else {
-            merge(&base, value, delimiter, dedup)
+            merge(&base, value, delimiter, join.dedup)
         };
         self.env.insert(key.to_string(), merged);
     }

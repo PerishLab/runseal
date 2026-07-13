@@ -1,4 +1,4 @@
-use super::{Cmd, Config, cmd, request};
+use super::{Cmd, Config, cmd};
 use anyhow::{Context, Result, bail};
 use serde_json::Value as JsonValue;
 pub(super) fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
@@ -24,13 +24,7 @@ impl Cmd<'_> {
             .map(|name| vec![("name".to_string(), name)])
             .unwrap_or_default();
         let config = Config::load()?;
-        let payload = request(
-            &config,
-            "GET",
-            &format!("/zones/{zone}/dns_records"),
-            query,
-            None,
-        )?;
+        let payload = config.request("GET", &format!("/zones/{zone}/dns_records"), query, None)?;
         let value: JsonValue = serde_json::from_str(&payload.unwrap_or_default())?;
         Ok(Some(serde_json::to_string(
             value.get("result").unwrap_or(&JsonValue::Array(Vec::new())),
@@ -41,8 +35,7 @@ impl Cmd<'_> {
         let zone = self.required("--zone-id")?;
         let body = self.payload()?;
         let config = Config::load()?;
-        let payload = request(
-            &config,
+        let payload = config.request(
             "POST",
             &format!("/zones/{zone}/dns_records"),
             Vec::new(),
@@ -56,8 +49,7 @@ impl Cmd<'_> {
         let record = self.required("--record-id")?;
         let body = self.payload()?;
         let config = Config::load()?;
-        let payload = request(
-            &config,
+        let payload = config.request(
             "PATCH",
             &format!("/zones/{zone}/dns_records/{record}"),
             Vec::new(),

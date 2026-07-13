@@ -18,27 +18,28 @@ pub(super) fn eval(command: &str, args: &[String]) -> Result<Option<String>> {
     };
     Ok(Some(serde_json::to_string(&value)?))
 }
-fn wait(
-    client: &Client,
-    repo: &Repo,
-    query: &[(String, String)],
-    sha: &str,
-    workflow: &str,
+struct Poll<'a> {
+    client: &'a Client,
+    repo: &'a Repo,
     interval: Duration,
     timeout: Duration,
-) -> Result<Value> {
-    let deadline = Instant::now() + timeout;
-    loop {
-        let value = client.get(&repo.path("actions/runs"), query)?;
-        if let Some(run) = select(&value, sha, workflow)
-            && let Some(run) = outcome(run, workflow)?
-        {
-            return Ok(run);
+}
+
+impl Poll<'_> {
+    fn wait(&self, query: &[(String, String)], sha: &str, workflow: &str) -> Result<Value> {
+        let deadline = Instant::now() + self.timeout;
+        loop {
+            let value = self.client.get(&self.repo.path("actions/runs"), query)?;
+            if let Some(run) = select(&value, sha, workflow)
+                && let Some(run) = outcome(run, workflow)?
+            {
+                return Ok(run);
+            }
+            if Instant::now() >= deadline {
+                bail!("timed out waiting for Forgejo workflow {workflow}");
+            }
+            thread::sleep(self.interval);
         }
-        if Instant::now() >= deadline {
-            bail!("timed out waiting for Forgejo workflow {workflow}");
-        }
-        thread::sleep(interval);
     }
 }
 fn select<'a>(value: &'a Value, sha: &str, workflow: &str) -> Option<&'a Value> {
@@ -228,7 +229,13 @@ impl Cmd<'_> {
             ("workflow_id".into(), workflow.clone()),
             ("limit".into(), "10".into()),
         ];
-        wait(&client, &repo, &query, sha, &workflow, interval, timeout)
+        Poll {
+            client: &client,
+            repo: &repo,
+            interval,
+            timeout,
+        }
+        .wait(&query, sha, &workflow)
     }
 
     fn secret(&self) -> Result<Value> {
