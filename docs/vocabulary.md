@@ -35,3 +35,6 @@ in `vocabulary.toml` and a matching meaning delta here.
   compounds into type and module namespaces; no vocabulary entries were added.
 - Compound file names moved into owner module namespaces (cloudflare, github,
   core help); no vocabulary entries were added.
+- GitHub support grab-bag dissolved into request, token, input, options, and
+  git modules; stateless namespace structs became module functions; no
+  vocabulary entries were added.

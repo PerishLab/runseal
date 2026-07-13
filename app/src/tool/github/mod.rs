@@ -1,10 +1,12 @@
 use anyhow::{Result, bail};
 use serde_json::Value as JsonValue;
 
+mod git;
 pub(super) mod help;
-mod support;
-
-use self::support::{Body as Input, Branch, Options, Prefix, Repo, Request, Token};
+mod input;
+mod options;
+mod request;
+mod token;
 
 struct Checks;
 
@@ -40,16 +42,16 @@ impl Issue {
     }
 
     fn create(args: &[String]) -> Result<Option<String>> {
-        let repo = Options::required(args, "--repo")?;
-        let title = Options::required(args, "--title")?;
-        let token = Token::required(args)?;
+        let repo = options::required(args, "--repo")?;
+        let title = options::required(args, "--title")?;
+        let token = token::required(args)?;
         let body = Body::optional(args, &repo, 0)?;
         let mut payload = serde_json::Map::new();
         payload.insert("title".to_string(), serde_json::Value::String(title));
         if let Some(body) = body {
             payload.insert("body".to_string(), serde_json::Value::String(body));
         }
-        Request::send(
+        request::send(
             "POST",
             &format!("/repos/{repo}/issues"),
             Some(&token),
@@ -73,11 +75,11 @@ impl Comment {
     }
 
     fn create(args: &[String]) -> Result<Option<String>> {
-        let repo = Options::required(args, "--repo")?;
-        let number = Options::required(args, "--number")?;
-        let token = Token::required(args)?;
+        let repo = options::required(args, "--repo")?;
+        let number = options::required(args, "--number")?;
+        let token = token::required(args)?;
         let body = Body::prepare(args, &repo, 100)?;
-        Request::text(
+        request::text(
             "POST",
             &format!("/repos/{repo}/issues/{number}/comments"),
             &token,
@@ -98,11 +100,11 @@ impl Body {
     }
 
     fn update(args: &[String]) -> Result<Option<String>> {
-        let repo = Options::required(args, "--repo")?;
-        let number = Options::required(args, "--number")?;
-        let token = Token::required(args)?;
+        let repo = options::required(args, "--repo")?;
+        let number = options::required(args, "--number")?;
+        let token = token::required(args)?;
         let body = Self::prepare(args, &repo, 0)?;
-        Request::text(
+        request::text(
             "PATCH",
             &format!("/repos/{repo}/issues/{number}"),
             &token,
@@ -111,9 +113,9 @@ impl Body {
     }
 
     fn prepare(args: &[String], target: &str, limit: usize) -> Result<String> {
-        let mut body = Input::read(args)?;
-        Input::validate(args, &body, limit)?;
-        if Prefix::enabled(args)? {
+        let mut body = input::read(args)?;
+        input::validate(args, &body, limit)?;
+        if options::boolean(args, "--prefix-enable")?.unwrap_or(false) {
             body = Self::prefix(target, &body)?;
         }
         Ok(body)
@@ -133,14 +135,14 @@ impl Body {
     }
 
     fn prefix(target: &str, body: &str) -> Result<String> {
-        if !Repo::core(target) {
+        if !git::core(target) {
             return Ok(body.to_string());
         }
-        let repo = Repo::current()?;
+        let repo = git::repo()?;
         if repo.eq_ignore_ascii_case(target) {
             return Ok(body.to_string());
         }
-        let branch = Branch::current()?;
+        let branch = git::branch()?;
         let prefix = format!("Requested-By-Repo: {repo}\nRequested-By-Branch: {branch}\n\n");
         if body.starts_with(&prefix) {
             return Ok(body.to_string());
@@ -181,9 +183,9 @@ impl Checks {
     }
 
     fn fetch(number: &str, args: &[String]) -> Result<String> {
-        let repo = Repo::github()?;
-        let token = Token::optional(args)?;
-        let pull: JsonValue = Request::send(
+        let repo = git::github()?;
+        let token = token::optional(args)?;
+        let pull: JsonValue = request::send(
             "GET",
             &format!("/repos/{repo}/pulls/{number}"),
             token.as_deref(),
@@ -196,13 +198,13 @@ impl Checks {
         else {
             bail!("GitHub API pull request payload missing head.sha");
         };
-        let checks: JsonValue = Request::send(
+        let checks: JsonValue = request::send(
             "GET",
             &format!("/repos/{repo}/commits/{sha}/check-runs"),
             token.as_deref(),
             None,
         )?;
-        let statuses: JsonValue = Request::send(
+        let statuses: JsonValue = request::send(
             "GET",
             &format!("/repos/{repo}/commits/{sha}/status"),
             token.as_deref(),
