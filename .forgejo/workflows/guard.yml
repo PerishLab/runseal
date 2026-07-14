@@ -30,3 +30,15 @@ jobs:
           export PATH="$HOME/.local/bin:$PWD/target/debug:$PATH"
           cargo build --quiet --locked -p runseal
           target/debug/runseal :guard
+
+  guard-macos:
+    runs-on: macos
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build + test on macOS
+        run: |
+          set -eu
+          cargo build --locked -p runseal
+          cargo test --locked -p runseal
