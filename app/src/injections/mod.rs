@@ -11,7 +11,7 @@ use symlink::Symlink;
 pub struct Lifecycle;
 
 impl Lifecycle {
-    pub fn execute(app: &dyn App, specs: Vec<Spec>) -> Result<Vec<(String, String)>> {
+    pub fn run(app: &dyn App, specs: Vec<Spec>) -> Result<Vec<(String, String)>> {
         Self::with(app, specs, |exports| Ok(exports.to_vec()))
     }
 

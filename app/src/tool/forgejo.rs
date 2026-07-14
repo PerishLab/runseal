@@ -311,7 +311,7 @@ impl Cmd<'_> {
         };
         match command.as_str() {
             "list" => cmd(rest).runs(),
-            "get" => cmd(rest).runget(),
+            "get" => cmd(rest).get(),
             "watch" => cmd(rest).watch(),
             "cancel" => bail!("Forgejo v15 has no supported workflow cancel API"),
             _ => bail!("usage: runseal @tool forgejo run list|get|watch|cancel ..."),
@@ -350,7 +350,7 @@ impl Cmd<'_> {
         Ok(value)
     }
 
-    fn runget(&self) -> Result<Value> {
+    fn get(&self) -> Result<Value> {
         let repo = self.target()?;
         let id = self.number("--id")?;
         Client::load(self.args)?.get(&repo.path(&format!("actions/runs/{id}")), &[])

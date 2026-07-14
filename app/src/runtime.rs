@@ -104,10 +104,10 @@ impl Parser {
         }
 
         match name {
-            "profile" => Self::empty(args, "@profile").map(|()| Internal::Profile),
+            "profile" => Self::validate(args, "@profile").map(|()| Internal::Profile),
             "resolve" => Self::uris(args),
-            "resources" => Self::empty(args, "@resources").map(|()| Internal::Resources),
-            "wrappers" => Self::empty(args, "@wrappers").map(|()| Internal::Wrappers),
+            "resources" => Self::validate(args, "@resources").map(|()| Internal::Resources),
+            "wrappers" => Self::validate(args, "@wrappers").map(|()| Internal::Wrappers),
             "which" => Self::which(args),
             _ => bail!("unknown internal command: @{name}"),
         }
@@ -130,7 +130,7 @@ impl Parser {
         Ok(Internal::Which(name))
     }
 
-    fn empty(args: &[String], name: &str) -> Result<()> {
+    fn validate(args: &[String], name: &str) -> Result<()> {
         if !args.is_empty() {
             bail!("{name} does not accept arguments");
         }
