@@ -31,14 +31,17 @@ jobs:
           cargo build --quiet --locked -p runseal
           target/debug/runseal :guard
 
+  # mac leg: verify runseal COMPILES on the real macOS target (catches mac-specific
+  # build breakage). The full cargo test suite is integration-level (shells out to
+  # negentropy/git/cloudflare) and needs the docker guard's environment, so it is
+  # intentionally NOT run here — the docker `guard` job owns behaviour checks.
   guard-macos:
     runs-on: macos
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Build + test on macOS
+      - name: Build on macOS
         run: |
           set -eu
           cargo build --locked -p runseal
-          cargo test --locked -p runseal
