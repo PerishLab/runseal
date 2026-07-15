@@ -45,3 +45,14 @@ jobs:
         run: |
           set -eu
           cargo build --locked -p runseal
+
+  # windows leg: same COMPILE-only check on the windows-msvc target (PHASE-12 vmpool
+  # Hyper-V runner). Mirrors guard-macos; behaviour checks stay on the docker guard.
+  guard-windows:
+    runs-on: windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build on Windows
+        run: cargo build --locked -p runseal
