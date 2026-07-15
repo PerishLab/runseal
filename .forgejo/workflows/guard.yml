@@ -35,24 +35,30 @@ jobs:
   # build breakage). The full cargo test suite is integration-level (shells out to
   # negentropy/git/cloudflare) and needs the docker guard's environment, so it is
   # intentionally NOT run here — the docker `guard` job owns behaviour checks.
+  # mac leg: COMPILE-only check on the real macOS target, split for a timing audit
+  # (fetch = cargo-registry cold/warm; build = compile+link; sccache = cache hits).
   guard-macos:
     runs-on: macos
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Build on macOS
-        run: |
-          set -eu
-          cargo build --locked -p runseal
+      - name: Fetch deps
+        run: cargo fetch --locked
+      - name: Build
+        run: cargo build --locked -p runseal
+      - name: Cache stats
+        run: sccache --show-stats
 
   # windows leg: same COMPILE-only check on the windows-msvc target (PHASE-12 vmpool
-  # Hyper-V runner). Mirrors guard-macos; behaviour checks stay on the docker guard.
+  # Hyper-V runner), split for the same timing audit.
   guard-windows:
     runs-on: windows
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Build on Windows
+      - name: Fetch deps
+        run: cargo fetch --locked
+      - name: Build
         run: cargo build --locked -p runseal
+      - name: Cache stats
+        run: sccache --show-stats
