@@ -80,11 +80,11 @@ artifact_json() {
 
 artifacts=$(jq -n \
   --argjson linuxX64 "$(artifact_json runseal-x86_64-unknown-linux-gnu.tar.gz application/gzip)" \
-  --argjson macArm64 "$(artifact_json runseal-aarch64-apple-darwin.tar.gz application/gzip)" \
-  --argjson macX64 "$(artifact_json runseal-x86_64-apple-darwin.tar.gz application/gzip)" \
-  --argjson winX64 "$(artifact_json runseal-x86_64-pc-windows-msvc.zip application/zip)" \
+  --argjson darwinArm64 "$(artifact_json runseal-aarch64-apple-darwin.tar.gz application/gzip)" \
+  --argjson darwinX64 "$(artifact_json runseal-x86_64-apple-darwin.tar.gz application/gzip)" \
+  --argjson windowsX64 "$(artifact_json runseal-x86_64-pc-windows-msvc.zip application/zip)" \
   --argjson checksums "$(artifact_json checksums.txt 'text/plain; charset=utf-8')" \
-  '{linuxX64: $linuxX64, macArm64: $macArm64, macX64: $macX64, winX64: $winX64, checksums: $checksums}')
+  '{linuxX64: $linuxX64, darwinArm64: $darwinArm64, darwinX64: $darwinX64, windowsX64: $windowsX64, checksums: $checksums}')
 
 metadata=$(jq -n \
   --arg channel "$RELEASE_CHANNEL" \
