@@ -10,6 +10,7 @@ type Options = {
   repo: string;
   dryRun: boolean;
   deleteBranch: boolean;
+  watch: boolean;
 };
 
 function usage(): void {
@@ -23,6 +24,7 @@ function usage(): void {
   io.print("  --base <branch>    base branch (default: main)");
   io.print("  --body <body>      pull request body override");
   io.print("  --repo <owner/name> Forgejo repository (default: derived from origin)");
+  io.print("  --watch=false      stop once the PR exists; print the follow-up commands");
   io.print("  --dry-run          print planned actions without changing git or Forgejo");
   io.print("  --no-delete        keep the topic branch after merge");
 }
@@ -30,7 +32,8 @@ function usage(): void {
 function parse(args: string[]): Options & { help: boolean } {
   const parsed = cli.parse(args, {
     string: ["base", "body", "repo"],
-    boolean: ["dry-run", "no-delete", "help", "h"],
+    boolean: ["dry-run", "no-delete", "watch", "help", "h"],
+    default: { watch: true },
   });
   flags(parsed).positionals("land", { allowHelp: true });
   return {
@@ -39,6 +42,7 @@ function parse(args: string[]): Options & { help: boolean } {
     repo: flags(parsed).string("repo"),
     dryRun: flags(parsed).boolean("dry-run"),
     deleteBranch: !flags(parsed).boolean("no-delete"),
+    watch: parsed.watch === true,
     help: flags(parsed).help(),
   };
 }
@@ -66,6 +70,15 @@ const pr = await pull(options, repo, branch);
 const number = doc(pr).get(".number");
 const url = doc(pr).get(".html_url");
 io.print(url);
+if (!options.watch) {
+  io.print("land: PR is up; guard not awaited (--watch=false)");
+  io.print("finish later with:");
+  io.print(`  runseal @tool forgejo pr guard --repo ${repo} --number ${number}`);
+  io.print(
+    `  runseal @tool forgejo pr merge --repo ${repo} --number ${number} --head <guarded-sha> --delete-branch ${options.deleteBranch}`,
+  );
+  Deno.exit(0);
+}
 const sha = await guarded(repo, number);
 await merge(repo, number, sha, options.deleteBranch);
 await bin("git").run(["checkout", options.base]);
