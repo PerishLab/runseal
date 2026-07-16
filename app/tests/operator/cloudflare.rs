@@ -37,6 +37,7 @@ permissions = [
   "--allow-read",
   "--allow-write",
   "--allow-env",
+  "--allow-net",
   "--allow-run=runseal",
 ]
 
@@ -293,7 +294,7 @@ mod zone {
                     "RUNSEAL_REPO_SECRETS_DIR",
                     secrets.to_string_lossy().into_owned(),
                 ),
-                ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
+                ("CLOUDFLARE_API_BASE", api_base),
             ],
         );
 
@@ -339,7 +340,7 @@ mod dns {
                     "RUNSEAL_REPO_SECRETS_DIR",
                     secrets.to_string_lossy().into_owned(),
                 ),
-                ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
+                ("CLOUDFLARE_API_BASE", api_base),
             ],
         );
 
@@ -381,7 +382,7 @@ mod dns {
                     "RUNSEAL_REPO_SECRETS_DIR",
                     secrets.to_string_lossy().into_owned(),
                 ),
-                ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
+                ("CLOUDFLARE_API_BASE", api_base),
             ],
         );
 
@@ -425,7 +426,7 @@ mod dns {
                     "RUNSEAL_REPO_SECRETS_DIR",
                     secrets.to_string_lossy().into_owned(),
                 ),
-                ("RUNSEAL_CLOUDFLARE_API_BASE", api_base),
+                ("CLOUDFLARE_API_BASE", api_base),
             ],
         );
 
@@ -495,7 +496,7 @@ mod api {
 
         let output = fx.env(
             &["api", "GET", "/zones", "--query", "name=perish.uk"],
-            &[("RUNSEAL_CLOUDFLARE_API_BASE", format!("http://{address}"))],
+            &[("CLOUDFLARE_API_BASE", format!("http://{address}"))],
         );
 
         handle.join().expect("mock server should finish");

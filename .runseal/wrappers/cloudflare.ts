@@ -1,9 +1,9 @@
 import { cli, flags } from "@perish/harness/cli";
+import { Cloudflare, exact, keys } from "@perish/harness/cloudflare";
 import { env } from "@perish/harness/env";
 import { fs } from "@perish/harness/fs";
 import { io } from "@perish/harness/io";
-import { doc } from "@perish/harness/json";
-import { runseal } from "@perish/harness/runseal";
+
 function usage(): void {
   io.print("Usage: runseal :cloudflare <command> [args]");
   io.print("");
@@ -17,161 +17,115 @@ function usage(): void {
   io.print(
     "  manage-ensure-redirect    create/update exact-path manage redirects (use --dry-run first)",
   );
-  io.print(
-    "  api                       use: runseal @tool cloudflare api request <method> <path> ...",
-  );
+  io.print("  api <method> <path>       authenticated Cloudflare API call [--query k=v ...]");
   io.print("");
   io.print("Credentials:");
   io.print("  .local/secrets/cloudflare.env");
 }
+
 function reject(value: string | undefined, message: string): void {
   if (value !== undefined && value !== "") {
     io.fail(message);
   }
 }
-type ManageRules = {
-  zoneName: string;
-  requestHost: string;
-  redirectHost: string;
-  ruleSh: string;
-};
-async function load(): Promise<ManageRules> {
-  const zone = await runseal.text(["@tool", "cloudflare", "config", "get", "zone_name"]);
-  const request = await runseal.text(["@tool", "cloudflare", "config", "get", "manage_host"]);
-  const redirect = await runseal.text([
-    "@tool",
-    "cloudflare",
-    "config",
-    "get",
-    "manage_origin_host",
-  ]);
-  const prefix = await runseal.text([
-    "@tool",
-    "cloudflare",
-    "config",
-    "get",
-    "manage_redirect_prefix",
-  ]);
-  const target = prefix === ""
-    ? `https://${redirect}/manage.sh`
-    : `https://${redirect}/${prefix}/manage.sh`;
-  const rule = await runseal.text([
-    "@tool",
-    "cloudflare",
-    "redirect-rule",
-    "exact",
-    "--ref",
-    "runseal_manage_sh_redirect",
-    "--description",
-    "Redirect runseal manage.sh to releases bucket asset",
-    "--host",
-    request,
-    "--path",
-    "/manage.sh",
-    "--target-url",
-    target,
-  ]);
-  return { zoneName: zone, requestHost: request, redirectHost: redirect, ruleSh: rule };
+
+function pretty(value: unknown): string {
+  return JSON.stringify(value, null, 2) ?? "null";
 }
-async function print(rules: ManageRules, id?: string): Promise<void> {
-  const pretty = doc(rules.ruleSh).pretty();
+
+type Forge = {
+  api: Cloudflare;
+  account: string;
+  zone: string;
+  host: string;
+  origin: string;
+  prefix: string;
+};
+
+async function forge(): Promise<Forge> {
+  const held = await keys();
+  const token = held.CLOUDFLARE_API_TOKEN ?? "";
+  const account = held.CLOUDFLARE_ACCOUNT_ID ?? "";
+  if (token === "" || account === "") {
+    io.fail("cloudflare: fill CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID first");
+  }
+  const base = env.get("CLOUDFLARE_API_BASE", "https://api.cloudflare.com/client/v4");
+  return {
+    api: new Cloudflare(token, base),
+    account,
+    zone: held.CLOUDFLARE_ZONE_NAME || "perish.uk",
+    host: held.CLOUDFLARE_MANAGE_HOST || "runseal.perish.uk",
+    origin: held.CLOUDFLARE_MANAGE_ORIGIN_HOST || "releases.runseal.perish.uk",
+    prefix: held.CLOUDFLARE_MANAGE_REDIRECT_PREFIX ?? "",
+  };
+}
+
+const mark = "runseal_manage_sh_redirect";
+const phase = "http_request_dynamic_redirect";
+
+function plotted(cfg: Forge): Record<string, unknown> {
+  const target = cfg.prefix === ""
+    ? `https://${cfg.origin}/manage.sh`
+    : `https://${cfg.origin}/${cfg.prefix}/manage.sh`;
+  return exact({
+    reference: mark,
+    description: "Redirect runseal manage.sh to releases bucket asset",
+    host: cfg.host,
+    path: "/manage.sh",
+    url: target,
+  });
+}
+
+function show(cfg: Forge, rule: Record<string, unknown>, id?: string): void {
   io.print("manage redirect plan");
-  io.print(`zone: ${rules.zoneName}`);
+  io.print(`zone: ${cfg.zone}`);
   if (id !== undefined) {
     io.print(`zone id: ${id}`);
   }
-  io.print(`request host: ${rules.requestHost}`);
-  io.print(`redirect host: ${rules.redirectHost}`);
-  io.print("phase: http_request_dynamic_redirect");
+  io.print(`request host: ${cfg.host}`);
+  io.print(`redirect host: ${cfg.origin}`);
+  io.print(`phase: ${phase}`);
   io.print("rules:");
-  io.print(pretty);
+  io.print(pretty(rule));
 }
-async function resolve(zone: string): Promise<string> {
-  const rulesets = await runseal.text([
-    "@tool",
-    "cloudflare",
-    "zone",
-    "ruleset",
-    "list",
-    "--zone-id",
-    zone,
-  ]);
-  let ruleset = doc(rulesets).find("phase", "http_request_dynamic_redirect");
-  if (ruleset === "") {
-    return await runseal.text([
-      "@tool",
-      "cloudflare",
-      "zone",
-      "ruleset",
-      "create",
-      "--zone-id",
-      zone,
-      "--phase",
-      "http_request_dynamic_redirect",
-      "--name",
-      "Single Redirects ruleset",
-    ]);
+
+function seated(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
   }
-  const id = doc(ruleset).get(".id");
-  ruleset = await runseal.text([
-    "@tool",
-    "cloudflare",
-    "zone",
-    "ruleset",
-    "get",
-    "--zone-id",
-    zone,
-    "--ruleset-id",
-    id,
-  ]);
-  return ruleset;
+  return {};
 }
-type Slot = {
-  zone: string;
-  ruleset: string;
-};
+
+async function resolve(cfg: Forge, zone: string): Promise<Record<string, unknown>> {
+  const listed = await cfg.api.rulesets(zone);
+  const found = listed.map(seated).find((entry) => entry.phase === phase);
+  if (found === undefined) {
+    return seated(
+      await cfg.api.phase(zone, {
+        kind: "zone",
+        name: "Single Redirects ruleset",
+        phase,
+        rules: [],
+      }),
+    );
+  }
+  return seated(await cfg.api.ruleset(zone, String(found.id)));
+}
+
 async function upsert(
-  slot: Slot,
-  current: string,
-  ref: string,
-  payload: string,
+  cfg: Forge,
+  slot: { zone: string; ruleset: string },
+  current: Record<string, unknown> | undefined,
+  payload: Record<string, unknown>,
 ): Promise<string> {
-  if (current === "") {
-    await runseal.run([
-      "@tool",
-      "cloudflare",
-      "zone",
-      "ruleset",
-      "rule",
-      "add",
-      "--zone-id",
-      slot.zone,
-      "--ruleset-id",
-      slot.ruleset,
-      "--json",
-      payload,
-    ]);
-    return `created ${ref}`;
+  if (current === undefined) {
+    await cfg.api.add(slot.zone, slot.ruleset, payload);
+    return `created ${mark}`;
   }
-  const id = doc(current).get(".id");
-  await runseal.run([
-    "@tool",
-    "cloudflare",
-    "zone",
-    "ruleset",
-    "rule",
-    "update",
-    "--zone-id",
-    slot.zone,
-    "--ruleset-id",
-    slot.ruleset,
-    "--rule-id",
-    id,
-    "--json",
-    payload,
-  ]);
-  return `updated ${ref}`;
+  await cfg.api.change(slot.zone, slot.ruleset, String(current.id), payload);
+  return `updated ${mark}`;
 }
+
 class Op {
   constructor(private readonly rest: string[]) {}
 
@@ -198,111 +152,56 @@ class Op {
 
   async check(): Promise<void> {
     reject(this.rest[0], "cloudflare: check does not accept arguments");
-    const config = {
-      account: await runseal.text(["@tool", "cloudflare", "config", "get", "account_id"]),
-      zone: await runseal.text(["@tool", "cloudflare", "config", "get", "zone_name"]),
-    };
-    const zone = await runseal.text(["@tool", "cloudflare", "zone", "get", "--name", config.zone]);
-    const id = doc(zone).get(".id");
-    const rulesets = await runseal.text([
-      "@tool",
-      "cloudflare",
-      "zone",
-      "ruleset",
-      "list",
-      "--zone-id",
-      id,
-    ]);
-    const response = await runseal.text([
-      "@tool",
-      "cloudflare",
-      "api",
-      "request",
-      "GET",
-      "/zones",
-      "--query",
-      `account.id=${config.account}`,
-      "--query",
-      "per_page=50",
-    ]);
-    const zones = doc(response).get(".result");
-    const account = await runseal.text([
-      "@tool",
-      "cloudflare",
-      "account",
-      "get",
-      "--account-id",
-      config.account,
-    ]);
-    const buckets = await runseal.text([
-      "@tool",
-      "cloudflare",
-      "account",
-      "r2",
-      "bucket",
-      "list",
-      "--account-id",
-      config.account,
-    ]);
+    const cfg = await forge();
+    const zone = await cfg.api.zone(cfg.zone);
+    const id = String(zone.id);
+    const rulesets = await cfg.api.rulesets(id);
+    const zones = await cfg.api.result("GET", "/zones", {
+      "account.id": cfg.account,
+      "per_page": "50",
+    });
+    const account = seated(await cfg.api.result("GET", `/accounts/${cfg.account}`));
+    const buckets = await cfg.api.result("GET", `/accounts/${cfg.account}/r2/buckets`);
     io.print("cloudflare check: ok");
-    io.print(`account id: ${config.account}`);
-    io.print(`account name: ${doc(account).get(".name")}`);
-    io.print(`manage zone: ${config.zone} (${id})`);
-    io.print(`zone rulesets: ${doc(rulesets).len()}`);
+    io.print(`account id: ${cfg.account}`);
+    io.print(`account name: ${account.name}`);
+    io.print(`manage zone: ${cfg.zone} (${id})`);
+    io.print(`zone rulesets: ${rulesets.length}`);
     io.print("zones:");
-    io.print(doc(zones).pretty());
+    io.print(pretty(zones));
     io.print("r2 buckets:");
-    io.print(doc(buckets).pretty());
+    io.print(pretty(buckets));
   }
 
   async plan(): Promise<void> {
     reject(this.rest[0], "cloudflare: manage-plan does not accept arguments");
-    await print(await load());
+    const cfg = await forge();
+    show(cfg, plotted(cfg));
   }
 
   async inspect(): Promise<void> {
     reject(this.rest[0], "cloudflare: manage-inspect does not accept arguments");
-    const name = await runseal.text(["@tool", "cloudflare", "config", "get", "zone_name"]);
-    const zone = await runseal.text(["@tool", "cloudflare", "zone", "get", "--name", name]);
-    const id = doc(zone).get(".id");
-    const rulesets = await runseal.text([
-      "@tool",
-      "cloudflare",
-      "zone",
-      "ruleset",
-      "list",
-      "--zone-id",
-      id,
-    ]);
-    const ruleset = doc(rulesets).find("phase", "http_request_dynamic_redirect");
-    if (ruleset === "") {
-      io.print("manage inspect: no http_request_dynamic_redirect zone ruleset found");
+    const cfg = await forge();
+    const zone = await cfg.api.zone(cfg.zone);
+    const id = String(zone.id);
+    const listed = await cfg.api.rulesets(id);
+    const found = listed.map(seated).find((entry) => entry.phase === phase);
+    if (found === undefined) {
+      io.print(`manage inspect: no ${phase} zone ruleset found`);
       return;
     }
-    const rid = doc(ruleset).get(".id");
-    const full = await runseal.text([
-      "@tool",
-      "cloudflare",
-      "zone",
-      "ruleset",
-      "get",
-      "--zone-id",
-      id,
-      "--ruleset-id",
-      rid,
-    ]);
-    const rules = doc(full).get(".rules");
-    const matched = doc(rules).filter("ref", ["runseal_manage_sh_redirect"]);
+    const full = seated(await cfg.api.ruleset(id, String(found.id)));
+    const rules = Array.isArray(full.rules) ? full.rules.map(seated) : [];
+    const matched = rules.filter((rule) => rule.ref === mark);
     io.print(`zone id: ${id}`);
-    io.print(`ruleset id: ${rid}`);
-    io.print(`ruleset name: ${doc(full).get(".name")}`);
-    if (doc(matched).len() === 0) {
+    io.print(`ruleset id: ${full.id}`);
+    io.print(`ruleset name: ${full.name}`);
+    if (matched.length === 0) {
       io.print("manage inspect: no manage redirect rules found");
       return;
     }
-    const pretty = doc(matched).pretty();
     io.print("manage rules:");
-    io.print(pretty);
+    io.print(pretty(matched));
   }
 
   async ensure(): Promise<void> {
@@ -312,41 +211,43 @@ class Op {
     });
     flags(args).positionals("cloudflare: manage-ensure-redirect");
     const dry = flags(args).boolean("dry-run");
-    const rules = await load();
-    const zone = await runseal.text([
-      "@tool",
-      "cloudflare",
-      "zone",
-      "get",
-      "--name",
-      rules.zoneName,
-    ]);
-    const id = doc(zone).get(".id");
+    const cfg = await forge();
+    const rule = plotted(cfg);
+    const zone = await cfg.api.zone(cfg.zone);
+    const id = String(zone.id);
     if (dry) {
-      await print(rules, id);
+      show(cfg, rule, id);
       return;
     }
-    const ruleset = await resolve(id);
-    const rid = doc(ruleset).get(".id");
-    const current = doc(ruleset).get(".rules");
-    const change = await upsert(
-      { zone: id, ruleset: rid },
-      doc(current).find("ref", "runseal_manage_sh_redirect"),
-      "runseal_manage_sh_redirect",
-      rules.ruleSh,
-    );
+    const ruleset = await resolve(cfg, id);
+    const rid = String(ruleset.id);
+    const rules = Array.isArray(ruleset.rules) ? ruleset.rules.map(seated) : [];
+    const current = rules.find((entry) => entry.ref === mark);
+    const change = await upsert(cfg, { zone: id, ruleset: rid }, current, rule);
     io.print("manage ensure redirect: ok");
     io.print(`  - ${change}`);
   }
 
   async api(): Promise<void> {
-    if (this.rest[0] === undefined) {
-      io.fail("cloudflare: api requires a method");
+    const [method, path, ...extra] = this.rest;
+    if (method === undefined || path === undefined) {
+      io.fail("cloudflare: api requires a method and a path");
     }
-    if (this.rest[1] === undefined) {
-      io.fail("cloudflare: api requires a path");
+    const query: Record<string, string> = {};
+    for (let at = 0; at < extra.length; at += 1) {
+      if (extra[at] !== "--query") {
+        io.fail(`cloudflare: unknown api argument: ${extra[at]}`);
+      }
+      const pair = extra[at + 1] ?? "";
+      const split = pair.indexOf("=");
+      if (split < 0) {
+        io.fail("cloudflare: --query expects key=value");
+      }
+      query[pair.slice(0, split)] = pair.slice(split + 1);
+      at += 1;
     }
-    await runseal.run(["@tool", "cloudflare", "api", "request", ...this.rest]);
+    const cfg = await forge();
+    io.print(JSON.stringify(await cfg.api.request(method, path, query)));
   }
 }
 

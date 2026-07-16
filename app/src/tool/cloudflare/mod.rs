@@ -315,7 +315,7 @@ impl Config {
         query: Vec<(String, String)>,
         body: Option<JsonValue>,
     ) -> Result<Option<String>> {
-        let base = std::env::var("RUNSEAL_CLOUDFLARE_API_BASE")
+        let base = std::env::var("CLOUDFLARE_API_BASE")
             .unwrap_or_else(|_| "https://api.cloudflare.com/client/v4".to_string());
         let path = if path.starts_with('/') {
             path.to_string()
