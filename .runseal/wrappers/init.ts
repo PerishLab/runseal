@@ -1,46 +1,18 @@
 import { cli, flags } from "@perish/harness/cli";
-import { bin, exists } from "@perish/harness/cmd";
-import { fs } from "@perish/harness/fs";
+import { init } from "@perish/harness/init";
 import { io } from "@perish/harness/io";
-import { negentropy } from "@perish/harness/negentropy";
-import { path } from "@perish/harness/path";
-
-const hooks = ".runseal/hooks";
-
-class Check {
-  static async tool(name: string): Promise<void> {
-    if (!(await exists(name))) {
-      io.fail(`init: missing required tool: ${name}`);
-    }
-  }
-
-  static async path(root: string, relative: string): Promise<void> {
-    if (!(await fs.file.exists(path.join(root, relative)))) {
-      io.fail(`init: missing required path: ${relative}`);
-    }
-  }
-}
-
-function usage(): void {
-  io.print("Usage: runseal :init");
-  io.print("");
-  io.print("Validate the repository and install versioned git hooks.");
-}
 
 const args = cli.parse(Deno.args, { boolean: ["help", "h"] });
 flags(args).positionals("init", { allowHelp: true });
 if (flags(args).help()) {
-  usage();
+  io.print("Usage: runseal :init");
+  io.print("");
+  io.print("Validate the repository and install versioned git hooks.");
   Deno.exit(0);
 }
 
-io.print("==> resolving repository");
-const root = await bin("git").text(["rev-parse", "--show-toplevel"]);
-io.print(`repository: ${root}`);
-
-io.print("==> checking required tools");
-for (
-  const tool of [
+await init({
+  tools: [
     "git",
     "deno",
     "cargo",
@@ -49,16 +21,8 @@ for (
     "bash",
     "sed",
     "grep",
-  ]
-) {
-  await Check.tool(tool);
-}
-await negentropy.verify();
-io.print("ok: git, deno, cargo, runseal, negentropy, sh, bash, sed, grep");
-
-io.print("==> checking repository entrypoints");
-for (
-  const path of [
+  ],
+  paths: [
     "Cargo.toml",
     "Cargo.lock",
     "negentropy.toml",
@@ -91,16 +55,5 @@ for (
     ".forgejo/scripts/release/r2/summary.sh",
     ".forgejo/scripts/release/r2/verify.sh",
     ".forgejo/scripts/release/smoke/smoke.sh",
-  ]
-) {
-  await Check.path(root, path);
-}
-io.print("ok: repository entrypoints");
-
-io.print("==> installing git hooks");
-await bin("git").run(["config", "core.hooksPath", hooks], { cwd: root });
-const current = await bin("git").text(["config", "--get", "core.hooksPath"], { cwd: root });
-io.print(`core.hooksPath = ${current}`);
-
-await bin("deno").run(["--version"], { stdout: "null" });
-io.print("development environment ready");
+  ],
+});

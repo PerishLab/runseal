@@ -4,5 +4,3 @@ mod cloudflare;
 mod guard;
 #[path = "operator/init.rs"]
 mod init;
-#[path = "operator/repo.rs"]
-mod repo;
