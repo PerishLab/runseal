@@ -12,7 +12,6 @@ fn text(name: &str) -> Result<&'static str> {
         "profile" => Ok(PROFILE),
         "resolve" => Ok(RESOLVE),
         "resources" => Ok(RESOURCES),
-        "tool" => Ok(crate::core::tool::help()),
         "wrappers" => Ok(WRAPPERS),
         "which" => Ok(WHICH),
         _ => bail!("unknown internal command: @{name}"),
@@ -88,7 +87,7 @@ legacy wrappers to <name>.ts or <name>.sh. On Windows, runseal also checks .exe,
 .cmd, and .bat when the wrapper name has no extension.
 
 Use .ts wrappers for structured cross-platform operations and keep reusable
-domain atoms in @tool. Use .sh for thin Unix bootstrap glue.
+domain atoms in the harness library. Use .sh for thin Unix bootstrap glue.
 
 @wrappers is read-only and does not run profile injections.
 ";

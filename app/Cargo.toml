@@ -12,7 +12,6 @@ shellexpand = "3.1"
 path-absolutize = "3.1"
 toml = "0.8"
 yaml_serde = "0.10"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 
 [dev-dependencies]
 assert_cmd = "2.0"

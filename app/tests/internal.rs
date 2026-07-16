@@ -156,7 +156,7 @@ fn model() {
     assert!(stdout.contains("runseal :<name>"));
     assert!(stdout.contains("runseal @<name>"));
     assert!(stdout.contains(".ts files are run with deno"));
-    assert!(stdout.contains("runseal @tool for atomic glue"));
+    assert!(stdout.contains("structured operations over the harness library"));
     assert!(stdout.contains("@profile"));
     assert!(stdout.contains("@resolve"));
     assert!(stdout.contains("current directory upward"));
@@ -172,7 +172,6 @@ fn topics() {
         (vec!["@profile", "help"], "Profile discovery"),
         (vec!["@resources", "--help"], "Usage: runseal @resources"),
         (vec!["@resolve", "--help"], "Usage: runseal @resolve"),
-        (vec!["@tool", "--help"], "Usage: runseal @tool"),
         (vec!["@wrappers", "--help"], "Lookup order"),
         (
             vec!["@wrappers", "-h"],

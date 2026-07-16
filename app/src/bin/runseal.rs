@@ -6,7 +6,6 @@ use clap::{CommandFactory, Parser};
 use runseal::core::app::App;
 use runseal::core::config::{Config, Env, Input};
 use runseal::core::help;
-use runseal::core::tool;
 use runseal::run;
 
 #[derive(Debug, Parser)]
@@ -24,18 +23,17 @@ Runseal commands:
   @profile            print resolved runtime paths
   @resources          print the resolved resource root
   @resolve <uri>...   resolve resource:// paths
-  @tool               run an atomic runseal tool command
   @wrappers           list visible wrappers
   @which :<name>      print a wrapper path
 
 Deno wrappers:
   .ts files are run with deno using the repo-level [deno] profile policy.
-  Use TypeScript for structured operations and runseal @tool for atomic glue.
+  Use TypeScript for structured operations over the harness library.
 
 Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
 then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
 
-Run runseal @profile --help, @resolve --help, @tool --help, @wrappers --help,
+Run runseal @profile --help, @resolve --help, @wrappers --help,
 or @which --help for details.
 
 Repository: https://git.perish.top/PerishFire/runseal"
@@ -59,9 +57,6 @@ fn main() -> Result<()> {
     if help(&cli.command)? {
         return Ok(());
     }
-    if early(&cli.command)? {
-        return Ok(());
-    }
 
     let config = config(cli)?;
     let app = App::new(config);
@@ -82,16 +77,6 @@ fn config(cli: Cli) -> Result<Config> {
         Env::process(),
         &cwd,
     )
-}
-
-fn early(command: &[String]) -> Result<bool> {
-    match command.first().map(String::as_str) {
-        Some("@tool") => {
-            tool::run(&command[1..])?;
-            Ok(true)
-        }
-        _ => Ok(false),
-    }
 }
 
 fn help(command: &[String]) -> Result<bool> {
