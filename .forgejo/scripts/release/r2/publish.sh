@@ -45,6 +45,7 @@ upload() {
 artifact_content_type() {
   case "$1" in
     *.tar.gz) printf '%s' "application/gzip" ;;
+    *.zip) printf '%s' "application/zip" ;;
     *.json) printf '%s' "application/json; charset=utf-8" ;;
     *.txt) printf '%s' "text/plain; charset=utf-8" ;;
     *.sh) printf '%s' "text/x-shellscript; charset=utf-8" ;;
@@ -52,7 +53,7 @@ artifact_content_type() {
   esac
 }
 
-for file_path in "$release_root"/runseal-*.tar.gz "$release_root"/checksums.txt; do
+for file_path in "$release_root"/runseal-*.tar.gz "$release_root"/runseal-*.zip "$release_root"/checksums.txt; do
   [ -f "$file_path" ] || continue
   name="$(basename "$file_path")"
   upload "$file_path" "$version_prefix/$name" "$(artifact_content_type "$name")" "public, max-age=31536000, immutable"
