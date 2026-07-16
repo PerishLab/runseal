@@ -1,9 +1,9 @@
-import { cli, flags } from "@/lib/cli.ts";
-import { env } from "@/lib/std/env.ts";
-import { fs } from "@/lib/std/fs.ts";
-import { io } from "@/lib/std/io.ts";
-import { doc } from "@/lib/std/json.ts";
-import { runseal } from "@/lib/std/runseal.ts";
+import { cli, flags } from "@perish/harness/cli";
+import { env } from "@perish/harness/env";
+import { fs } from "@perish/harness/fs";
+import { io } from "@perish/harness/io";
+import { doc } from "@perish/harness/json";
+import { runseal } from "@perish/harness/runseal";
 function usage(): void {
   io.print("Usage: runseal :cloudflare <command> [args]");
   io.print("");

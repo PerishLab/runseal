@@ -22,9 +22,6 @@ fn fixture() -> Fixture {
     let project = temp.path().join("project");
     std::fs::create_dir_all(project.join(".runseal/wrappers"))
         .expect("wrapper dir should be created");
-    std::fs::create_dir_all(project.join(".runseal/lib")).expect("lib dir should be created");
-    std::fs::create_dir_all(project.join(".runseal/lib/std"))
-        .expect("std lib dir should be created");
     std::fs::create_dir_all(project.join(".runseal/templates"))
         .expect("template dir should be created");
     std::fs::write(
@@ -35,6 +32,7 @@ root = ".local"
 
 [deno]
 config = ".runseal/deno.json"
+lock = ".runseal/deno.lock"
 permissions = [
   "--allow-read",
   "--allow-write",
@@ -59,27 +57,11 @@ RUNSEAL_REPO_TMP_DIR = "resource://tmp"
     )
     .expect("deno config should be copied");
     std::fs::write(
-        project.join(".runseal/lib/cli.ts"),
-        std::fs::read_to_string(Fixture::root().join(".runseal/lib/cli.ts"))
-            .expect("repo cli helper should be readable"),
+        project.join(".runseal/deno.lock"),
+        std::fs::read_to_string(Fixture::root().join(".runseal/deno.lock"))
+            .expect("repo deno lock should be readable"),
     )
-    .expect("cli helper should be copied");
-    for path in [
-        ".runseal/lib/std/cmd.ts",
-        ".runseal/lib/std/env.ts",
-        ".runseal/lib/std/fs.ts",
-        ".runseal/lib/std/io.ts",
-        ".runseal/lib/std/json.ts",
-        ".runseal/lib/std/path.ts",
-        ".runseal/lib/std/runseal.ts",
-    ] {
-        std::fs::write(
-            project.join(path),
-            std::fs::read_to_string(Fixture::root().join(path))
-                .expect("repo std helper should be readable"),
-        )
-        .expect("std helper should be copied");
-    }
+    .expect("deno lock should be copied");
     std::fs::write(
         project.join(".runseal/wrappers/cloudflare.ts"),
         std::fs::read_to_string(Fixture::root().join(".runseal/wrappers/cloudflare.ts"))

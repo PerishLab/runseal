@@ -1,24 +1,28 @@
-import { cli, flags } from "@/lib/cli.ts";
-import { bin } from "@/lib/std/cmd.ts";
-import { env } from "@/lib/std/env.ts";
-import { io } from "@/lib/std/io.ts";
-import { doc } from "@/lib/std/json.ts";
-import { hash } from "@/lib/hash.ts";
-import { negentropy } from "@/lib/negentropy.ts";
-import { version } from "@/lib/version.ts";
+import { cache } from "@perish/harness/cache";
+import { cli, flags } from "@perish/harness/cli";
+import { bin } from "@perish/harness/cmd";
+import { env } from "@perish/harness/env";
+import { io } from "@perish/harness/io";
+import { doc } from "@perish/harness/json";
+import { hash } from "@perish/harness/hash";
+import { negentropy } from "@perish/harness/negentropy";
+import { version } from "@perish/harness/version";
 
 function usage(): void {
-  io.print("Usage: runseal :guard [version-check|version-hash]");
+  io.print("Usage: runseal :guard [version-check|version-hash] [--fresh]");
   io.print("");
   io.print("Run repository guard checks or one explicit version-policy helper.");
   io.print("");
   io.print("Commands:");
   io.print("  version-check    validate version policy against stable metadata");
   io.print("  version-hash     print the current guard.version.hash value");
+  io.print("");
+  io.print("Options:");
+  io.print("  --fresh          ignore the guard cache and run the full gauntlet");
 }
 
 let mode = "full";
-const args = cli.parse(Deno.args, { boolean: ["help", "h"] });
+const args = cli.parse(Deno.args, { boolean: ["help", "h", "fresh"] });
 if (flags(args).help()) {
   flags(args).positionals("guard", { allowHelp: true });
   usage();
@@ -121,6 +125,15 @@ if (mode === "version-hash") {
   Deno.exit(0);
 }
 
+let mark = "";
+if (mode === "full") {
+  mark = await cache.key();
+  if (args.fresh !== true && (await cache.hit(mark))) {
+    io.print(`guard: clean (cached ${mark.slice(0, 12)})`);
+    Deno.exit(0);
+  }
+}
+
 await Policy.check();
 if (mode === "version-check") {
   Deno.exit(0);
@@ -182,4 +195,8 @@ for (
   ]
 ) {
   await bin(command).run(["-n", script]);
+}
+
+if (mark !== "") {
+  await cache.keep(mark);
 }

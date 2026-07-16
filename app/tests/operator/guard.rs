@@ -34,6 +34,7 @@ injections = []
 
 [deno]
 config = ".runseal/deno.json"
+lock = ".runseal/deno.lock"
 permissions = [
   "--allow-read=.",
   "--allow-env",
@@ -49,55 +50,18 @@ permissions = [
             .expect("repo deno config should be readable"),
     )
     .expect("deno config should be copied");
-    std::fs::create_dir_all(project.join(".runseal/lib")).expect("lib dir should be created");
-    std::fs::create_dir_all(project.join(".runseal/lib/std"))
-        .expect("std lib dir should be created");
     std::fs::write(
-        project.join(".runseal/lib/cli.ts"),
-        std::fs::read_to_string(Fixture::root().join(".runseal/lib/cli.ts"))
-            .expect("repo cli helper should be readable"),
+        project.join(".runseal/deno.lock"),
+        std::fs::read_to_string(Fixture::root().join(".runseal/deno.lock"))
+            .expect("repo deno lock should be readable"),
     )
-    .expect("cli helper should be copied");
-    std::fs::write(
-        project.join(".runseal/lib/hash.ts"),
-        std::fs::read_to_string(Fixture::root().join(".runseal/lib/hash.ts"))
-            .expect("repo hash helper should be readable"),
-    )
-    .expect("hash helper should be copied");
-    std::fs::write(
-        project.join(".runseal/lib/negentropy.ts"),
-        std::fs::read_to_string(Fixture::root().join(".runseal/lib/negentropy.ts"))
-            .expect("repo negentropy helper should be readable"),
-    )
-    .expect("negentropy helper should be copied");
+    .expect("deno lock should be copied");
     std::fs::write(
         project.join(".runseal/negentropy.version"),
         std::fs::read_to_string(Fixture::root().join(".runseal/negentropy.version"))
             .expect("repo negentropy version should be readable"),
     )
     .expect("negentropy version should be copied");
-    for path in [
-        ".runseal/lib/std/cmd.ts",
-        ".runseal/lib/std/env.ts",
-        ".runseal/lib/std/fs.ts",
-        ".runseal/lib/std/io.ts",
-        ".runseal/lib/std/json.ts",
-        ".runseal/lib/std/path.ts",
-        ".runseal/lib/std/runseal.ts",
-    ] {
-        std::fs::write(
-            project.join(path),
-            std::fs::read_to_string(Fixture::root().join(path))
-                .expect("repo std helper should be readable"),
-        )
-        .expect("std helper should be copied");
-    }
-    std::fs::write(
-        project.join(".runseal/lib/version.ts"),
-        std::fs::read_to_string(Fixture::root().join(".runseal/lib/version.ts"))
-            .expect("repo version helper should be readable"),
-    )
-    .expect("version helper should be copied");
     std::fs::write(
         project.join(".runseal/wrappers/guard.ts"),
         std::fs::read_to_string(Fixture::root().join(".runseal/wrappers/guard.ts"))

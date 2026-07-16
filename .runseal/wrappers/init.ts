@@ -1,9 +1,9 @@
-import { cli, flags } from "@/lib/cli.ts";
-import { bin, exists } from "@/lib/std/cmd.ts";
-import { fs } from "@/lib/std/fs.ts";
-import { io } from "@/lib/std/io.ts";
-import { negentropy } from "@/lib/negentropy.ts";
-import { path } from "@/lib/std/path.ts";
+import { cli, flags } from "@perish/harness/cli";
+import { bin, exists } from "@perish/harness/cmd";
+import { fs } from "@perish/harness/fs";
+import { io } from "@perish/harness/io";
+import { negentropy } from "@perish/harness/negentropy";
+import { path } from "@perish/harness/path";
 
 const hooks = ".runseal/hooks";
 
@@ -71,17 +71,6 @@ for (
     ".runseal/negentropy.version",
     ".runseal/hooks/pre-commit",
     ".runseal/hooks/commit-msg",
-    ".runseal/lib/cli.ts",
-    ".runseal/lib/hash.ts",
-    ".runseal/lib/negentropy.ts",
-    ".runseal/lib/std/cmd.ts",
-    ".runseal/lib/std/env.ts",
-    ".runseal/lib/std/fs.ts",
-    ".runseal/lib/std/io.ts",
-    ".runseal/lib/std/json.ts",
-    ".runseal/lib/std/path.ts",
-    ".runseal/lib/std/runseal.ts",
-    ".runseal/lib/version.ts",
     ".runseal/templates/cloudflare.env",
     ".runseal/wrappers/cloudflare.ts",
     ".runseal/wrappers/guard.ts",
