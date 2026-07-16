@@ -11,7 +11,7 @@ ARTIFACT_DIR=${2:-}
 (
   cd "$ARTIFACT_DIR"
   printf 'VERSION: %s\n' "$RELEASE_VERSION" > checksums.txt
-  for file in runseal-*.tar.gz; do
+  for file in runseal-*.tar.gz runseal-*.zip; do
     [ -f "$file" ] || continue
     sha256sum "$file" >> checksums.txt
   done
