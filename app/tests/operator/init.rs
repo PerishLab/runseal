@@ -205,7 +205,7 @@ impl Script {
             r#"#!/bin/sh
 set -eu
 if [ "${1:-}" = "--version" ] && [ "${0##*/}" = "negentropy" ]; then
-  printf '%s\n' 'negentropy v0.3.0'
+  printf '%s\n' 'negentropy v0.4.0'
 fi
 if [ "${1:-}" = "config" ] && [ "${2:-}" = "--get" ]; then
   if [ "${3:-}" = "core.hooksPath" ]; then
@@ -289,7 +289,7 @@ fn mismatch() {
     let fx = fixture();
     std::fs::write(
         fx.bin.join("negentropy"),
-        "#!/bin/sh\nprintf '%s\\n' 'negentropy v0.3.1'\n",
+        "#!/bin/sh\nprintf '%s\\n' 'negentropy v0.4.1'\n",
     )
     .expect("negentropy stub should be replaced");
 
@@ -298,6 +298,6 @@ fn mismatch() {
     assert!(!output.status.success());
     assert!(
         String::from_utf8_lossy(&output.stderr)
-            .contains("negentropy: expected v0.3.0, got negentropy v0.3.1")
+            .contains("negentropy: expected v0.4.0, got negentropy v0.4.1")
     );
 }
