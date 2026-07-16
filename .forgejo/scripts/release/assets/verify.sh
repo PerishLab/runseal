@@ -27,19 +27,26 @@ ensure_tar_contains() {
 }
 
 check_archive_members() {
-  ensure_tar_contains "runseal-x86_64-unknown-linux-gnu.tar.gz" "runseal"
+  for tarball in $TARBALLS; do
+    ensure_tar_contains "$tarball" "runseal"
+  done
 }
+
+TARBALLS="runseal-x86_64-unknown-linux-gnu.tar.gz runseal-aarch64-apple-darwin.tar.gz runseal-x86_64-apple-darwin.tar.gz"
+ASSETS="$TARBALLS runseal-x86_64-pc-windows-msvc.zip"
 
 case "$MODE" in
   accept)
     require_file checksums.txt
-    require_file runseal-x86_64-unknown-linux-gnu.tar.gz
+    for asset in $ASSETS; do
+      require_file "$asset"
+    done
     version_line=$(sed -n 's/^VERSION: *//p' "$ARTIFACT_DIR/checksums.txt" | head -n 1)
     [ "$version_line" = "$RELEASE_VERSION" ] || {
       printf 'version mismatch: expected %s got %s\n' "$RELEASE_VERSION" "$version_line" >&2
       exit 1
     }
-    for asset in runseal-x86_64-unknown-linux-gnu.tar.gz; do
+    for asset in $ASSETS; do
       require_checksum_entry "$asset" || {
         printf 'missing checksum entry: %s\n' "$asset" >&2
         exit 1

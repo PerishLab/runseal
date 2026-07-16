@@ -59,6 +59,7 @@ for file_path in "$release_root"/runseal-*.tar.gz "$release_root"/checksums.txt;
 done
 
 upload "$workspace/manage.sh" "manage.sh" "text/x-shellscript; charset=utf-8" "public, max-age=60, must-revalidate"
+upload "$workspace/manage.ps1" "manage.ps1" "text/plain; charset=utf-8" "public, max-age=60, must-revalidate"
 
 artifact_json() {
   local name="$1"
@@ -78,8 +79,11 @@ artifact_json() {
 
 artifacts=$(jq -n \
   --argjson linuxX64 "$(artifact_json runseal-x86_64-unknown-linux-gnu.tar.gz application/gzip)" \
+  --argjson macArm64 "$(artifact_json runseal-aarch64-apple-darwin.tar.gz application/gzip)" \
+  --argjson macX64 "$(artifact_json runseal-x86_64-apple-darwin.tar.gz application/gzip)" \
+  --argjson winX64 "$(artifact_json runseal-x86_64-pc-windows-msvc.zip application/zip)" \
   --argjson checksums "$(artifact_json checksums.txt 'text/plain; charset=utf-8')" \
-  '{linuxX64: $linuxX64, checksums: $checksums}')
+  '{linuxX64: $linuxX64, macArm64: $macArm64, macX64: $macX64, winX64: $winX64, checksums: $checksums}')
 
 metadata=$(jq -n \
   --arg channel "$RELEASE_CHANNEL" \
@@ -96,6 +100,7 @@ metadata=$(jq -n \
   --arg versionPrefix "$version_prefix" \
   --arg latestPrefix "$latest_prefix" \
   --arg manageUnix "$public_url/manage.sh" \
+  --arg manageWindows "$public_url/manage.ps1" \
   --argjson artifacts "$artifacts" \
   '{
     version: 1,
@@ -104,7 +109,7 @@ metadata=$(jq -n \
     generatedAt: $generated,
     ci: {repository: $repository, commit: $commit, runId: $runId, runAttempt: $runAttempt, workflow: $workflow},
     r2: {publicUrl: $publicUrl, latestMetadataUrl: $latestMetadataUrl, versionMetadataUrl: $versionMetadataUrl, versionPrefix: $versionPrefix, latestPrefix: $latestPrefix},
-    manage: {unix: $manageUnix},
+    manage: {unix: $manageUnix, windows: $manageWindows},
     artifacts: $artifacts
   }')
 

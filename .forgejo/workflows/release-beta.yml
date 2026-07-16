@@ -9,13 +9,89 @@ on:
         default: ""
         type: string
 
+env:
+  RELEASE_CHANNEL: beta
+
 jobs:
-  release:
+  metadata:
     runs-on: docker
     container:
       image: mirror.perish.lan/ci/deno
     env:
+      RUNSEAL_RELEASES_PUBLIC_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}
+      RUNSEAL_RELEASES_S3_AK: ${{ secrets.RUNSEAL_RELEASES_S3_AK }}
+      RUNSEAL_RELEASES_S3_BUCKET: ${{ secrets.RUNSEAL_RELEASES_S3_BUCKET }}
+      RUNSEAL_RELEASES_S3_SK: ${{ secrets.RUNSEAL_RELEASES_S3_SK }}
+      RUNSEAL_RELEASES_S3_URL: ${{ secrets.RUNSEAL_RELEASES_S3_URL }}
+      R2_ACCESS_PROBE_NAME: release-beta
+      RELEASE_CHANNEL: beta
       BETA_VERSION_OVERRIDE: ${{ inputs.version_override }}
+    outputs:
+      base_version: ${{ steps.beta.outputs.base_version }}
+      beta_number: ${{ steps.beta.outputs.beta_number }}
+      release_version: ${{ steps.beta.outputs.release_version }}
+      state_source: ${{ steps.beta.outputs.state_source }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate R2 access
+        run: bash .forgejo/scripts/release/r2/check.sh
+
+      - name: Resolve beta metadata
+        id: beta
+        run: deno run --allow-env --allow-read --allow-net --allow-write="$GITHUB_OUTPUT" .forgejo/scripts/release/metadata/beta.ts
+
+  build:
+    needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos
+            target: aarch64-apple-darwin
+            archive: runseal-aarch64-apple-darwin.tar.gz
+          - runner: macos
+            target: x86_64-apple-darwin
+            archive: runseal-x86_64-apple-darwin.tar.gz
+          - runner: windows
+            target: x86_64-pc-windows-msvc
+            archive: runseal-x86_64-pc-windows-msvc.zip
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Package
+        if: runner.os != 'Windows'
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
+          TARGET: ${{ matrix.target }}
+        run: sh .forgejo/scripts/release/assets/package.sh "$RELEASE_VERSION"
+
+      - name: Package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
+          TARGET: ${{ matrix.target }}
+        run: ./.forgejo/scripts/release/assets/package.ps1 "$env:RELEASE_VERSION"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/${{ needs.metadata.outputs.release_version }}/${{ matrix.archive }}
+
+  release:
+    needs: [metadata, build]
+    runs-on: docker
+    container:
+      image: mirror.perish.lan/ci/deno
+    env:
       CI_COMMIT: ${{ github.sha }}
       CI_REPOSITORY: ${{ github.repository }}
       CI_RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -38,15 +114,8 @@ jobs:
           set -eu
           version=$(cat .runseal/negentropy.version)
           curl -fsSL https://releases.negentropy.perish.uk/manage.sh -o "$RUNNER_TEMP/manage-negentropy.sh"
-          sh "$RUNNER_TEMP/manage-negentropy.sh" install --channel beta --version "$version" --bin-dir "$HOME/.local/bin"
+          sh "$RUNNER_TEMP/manage-negentropy.sh" install --channel stable --version "$version" --bin-dir "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Validate R2 access
-        run: bash .forgejo/scripts/release/r2/check.sh
-
-      - name: Resolve beta metadata
-        id: beta
-        run: deno run --allow-env --allow-read --allow-net --allow-write="$GITHUB_OUTPUT" .forgejo/scripts/release/metadata/beta.ts
 
       - name: Guard
         run: |
@@ -57,17 +126,34 @@ jobs:
 
       - name: Package
         env:
-          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
           TARGET: x86_64-unknown-linux-gnu
         run: sh .forgejo/scripts/release/assets/package.sh "$RELEASE_VERSION"
 
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: dist/${{ needs.metadata.outputs.release_version }}
+
+      - name: Gather artifacts
+        env:
+          RELEASE_ROOT: dist/${{ needs.metadata.outputs.release_version }}
+        run: |
+          set -eu
+          for dir in "$RELEASE_ROOT"/release-*; do
+            [ -d "$dir" ] || continue
+            mv "$dir"/* "$RELEASE_ROOT"/
+            rmdir "$dir"
+          done
+          ls -l "$RELEASE_ROOT"
+
       - name: Publish
         env:
-          BASE_VERSION: ${{ steps.beta.outputs.base_version }}
-          BETA_NUMBER: ${{ steps.beta.outputs.beta_number }}
-          RELEASE_ROOT: dist/${{ steps.beta.outputs.release_version }}
-          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
-          STATE_SOURCE: ${{ steps.beta.outputs.state_source }}
+          BASE_VERSION: ${{ needs.metadata.outputs.base_version }}
+          BETA_NUMBER: ${{ needs.metadata.outputs.beta_number }}
+          RELEASE_ROOT: dist/${{ needs.metadata.outputs.release_version }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
+          STATE_SOURCE: ${{ needs.metadata.outputs.state_source }}
         run: |
           set -eu
           export PATH="$HOME/.local/bin:$PWD/target/debug:$PATH"
@@ -80,19 +166,19 @@ jobs:
       - name: Verify R2 publish
         env:
           R2_METADATA_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}/beta/latest/metadata.json
-          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
         run: bash .forgejo/scripts/release/r2/verify.sh
 
       - name: Publish summary
         env:
-          BASE_VERSION: ${{ steps.beta.outputs.base_version }}
-          BETA_NUMBER: ${{ steps.beta.outputs.beta_number }}
+          BASE_VERSION: ${{ needs.metadata.outputs.base_version }}
+          BETA_NUMBER: ${{ needs.metadata.outputs.beta_number }}
           R2_METADATA_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}/beta/latest/metadata.json
-          R2_VERSION_METADATA_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}/beta/versions/${{ steps.beta.outputs.release_version }}/metadata.json
-          R2_VERSION_PREFIX: beta/versions/${{ steps.beta.outputs.release_version }}
-          RELEASE_VERSION: ${{ steps.beta.outputs.release_version }}
-          STATE_SOURCE: ${{ steps.beta.outputs.state_source }}
+          R2_VERSION_METADATA_URL: ${{ vars.RUNSEAL_RELEASES_PUBLIC_URL }}/beta/versions/${{ needs.metadata.outputs.release_version }}/metadata.json
+          R2_VERSION_PREFIX: beta/versions/${{ needs.metadata.outputs.release_version }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
+          STATE_SOURCE: ${{ needs.metadata.outputs.state_source }}
         run: bash .forgejo/scripts/release/r2/summary.sh
 
       - name: Smoke install
-        run: sh .forgejo/scripts/release/smoke/smoke.sh "${{ steps.beta.outputs.release_version }}" beta
+        run: sh .forgejo/scripts/release/smoke/smoke.sh "${{ needs.metadata.outputs.release_version }}" beta
