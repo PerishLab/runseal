@@ -63,32 +63,6 @@ async function forge(): Promise<Forge> {
 const mark = "runseal_manage_sh_redirect";
 const phase = "http_request_dynamic_redirect";
 
-function plotted(cfg: Forge): Record<string, unknown> {
-  const target = cfg.prefix === ""
-    ? `https://${cfg.origin}/manage.sh`
-    : `https://${cfg.origin}/${cfg.prefix}/manage.sh`;
-  return exact({
-    reference: mark,
-    description: "Redirect runseal manage.sh to releases bucket asset",
-    host: cfg.host,
-    path: "/manage.sh",
-    url: target,
-  });
-}
-
-function show(cfg: Forge, rule: Record<string, unknown>, id?: string): void {
-  io.print("manage redirect plan");
-  io.print(`zone: ${cfg.zone}`);
-  if (id !== undefined) {
-    io.print(`zone id: ${id}`);
-  }
-  io.print(`request host: ${cfg.host}`);
-  io.print(`redirect host: ${cfg.origin}`);
-  io.print(`phase: ${phase}`);
-  io.print("rules:");
-  io.print(pretty(rule));
-}
-
 function seated(value: unknown): Record<string, unknown> {
   if (typeof value === "object" && value !== null && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -96,34 +70,63 @@ function seated(value: unknown): Record<string, unknown> {
   return {};
 }
 
-async function resolve(cfg: Forge, zone: string): Promise<Record<string, unknown>> {
-  const listed = await cfg.api.rulesets(zone);
-  const found = listed.map(seated).find((entry) => entry.phase === phase);
-  if (found === undefined) {
-    return seated(
-      await cfg.api.phase(zone, {
-        kind: "zone",
-        name: "Single Redirects ruleset",
-        phase,
-        rules: [],
-      }),
-    );
-  }
-  return seated(await cfg.api.ruleset(zone, String(found.id)));
-}
+class Manage {
+  constructor(private readonly cfg: Forge) {}
 
-async function upsert(
-  cfg: Forge,
-  slot: { zone: string; ruleset: string },
-  current: Record<string, unknown> | undefined,
-  payload: Record<string, unknown>,
-): Promise<string> {
-  if (current === undefined) {
-    await cfg.api.add(slot.zone, slot.ruleset, payload);
-    return `created ${mark}`;
+  plotted(): Record<string, unknown> {
+    const target = this.cfg.prefix === ""
+      ? `https://${this.cfg.origin}/manage.sh`
+      : `https://${this.cfg.origin}/${this.cfg.prefix}/manage.sh`;
+    return exact({
+      reference: mark,
+      description: "Redirect runseal manage.sh to releases bucket asset",
+      host: this.cfg.host,
+      path: "/manage.sh",
+      url: target,
+    });
   }
-  await cfg.api.change(slot.zone, slot.ruleset, String(current.id), payload);
-  return `updated ${mark}`;
+
+  show(rule: Record<string, unknown>, id?: string): void {
+    io.print("manage redirect plan");
+    io.print(`zone: ${this.cfg.zone}`);
+    if (id !== undefined) {
+      io.print(`zone id: ${id}`);
+    }
+    io.print(`request host: ${this.cfg.host}`);
+    io.print(`redirect host: ${this.cfg.origin}`);
+    io.print(`phase: ${phase}`);
+    io.print("rules:");
+    io.print(pretty(rule));
+  }
+
+  async resolve(zone: string): Promise<Record<string, unknown>> {
+    const listed = await this.cfg.api.rulesets(zone);
+    const found = listed.map(seated).find((entry) => entry.phase === phase);
+    if (found === undefined) {
+      return seated(
+        await this.cfg.api.phase(zone, {
+          kind: "zone",
+          name: "Single Redirects ruleset",
+          phase,
+          rules: [],
+        }),
+      );
+    }
+    return seated(await this.cfg.api.ruleset(zone, String(found.id)));
+  }
+
+  async upsert(
+    slot: { zone: string; ruleset: string },
+    current: Record<string, unknown> | undefined,
+    payload: Record<string, unknown>,
+  ): Promise<string> {
+    if (current === undefined) {
+      await this.cfg.api.add(slot.zone, slot.ruleset, payload);
+      return `created ${mark}`;
+    }
+    await this.cfg.api.change(slot.zone, slot.ruleset, String(current.id), payload);
+    return `updated ${mark}`;
+  }
 }
 
 class Op {
@@ -175,8 +178,8 @@ class Op {
 
   async plan(): Promise<void> {
     reject(this.rest[0], "cloudflare: manage-plan does not accept arguments");
-    const cfg = await forge();
-    show(cfg, plotted(cfg));
+    const manage = new Manage(await forge());
+    manage.show(manage.plotted());
   }
 
   async inspect(): Promise<void> {
@@ -212,18 +215,19 @@ class Op {
     flags(args).positionals("cloudflare: manage-ensure-redirect");
     const dry = flags(args).boolean("dry-run");
     const cfg = await forge();
-    const rule = plotted(cfg);
+    const manage = new Manage(cfg);
+    const rule = manage.plotted();
     const zone = await cfg.api.zone(cfg.zone);
     const id = String(zone.id);
     if (dry) {
-      show(cfg, rule, id);
+      manage.show(rule, id);
       return;
     }
-    const ruleset = await resolve(cfg, id);
+    const ruleset = await manage.resolve(id);
     const rid = String(ruleset.id);
     const rules = Array.isArray(ruleset.rules) ? ruleset.rules.map(seated) : [];
     const current = rules.find((entry) => entry.ref === mark);
-    const change = await upsert(cfg, { zone: id, ruleset: rid }, current, rule);
+    const change = await manage.upsert({ zone: id, ruleset: rid }, current, rule);
     io.print("manage ensure redirect: ok");
     io.print(`  - ${change}`);
   }

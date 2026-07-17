@@ -27,12 +27,9 @@ fn fixture() -> Fixture {
         .expect("git init should run");
     Fixture::write(&project);
     Git::write(&bin.join("git"));
-    Script::write(&bin.join("cargo"));
-    Script::write(&bin.join("negentropy"));
-    Script::write(&bin.join("sh"));
-    Script::write(&bin.join("bash"));
-    Script::write(&bin.join("sed"));
-    Script::write(&bin.join("grep"));
+    for tool in ["cargo", "negentropy", "sh", "bash", "sed", "grep"] {
+        Script::write(&bin.join(tool));
+    }
     Fixture {
         _temp: temp,
         project,
