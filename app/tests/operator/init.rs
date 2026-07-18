@@ -8,6 +8,8 @@ use std::{
 
 use tempfile::TempDir;
 
+use super::stub::{Git, Script, pin, root};
+
 struct Fixture {
     _temp: TempDir,
     project: PathBuf,
@@ -80,49 +82,49 @@ impl Fixture {
         }
         std::fs::write(
             project.join(".runseal/deno.lock"),
-            std::fs::read_to_string(Self::root().join(".runseal/deno.lock"))
+            std::fs::read_to_string(root().join(".runseal/deno.lock"))
                 .expect("repo deno lock should be readable"),
         )
         .expect("deno lock should be copied");
         std::fs::write(
             project.join(".runseal/wrappers/init.ts"),
-            std::fs::read_to_string(Self::root().join(".runseal/wrappers/init.ts"))
+            std::fs::read_to_string(root().join(".runseal/wrappers/init.ts"))
                 .expect("repo init wrapper should be readable"),
         )
         .expect("init wrapper should be copied");
         std::fs::write(
             project.join(".runseal/wrappers/guard.ts"),
-            std::fs::read_to_string(Self::root().join(".runseal/wrappers/guard.ts"))
+            std::fs::read_to_string(root().join(".runseal/wrappers/guard.ts"))
                 .expect("repo guard wrapper should be readable"),
         )
         .expect("guard wrapper should be copied");
         std::fs::write(
             project.join(".runseal/negentropy.version"),
-            std::fs::read_to_string(Self::root().join(".runseal/negentropy.version"))
+            std::fs::read_to_string(root().join(".runseal/negentropy.version"))
                 .expect("repo negentropy version should be readable"),
         )
         .expect("negentropy version should be copied");
         std::fs::write(
             project.join(".runseal/deno.json"),
-            std::fs::read_to_string(Self::root().join(".runseal/deno.json"))
+            std::fs::read_to_string(root().join(".runseal/deno.json"))
                 .expect("repo deno config should be readable"),
         )
         .expect("deno config should be copied");
         std::fs::write(
             project.join(".runseal/hooks/pre-commit"),
-            std::fs::read_to_string(Self::root().join(".runseal/hooks/pre-commit"))
+            std::fs::read_to_string(root().join(".runseal/hooks/pre-commit"))
                 .expect("repo pre-commit hook should be readable"),
         )
         .expect("pre-commit hook should be copied");
         std::fs::write(
             project.join(".runseal/hooks/commit-msg"),
-            std::fs::read_to_string(Self::root().join(".runseal/hooks/commit-msg"))
+            std::fs::read_to_string(root().join(".runseal/hooks/commit-msg"))
                 .expect("repo commit-msg hook should be readable"),
         )
         .expect("commit-msg hook should be copied");
         std::fs::write(
             project.join(".runseal/templates/cloudflare.env"),
-            std::fs::read_to_string(Self::root().join(".runseal/templates/cloudflare.env"))
+            std::fs::read_to_string(root().join(".runseal/templates/cloudflare.env"))
                 .expect("repo cloudflare template should be readable"),
         )
         .expect("cloudflare template should be copied");
@@ -146,89 +148,7 @@ permissions = [
     }
 }
 
-struct Git;
-
-impl Git {
-    fn write(path: &Path) {
-        use std::os::unix::fs::PermissionsExt;
-
-        std::fs::write(
-            path,
-            r#"#!/bin/sh
-set -eu
-case "${1:-}" in
-  --version)
-    ;;
-  rev-parse)
-    if [ "${2:-}" = "--show-toplevel" ]; then
-      pwd
-    else
-      exit 9
-    fi
-    ;;
-  config)
-    if [ "${2:-}" = "core.hooksPath" ] && [ "${3:-}" = ".runseal/hooks" ]; then
-      exit 0
-    fi
-    if [ "${2:-}" = "--get" ] && [ "${3:-}" = "core.hooksPath" ]; then
-      printf '%s\n' ".runseal/hooks"
-      exit 0
-    fi
-    exit 9
-    ;;
-  *)
-    exit 9
-    ;;
-esac
-"#,
-        )
-        .expect("git stub should be written");
-        let mut permissions = std::fs::metadata(path)
-            .expect("git stub metadata should be readable")
-            .permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(path, permissions).expect("git stub should be executable");
-    }
-}
-
-struct Script;
-
-impl Script {
-    fn write(path: &Path) {
-        use std::os::unix::fs::PermissionsExt;
-
-        std::fs::write(
-            path,
-            r#"#!/bin/sh
-set -eu
-if [ "${1:-}" = "--version" ] && [ "${0##*/}" = "negentropy" ]; then
-  printf '%s\n' 'negentropy v0.4.0'
-fi
-if [ "${1:-}" = "config" ] && [ "${2:-}" = "--get" ]; then
-  if [ "${3:-}" = "core.hooksPath" ]; then
-    printf '%s\n' ".runseal/hooks"
-  fi
-fi
-exit 0
-"#,
-        )
-        .expect("stub should be written");
-        let mut permissions = std::fs::metadata(path)
-            .expect("stub metadata should be readable")
-            .permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(path, permissions).expect("stub should be executable");
-    }
-}
-
 impl Fixture {
-    fn root() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("app dir should have repo parent")
-            .to_path_buf()
-    }
-
     fn run(&self, args: &[&str]) -> std::process::Output {
         Command::new(env!("CARGO_BIN_EXE_runseal"))
             .current_dir(&self.project)
@@ -286,15 +206,15 @@ fn mismatch() {
     let fx = fixture();
     std::fs::write(
         fx.bin.join("negentropy"),
-        "#!/bin/sh\nprintf '%s\\n' 'negentropy v0.4.1'\n",
+        "#!/bin/sh\nprintf '%s\\n' 'negentropy v0.0.0'\n",
     )
     .expect("negentropy stub should be replaced");
 
     let output = fx.run(&[]);
 
     assert!(!output.status.success());
-    assert!(
-        String::from_utf8_lossy(&output.stderr)
-            .contains("negentropy: expected v0.4.0, got negentropy v0.4.1")
-    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains(&format!(
+        "negentropy: expected {}, got negentropy v0.0.0",
+        pin()
+    )));
 }

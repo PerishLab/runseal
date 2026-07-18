@@ -4,3 +4,5 @@ mod cloudflare;
 mod guard;
 #[path = "operator/init.rs"]
 mod init;
+#[path = "operator/stub.rs"]
+mod stub;
