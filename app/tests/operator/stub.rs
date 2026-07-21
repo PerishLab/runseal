@@ -7,13 +7,6 @@ pub fn root() -> PathBuf {
         .to_path_buf()
 }
 
-pub fn pin() -> String {
-    std::fs::read_to_string(root().join(".runseal/negentropy.version"))
-        .expect("repo negentropy version should be readable")
-        .trim()
-        .to_string()
-}
-
 pub struct Git;
 
 impl Git {
@@ -80,7 +73,7 @@ if [ "${{1:-}}" = "config" ] && [ "${{2:-}}" = "--get" ]; then
 fi
 exit 0
 "#,
-                pin()
+                "v0.0.0"
             ),
         )
         .expect("stub should be written");

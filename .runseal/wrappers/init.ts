@@ -32,7 +32,6 @@ await init({
     "runseal.toml",
     ".runseal/deno.json",
     ".runseal/deno.lock",
-    ".runseal/negentropy.version",
     ".runseal/hooks/pre-commit",
     ".runseal/hooks/commit-msg",
     ".runseal/templates/cloudflare.env",

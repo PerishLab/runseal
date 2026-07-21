@@ -57,12 +57,6 @@ permissions = [
     )
     .expect("deno lock should be copied");
     std::fs::write(
-        project.join(".runseal/negentropy.version"),
-        std::fs::read_to_string(Fixture::root().join(".runseal/negentropy.version"))
-            .expect("repo negentropy version should be readable"),
-    )
-    .expect("negentropy version should be copied");
-    std::fs::write(
         project.join(".runseal/wrappers/guard.ts"),
         std::fs::read_to_string(Fixture::root().join(".runseal/wrappers/guard.ts"))
             .expect("repo guard wrapper should be readable"),

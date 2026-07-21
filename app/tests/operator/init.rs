@@ -8,7 +8,7 @@ use std::{
 
 use tempfile::TempDir;
 
-use super::stub::{Git, Script, pin, root};
+use super::stub::{Git, Script, root};
 
 struct Fixture {
     _temp: TempDir,
@@ -51,7 +51,6 @@ impl Fixture {
             "runseal.toml",
             ".runseal/deno.json",
             ".runseal/deno.lock",
-            ".runseal/negentropy.version",
             ".runseal/hooks/pre-commit",
             ".runseal/hooks/commit-msg",
             ".runseal/templates/cloudflare.env",
@@ -98,12 +97,6 @@ impl Fixture {
                 .expect("repo guard wrapper should be readable"),
         )
         .expect("guard wrapper should be copied");
-        std::fs::write(
-            project.join(".runseal/negentropy.version"),
-            std::fs::read_to_string(root().join(".runseal/negentropy.version"))
-                .expect("repo negentropy version should be readable"),
-        )
-        .expect("negentropy version should be copied");
         std::fs::write(
             project.join(".runseal/deno.json"),
             std::fs::read_to_string(root().join(".runseal/deno.json"))
@@ -199,22 +192,4 @@ fn pinned() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-#[test]
-fn mismatch() {
-    let fx = fixture();
-    std::fs::write(
-        fx.bin.join("negentropy"),
-        "#!/bin/sh\nprintf '%s\\n' 'negentropy v0.0.0'\n",
-    )
-    .expect("negentropy stub should be replaced");
-
-    let output = fx.run(&[]);
-
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains(&format!(
-        "negentropy: expected {}, got negentropy v0.0.0",
-        pin()
-    )));
 }

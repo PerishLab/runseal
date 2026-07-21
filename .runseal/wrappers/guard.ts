@@ -5,7 +5,6 @@ import { env } from "@perish/harness/env";
 import { io } from "@perish/harness/io";
 import { doc } from "@perish/harness/json";
 import { hash } from "@perish/harness/hash";
-import { negentropy } from "@perish/harness/negentropy";
 import { version } from "@perish/harness/version";
 
 function usage(): void {
@@ -177,7 +176,6 @@ await bin("deno").run([
 ]);
 
 io.print("==> negentropy");
-await negentropy.verify();
 await bin("negentropy").run(["--strict", "."]);
 
 io.print("==> shell syntax");
