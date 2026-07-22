@@ -1,3 +1,3 @@
-import { release } from "@perish/harness/release";
+import { release } from "@perish/sealkit/release";
 
 await release(Deno.args);

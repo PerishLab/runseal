@@ -1,11 +1,11 @@
-import { cache } from "@perish/harness/cache";
-import { cli, flags } from "@perish/harness/cli";
-import { bin } from "@perish/harness/cmd";
-import { env } from "@perish/harness/env";
-import { io } from "@perish/harness/io";
-import { doc } from "@perish/harness/json";
-import { hash } from "@perish/harness/hash";
-import { version } from "@perish/harness/version";
+import { cache } from "@perish/sealkit/cache";
+import { cli, flags } from "@perish/sealkit/cli";
+import { bin } from "@perish/sealkit/cmd";
+import { env } from "@perish/sealkit/env";
+import { io } from "@perish/sealkit/io";
+import { doc } from "@perish/sealkit/json";
+import { hash } from "@perish/sealkit/hash";
+import { version } from "@perish/sealkit/version";
 
 function usage(): void {
   io.print("Usage: runseal :guard [version-check|version-hash] [--fresh]");

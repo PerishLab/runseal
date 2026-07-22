@@ -1,8 +1,8 @@
-import { cli, flags } from "@perish/harness/cli";
-import { Cloudflare, exact, keys } from "@perish/harness/cloudflare";
-import { env } from "@perish/harness/env";
-import { fs } from "@perish/harness/fs";
-import { io } from "@perish/harness/io";
+import { cli, flags } from "@perish/sealkit/cli";
+import { Cloudflare, exact, keys } from "@perish/sealkit/cloudflare";
+import { env } from "@perish/sealkit/env";
+import { fs } from "@perish/sealkit/fs";
+import { io } from "@perish/sealkit/io";
 
 function usage(): void {
   io.print("Usage: runseal :cloudflare <command> [args]");
