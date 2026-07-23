@@ -101,5 +101,5 @@ fn normalize(mut command: Vec<String>) -> Vec<String> {
 }
 
 fn version() -> &'static str {
-    plumb_lib::version!("RUNSEAL")
+    plumb::version!("RUNSEAL")
 }

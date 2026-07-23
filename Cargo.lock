@@ -354,10 +354,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "plumb-lib"
-version = "0.2.0"
+name = "plumb"
+version = "0.1.0"
 source = "sparse+https://git.perish.top/api/packages/PerishLab/cargo/"
-checksum = "9a815ca9ef20917122b411bb2cffe2a047194693e8088de352f937ebd8dd1f82"
+checksum = "045dc376238eaf69ab15609529105823af0bdec41c90ba998744ad88ba9a3c4d"
 dependencies = [
  "clap",
  "serde",
@@ -450,7 +450,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "path-absolutize",
- "plumb-lib",
+ "plumb",
  "serde",
  "serde_json",
  "shellexpand",
