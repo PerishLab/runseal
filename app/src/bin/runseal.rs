@@ -101,5 +101,5 @@ fn normalize(mut command: Vec<String>) -> Vec<String> {
 }
 
 fn version() -> &'static str {
-    option_env!("RUNSEAL_BUILD_VERSION").unwrap_or(concat!("v", env!("CARGO_PKG_VERSION")))
+    plumb_lib::version!("RUNSEAL")
 }
