@@ -28,6 +28,16 @@ allow = false
 single = true
 
 [[grant]]
+syntax = "environment"
+paths = [
+  "app/src/bin/runseal.rs",
+  "app/src/core/app.rs",
+  "app/src/core/config.rs",
+  "app/src/wrappers.rs",
+  "app/tests/**/*.rs",
+]
+
+[[grant]]
 syntax = "test"
 paths = [
   "app/tests/**/*.rs",
