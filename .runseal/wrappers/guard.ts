@@ -124,6 +124,11 @@ if (mode === "version-hash") {
   Deno.exit(0);
 }
 
+if (mode === "full") {
+  io.print("==> plumb doctor");
+  await bin("plumb").run(["doctor", "."]);
+}
+
 let mark = "";
 if (mode === "full") {
   mark = await cache.key([["ectropy", ["--version"]]]);

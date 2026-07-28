@@ -29,7 +29,7 @@ fn fixture() -> Fixture {
         .expect("git init should run");
     Fixture::write(&project);
     Git::write(&bin.join("git"));
-    for tool in ["cargo", "ectropy", "sh", "bash", "sed", "grep"] {
+    for tool in ["cargo", "ectropy", "plumb", "sh", "bash", "sed", "grep"] {
         Script::write(&bin.join(tool));
     }
     Fixture {
@@ -132,7 +132,7 @@ permissions = [
   "--allow-read=.",
   "--allow-write=.",
   "--allow-env",
-  "--allow-run=git,deno,cargo,runseal,ectropy,sh,bash,sed,grep,rustc,node",
+  "--allow-run=git,deno,cargo,runseal,ectropy,plumb,sh,bash,sed,grep,rustc,node",
 ]
 "#,
         )
