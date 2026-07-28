@@ -63,8 +63,8 @@ impl Script {
             format!(
                 r#"#!/bin/sh
 set -eu
-if [ "${{1:-}}" = "--version" ] && [ "${{0##*/}}" = "negentropy" ]; then
-  printf '%s\n' 'negentropy {}'
+if [ "${{1:-}}" = "--version" ] && [ "${{0##*/}}" = "ectropy" ]; then
+  printf '%s\n' 'ectropy {}'
 fi
 if [ "${{1:-}}" = "config" ] && [ "${{2:-}}" = "--get" ]; then
   if [ "${{3:-}}" = "core.hooksPath" ]; then

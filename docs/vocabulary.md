@@ -6,8 +6,8 @@ expressed more clearly through structure.
 
 ## Deltas
 
-No compound atoms are registered. Additions require a concrete domain rationale
-in `vocabulary.toml` and a matching meaning delta here.
+No compound atoms are registered. Additions require a described
+`[[vocabulary.term]]` entry in `ectropy.toml` and a matching meaning delta here.
 
 - Cloudflare flow, API, and test compounds moved into object, type, and module
   namespaces; no vocabulary entries were added.

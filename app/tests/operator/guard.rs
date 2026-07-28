@@ -39,7 +39,7 @@ permissions = [
   "--allow-read=.",
   "--allow-env",
   "--allow-net=127.0.0.1",
-  "--allow-run=git,cargo,negentropy,runseal",
+  "--allow-run=git,cargo,ectropy,runseal,rustc,node",
 ]
 "#,
     )

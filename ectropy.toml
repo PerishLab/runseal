@@ -43,3 +43,5 @@ paths = [
   "app/tests/**/*.rs",
   ".runseal/**/*.test.ts",
 ]
+
+[vocabulary]

@@ -29,7 +29,7 @@ fn fixture() -> Fixture {
         .expect("git init should run");
     Fixture::write(&project);
     Git::write(&bin.join("git"));
-    for tool in ["cargo", "negentropy", "sh", "bash", "sed", "grep"] {
+    for tool in ["cargo", "ectropy", "sh", "bash", "sed", "grep"] {
         Script::write(&bin.join(tool));
     }
     Fixture {
@@ -44,8 +44,7 @@ impl Fixture {
         for path in [
             "Cargo.toml",
             "Cargo.lock",
-            "negentropy.toml",
-            "vocabulary.toml",
+            "ectropy.toml",
             "docs/vocabulary.md",
             "manage.sh",
             "runseal.toml",
@@ -133,7 +132,7 @@ permissions = [
   "--allow-read=.",
   "--allow-write=.",
   "--allow-env",
-  "--allow-run=git,deno,cargo,runseal,negentropy,sh,bash,sed,grep",
+  "--allow-run=git,deno,cargo,runseal,ectropy,sh,bash,sed,grep,rustc,node",
 ]
 "#,
         )

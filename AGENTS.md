@@ -52,7 +52,7 @@ Runtime path rules:
 
 Tooling rules:
 
-- Treat `runseal` and `negentropy` as installed developer infrastructure, at the
+- Treat `runseal` and `ectropy` as installed developer infrastructure, at the
   same level as `git` and `cargo`; this repository does not bootstrap
   them.
 

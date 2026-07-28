@@ -126,7 +126,7 @@ if (mode === "version-hash") {
 
 let mark = "";
 if (mode === "full") {
-  mark = await cache.key();
+  mark = await cache.key([["ectropy", ["--version"]]]);
   if (args.fresh !== true && (await cache.hit(mark))) {
     io.print(`guard: clean (cached ${mark.slice(0, 12)})`);
     Deno.exit(0);
@@ -175,8 +175,8 @@ await bin("deno").run([
   ".forgejo/scripts/release/metadata/stable.ts",
 ]);
 
-io.print("==> negentropy");
-await bin("negentropy").run(["--strict", "."]);
+io.print("==> ectropy");
+await bin("ectropy").run(["--strict", "."]);
 
 io.print("==> shell syntax");
 for (
