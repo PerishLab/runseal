@@ -121,6 +121,11 @@ jobs:
           cargo build --quiet --locked -p runseal
           target/debug/runseal :guard
 
+      - name: Changelog
+        env:
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
+        run: plumb changelog . --version "$RELEASE_VERSION"
+
       - name: Package
         env:
           RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}

@@ -76,6 +76,14 @@ function Install-Runseal {
         "@echo off`r`n`"$exe`" %*`r`n" | Set-Content -Encoding ASCII -Path $cmd
         & $cmd --version
         Write-Output "installed runseal to $cmd"
+        $swept = Get-ChildItem -Directory -ErrorAction SilentlyContinue $installRoot |
+            Where-Object { $_.Name -ne $version }
+        foreach ($seat in $swept) {
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $seat.FullName
+        }
+        if ($swept) {
+            Write-Output "swept: $($swept.Name -join ' ')"
+        }
     }
     finally {
         Remove-Item -LiteralPath $tmpdir -Recurse -Force -ErrorAction SilentlyContinue
