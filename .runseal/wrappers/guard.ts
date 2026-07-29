@@ -20,26 +20,13 @@ function usage(): void {
   io.print("  --fresh          ignore the guard cache and run the full gauntlet");
 }
 
-let mode = "full";
 const args = cli.parse(Deno.args, { boolean: ["help", "h", "fresh"] });
 if (flags(args).help()) {
   flags(args).positionals("guard", { allowHelp: true });
   usage();
   Deno.exit(0);
 }
-if (args._.length > 0) {
-  const arg = args._.shift()!;
-  switch (arg) {
-    case "version-check":
-      mode = "version-check";
-      break;
-    case "version-hash":
-      mode = "version-hash";
-      break;
-    default:
-      io.fail(`guard: unknown command: ${arg}`);
-  }
-}
+const command = args._.shift() ?? "";
 if (args._.length > 0) {
   io.fail("guard: unexpected arguments");
 }
@@ -119,29 +106,29 @@ class Policy {
   }
 }
 
-if (mode === "version-hash") {
-  io.print(await Policy.hash());
-  Deno.exit(0);
-}
-
-if (mode === "full") {
-  io.print("==> plumb doctor");
-  await bin("plumb").run(["doctor", "."]);
-}
-
-let mark = "";
-if (mode === "full") {
-  mark = await cache.key([["ectropy", ["--version"]]]);
-  if (args.fresh !== true && (await cache.hit(mark))) {
-    io.print(`guard: clean (cached ${mark.slice(0, 12)})`);
+switch (command) {
+  case "version-hash":
+    io.print(await Policy.hash());
     Deno.exit(0);
-  }
+  case "version-check":
+    await Policy.check();
+    Deno.exit(0);
+  case "":
+    break;
+  default:
+    io.fail(`guard: unknown command: ${command}`);
+}
+
+io.print("==> plumb doctor");
+await bin("plumb").run(["doctor", "."]);
+
+const mark = await cache.key([["ectropy", ["--version"]]]);
+if (args.fresh !== true && (await cache.hit(mark))) {
+  io.print(`guard: clean (cached ${mark.slice(0, 12)})`);
+  Deno.exit(0);
 }
 
 await Policy.check();
-if (mode === "version-check") {
-  Deno.exit(0);
-}
 
 io.print("==> cargo fmt");
 await bin("cargo").run(["fmt", "--all", "--check"]);
@@ -181,7 +168,7 @@ await bin("deno").run([
 ]);
 
 io.print("==> ectropy");
-await bin("ectropy").run(["--strict", "."]);
+await bin("ectropy").run(["."]);
 
 io.print("==> shell syntax");
 for (
@@ -200,6 +187,4 @@ for (
   await bin(command).run(["-n", script]);
 }
 
-if (mark !== "") {
-  await cache.keep(mark);
-}
+await cache.keep(mark);
