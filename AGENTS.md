@@ -89,7 +89,9 @@ the repository-owned canonical files directly.
 - `.runseal/wrappers/`: repo-local `:wrapper` entrypoints. Prefer `.ts`
   wrappers for structured operations and `.sh` only for thin Unix bootstrap.
 - `runseal.toml`: repo-local operator profile.
-- `manage.sh`: public install and uninstall manager.
+- `plumb.toml`: product release declaration consumed by stable Plumb.
+- `.forgejo/workflows/release-exact.yml`: immutable non-stable publication.
+- `.forgejo/workflows/release-stable.yml`: stable promotion and activation.
 
 Once child `AGENTS.md` files exist, this section should prefer links to those
 local guides over repeating their detail here.
@@ -129,23 +131,32 @@ Common repo workflow commands:
 runseal :init
 runseal :cloudflare
 runseal :land
-runseal :release --channel beta --ref <branch> --watch
 ```
 
-Manager install/update path:
+Canonical stable install path:
 
 ```bash
-./manage.sh install --channel beta
+curl -fsSL https://releases.runseal.perish.uk/manage.sh | sh
 ```
 
 Release and distribution rules:
 
-- Release and manager downloads use R2 metadata and artifacts as the source of
-  truth.
-- The public install and uninstall entrypoint is `manage.sh`.
-- Release and smoke flows should reference that root file.
-- Cloudflare manager redirects use the exact path `runseal.perish.uk/manage.sh`,
-  pointing to `releases.runseal.perish.uk/manage.sh`.
+- Stable Plumb owns the complete binary release mechanism. This repository
+  declares its product in `plumb.toml`; its two release workflows are thin
+  Actions callers.
+- Every release produces immutable content-addressed objects and one exact seal
+  at `v1/releases/<channel>/<version>/seal.json`.
+- Non-stable releases stop at their exact seal. Their generated managers carry
+  the exact channel and version and require explicit install/bin paths isolated
+  from the stable defaults.
+- Stable is promoted from a verified exact non-stable seal for the same commit.
+  Only stable activation may update `v1/channels/stable.json` and the canonical
+  root `manage.sh` and `manage.ps1`.
+- Release jobs resolve the requested ref once and use that immutable commit for
+  build, publication, smoke, and stable tagging.
+- Publication and activation use separate credential sets.
+- Generated managers and release capsules are release outputs, never
+  repository-owned source files.
 
 Profile discovery order:
 
@@ -266,12 +277,11 @@ Prefer small focused commits.
 
 ## Release
 
-- `manage.sh` and `manage.ps1` leave exactly one version under the install root.
-  Earlier versions are removed once the new binary is linked and answers
-  `--version`, and each removal is named. `--retain` keeps what is there. The
-  default was the opposite, protecting a rollback path that does not exist:
-  `install --version <older>` refetches, so nothing ever read what accumulated.
-- A stable release refuses to publish without
+- Stable is the consensus anchor: its root managers and
+  `v1/channels/stable.json` are the only moving public surfaces.
+- Every other channel is addressed by an exact seal and installed into an
+  explicit isolated seat with the generated manager named by that seal.
+- A stable release requires
   `docs/CHANGELOG/v<version>/{en,zh}/{INDEX.md,MIGRATION.md}`, enforced by the
   `Changelog` step in `release-stable.yml` before anything irreversible.
   `plumb doctor` does not check this: a changelog is owed by a release, not by a

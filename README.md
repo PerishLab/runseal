@@ -112,22 +112,40 @@ and internal command namespaces:
 
 ## Install
 
+The canonical manager installs stable into the default seat:
+
 ```bash
-curl -fsSL https://runseal.perish.uk/manage.sh | sh
+curl -fsSL https://releases.runseal.perish.uk/manage.sh | sh
 ```
 
-Install a beta or one explicit version:
+Stable is the only moving install intent. Its root manager follows
+`v1/channels/stable.json`; an explicit version selects an immutable stable
+release:
 
 ```bash
-curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- install --channel beta
-curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- install --version vX.Y.Z-beta.N
+curl -fsSL https://releases.runseal.perish.uk/manage.sh | sh -s -- \
+  install --channel stable --version vX.Y.Z
+```
+
+Every non-stable release is published only as an exact seal. The seal names its
+fixed manager, and that manager installs into an explicit isolated seat:
+
+```bash
+seal=https://releases.runseal.perish.uk/v1/releases/beta/vX.Y.Z-beta.N/seal.json
+manager=$(curl -fsSL "$seal" | jq -er '.managers.unix.url')
+curl -fsSL "$manager" | sh -s -- \
+  install \
+  --install-root "$HOME/.local/share/runseal-beta" \
+  --bin-dir "$HOME/.local/runseal-beta/bin"
 ```
 
 Uninstall:
 
 ```bash
-curl -fsSL https://runseal.perish.uk/manage.sh | sh -s -- uninstall
+curl -fsSL https://releases.runseal.perish.uk/manage.sh | sh -s -- uninstall
 ```
+
+Use the same exact manager and isolated paths to uninstall a non-stable seat.
 
 If `--profile` is omitted, profile discovery walks from the current directory
 to filesystem root. At each directory, format priority is:

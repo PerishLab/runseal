@@ -188,25 +188,6 @@ mod init {
     }
 }
 
-mod manage {
-    use super::*;
-
-    #[test]
-    fn plans() {
-        let fx = fixture();
-        fx.write();
-
-        let output = fx.run(&["manage-plan"]);
-
-        assert!(output.status.success(), "stderr: {}", stderr(&output));
-        let stdout = stdout(&output);
-        assert!(stdout.contains("manage redirect plan"));
-        assert!(stdout.contains("runseal_manage_sh_redirect"));
-        assert!(stdout.contains("https://releases.runseal.perish.uk/manage.sh"));
-        assert!(!stdout.contains("manage.ps1"));
-    }
-}
-
 mod api {
     use super::*;
 

@@ -18,14 +18,16 @@ runseal @tool forgejo pr guard \
 
 runseal @tool forgejo secret upsert \
   --repo PerishFire/runseal \
-  --name RUNSEAL_RELEASES_S3_SK \
-  --value-env RUNSEAL_RELEASES_S3_SK
+  --name RELEASE_PUBLISH_S3_SECRET_KEY \
+  --value-env RELEASE_PUBLISH_S3_SECRET_KEY
 
 runseal @tool forgejo workflow dispatch \
   --repo PerishFire/runseal \
-  --workflow release-beta.yml \
+  --workflow release-exact.yml \
   --ref main \
-  --input version_override=
+  --input ref=main \
+  --input channel=beta \
+  --input version=vX.Y.Z-beta.N
 ```
 
 `run cancel` fails explicitly on Forgejo v15 because that release exposes no

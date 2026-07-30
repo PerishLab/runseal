@@ -99,7 +99,7 @@ Print the absolute path for the wrapper selected by runseal's wrapper lookup.
 
 Examples:
   runseal @which :ssh
-  runseal @which :release
+  runseal @which :land
 
 @which currently supports only :wrapper arguments. It is read-only and does not run
 profile injections.
