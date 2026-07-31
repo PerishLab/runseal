@@ -1,103 +1,87 @@
-use std::path::PathBuf;
-use std::process;
+use std::{env, process};
 
-use anyhow::{Context, Result, bail};
-use clap::{CommandFactory, Parser};
-use runseal::core::app::App;
-use runseal::core::config::{Config, Env, Input};
-use runseal::core::help;
-use runseal::run;
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand, error::ErrorKind};
+use runseal::{
+    core::{config::Config, route::Route},
+    inspect, resolve, run,
+};
 
 #[derive(Debug, Parser)]
 #[command(
     name = "runseal",
     version = version(),
-    about = "Run a command inside an env, symlink, argv, and wrapper profile.",
+    about = "Establish one profile and run one isolated command.",
+    arg_required_else_help = true,
     after_help = "\
-Command model:
-  runseal <cmd>       run an external command inside the profile
-  runseal :<name>     run a profile wrapper
-  runseal @<name>     run a runseal command
+Execution model:
+  runseal <internal-command>       operate Runseal's control plane
+  runseal : <command> [args...]   run inside the default profile
+  runseal :name <command> [...]   run inside a named profile
+  runseal :name @tool [...]       run a Runseal-owned atomic tool
 
-Runseal commands:
-  @profile            print resolved runtime paths
-  @resources          print the resolved resource root
-  @resolve <uri>...   resolve resource:// paths
-  @wrappers           list visible wrappers
-  @which :<name>      print a wrapper path
-
-Deno wrappers:
-  .ts files are run with deno using the repo-level [deno] profile policy.
-  Use TypeScript for structured operations over the harness library.
-
-Profile discovery walks from the current directory upward for runseal.toml|yaml|yml|json,
-then falls back to $RUNSEAL_PROFILE_HOME/default.toml|yaml|yml|json.
-
-Run runseal @profile --help, @resolve --help, @wrappers --help,
-or @which --help for details.
+A profile contains only env, argv, and symlink declarations. It carries no
+command, wrapper, task graph, or implicit orchestration.
 
 Repository: https://git.perish.top/PerishFire/runseal"
 )]
 struct Cli {
-    #[arg(short = 'p', long = "profile")]
-    profile: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Control,
+}
 
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    command: Vec<String>,
+#[derive(Debug, Subcommand)]
+enum Control {
+    #[command(about = "Inspect a resolved profile without applying it")]
+    Profile {
+        #[arg(help = "Named profile; omit for default")]
+        name: Option<String>,
+    },
+    #[command(about = "Resolve conventional resource:// or local:// paths")]
+    Resolve {
+        #[arg(short, long, help = "Named profile; omit for default")]
+        profile: Option<String>,
+        #[arg(required = true, help = "One or more profile paths")]
+        uri: Vec<String>,
+    },
 }
 
 fn main() -> Result<()> {
-    let mut cli = Cli::parse();
-    cli.command = normalize(cli.command);
-    if cli.command.is_empty() {
-        Cli::command().print_help()?;
-        println!();
-        return Ok(());
+    let cwd = env::current_dir().context("failed to read current directory")?;
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    match Route::parse(args)? {
+        Route::Control(args) => control(args, &cwd),
+        Route::Profile { name, command } => {
+            let config = Config::build(name, command, &cwd)?;
+            let outcome = run(&config)?;
+            if let Some(code) = outcome.code {
+                process::exit(code);
+            }
+            Ok(())
+        }
     }
-    if help(&cli.command)? {
-        return Ok(());
-    }
-
-    let config = config(cli)?;
-    let app = App::new(config);
-    let result = run(&app)?;
-    if let Some(code) = result.code {
-        process::exit(code);
-    }
-    Ok(())
 }
 
-fn config(cli: Cli) -> Result<Config> {
-    let cwd = std::env::current_dir().context("failed to read current directory")?;
-    Config::build(
-        Input {
-            profile: cli.profile,
-            command: normalize(cli.command),
-        },
-        Env::process(),
-        &cwd,
-    )
-}
-
-fn help(command: &[String]) -> Result<bool> {
-    let Some(name) = command[0].strip_prefix('@') else {
-        return Ok(false);
+fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
+    let cli = match Cli::try_parse_from(std::iter::once("runseal".to_string()).chain(args)) {
+        Ok(cli) => cli,
+        Err(error)
+            if matches!(
+                error.kind(),
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion
+            ) =>
+        {
+            error.print()?;
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
     };
-    if name.is_empty() {
-        bail!("internal command name must not be empty");
+    match cli.command {
+        Control::Profile { name } => inspect(&Config::build(name, Vec::new(), cwd)?),
+        Control::Resolve { profile, uri } => {
+            resolve(&Config::build(profile, Vec::new(), cwd)?, &uri)
+        }
     }
-    let Some(help) = help::resolve(name, &command[1..])? else {
-        return Ok(false);
-    };
-    print!("{help}");
-    Ok(true)
-}
-
-fn normalize(mut command: Vec<String>) -> Vec<String> {
-    if command.len() > 1 && command.get(1).map(String::as_str) == Some("--") {
-        command.remove(1);
-    }
-    command
 }
 
 fn version() -> &'static str {

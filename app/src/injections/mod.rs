@@ -3,41 +3,40 @@ mod symlink;
 
 use anyhow::{Context, Result, anyhow};
 
-use crate::core::app::Context as App;
-use crate::core::profile::Injection as Spec;
-use env::Env;
+use crate::core::profile::Profile;
+pub use env::Patch;
 use symlink::Symlink;
 
 pub struct Lifecycle;
 
 impl Lifecycle {
-    pub fn run(app: &dyn App, specs: Vec<Spec>) -> Result<Vec<(String, String)>> {
-        Self::with(app, specs, |exports| Ok(exports.to_vec()))
-    }
-
-    pub fn with<T, F>(app: &dyn App, specs: Vec<Spec>, task: F) -> Result<T>
+    pub fn with<T, F>(profile: &Profile, task: F) -> Result<T>
     where
-        F: FnOnce(&[(String, String)]) -> Result<T>,
+        F: FnOnce(&Patch) -> Result<T>,
     {
-        let mut injections = build(specs);
+        let patch = Patch::build(&profile.env).context("env validation failed")?;
+        let mut links = profile
+            .symlink
+            .iter()
+            .cloned()
+            .map(Symlink::new)
+            .collect::<Vec<_>>();
 
-        for injection in &injections {
-            injection
-                .validate()
-                .with_context(|| format!("{} validation failed", injection.name()))?;
+        for link in &links {
+            link.validate().context("symlink validation failed")?;
         }
 
-        let (registered, registration) = register(&mut injections);
+        let (registered, registration) = register(&mut links);
         if let Err(error) = registration {
-            let closed = shutdown(&mut injections, registered);
+            let closed = shutdown(&mut links, registered);
             return match closed {
                 Ok(()) => Err(error),
                 Err(fault) => Err(anyhow!("{error}; also failed shutdown: {fault}")),
             };
         }
 
-        let result = exports(app, &injections).and_then(|exports| task(&exports));
-        let closed = shutdown(&mut injections, registered);
+        let result = task(&patch);
+        let closed = shutdown(&mut links, registered);
 
         match (result, closed) {
             (Ok(result), Ok(())) => Ok(result),
@@ -48,13 +47,13 @@ impl Lifecycle {
     }
 }
 
-fn register(injections: &mut [Injection]) -> (usize, Result<()>) {
+fn register(links: &mut [Symlink]) -> (usize, Result<()>) {
     let mut registered = 0usize;
-    for injection in injections {
-        if let Err(err) = injection.register() {
+    for link in links {
+        if let Err(error) = link.register() {
             return (
                 registered,
-                Err(err).with_context(|| format!("{} registration failed", injection.name())),
+                Err(error).context("symlink registration failed"),
             );
         }
         registered += 1;
@@ -62,78 +61,9 @@ fn register(injections: &mut [Injection]) -> (usize, Result<()>) {
     (registered, Ok(()))
 }
 
-fn exports(app: &dyn App, injections: &[Injection]) -> Result<Vec<(String, String)>> {
-    let mut exports = Vec::new();
-    for injection in injections {
-        let exported = injection
-            .export(app)
-            .with_context(|| format!("{} export failed", injection.name()))?;
-        exports.extend(exported);
-    }
-    Ok(exports)
-}
-
-fn shutdown(injections: &mut [Injection], registered: usize) -> Result<()> {
-    for idx in (0..registered).rev() {
-        injections[idx]
-            .shutdown()
-            .with_context(|| format!("{} shutdown failed", injections[idx].name()))?;
+fn shutdown(links: &mut [Symlink], registered: usize) -> Result<()> {
+    for at in (0..registered).rev() {
+        links[at].shutdown().context("symlink shutdown failed")?;
     }
     Ok(())
-}
-
-fn build(specs: Vec<Spec>) -> Vec<Injection> {
-    let mut injections = Vec::new();
-    for spec in specs {
-        match spec {
-            Spec::Env(cfg) if cfg.enabled => injections.push(Injection::Env(Env::new(cfg))),
-            Spec::Symlink(cfg) if cfg.enabled => {
-                injections.push(Injection::Symlink(Symlink::new(cfg)))
-            }
-            Spec::Env(_) | Spec::Symlink(_) | Spec::Argv(_) => {}
-        }
-    }
-    injections
-}
-
-enum Injection {
-    Env(Env),
-    Symlink(Symlink),
-}
-
-impl Injection {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Env(inner) => inner.name(),
-            Self::Symlink(inner) => inner.name(),
-        }
-    }
-
-    fn validate(&self) -> Result<()> {
-        match self {
-            Self::Env(inner) => inner.validate(),
-            Self::Symlink(inner) => inner.validate(),
-        }
-    }
-
-    fn register(&mut self) -> Result<()> {
-        match self {
-            Self::Env(inner) => inner.register(),
-            Self::Symlink(inner) => inner.register(),
-        }
-    }
-
-    fn export(&self, app: &dyn App) -> Result<Vec<(String, String)>> {
-        match self {
-            Self::Env(inner) => inner.export(app),
-            Self::Symlink(inner) => inner.export(),
-        }
-    }
-
-    fn shutdown(&mut self) -> Result<()> {
-        match self {
-            Self::Env(inner) => inner.shutdown(),
-            Self::Symlink(inner) => inner.shutdown(),
-        }
-    }
 }

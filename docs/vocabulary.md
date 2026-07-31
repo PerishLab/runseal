@@ -1,40 +1,14 @@
 # Vocabulary
 
-Runseal names are vocabulary atoms resolved through their Rust or TypeScript
-namespace. A compound name is accepted only when its domain meaning cannot be
-expressed more clearly through structure.
+Runseal's stable atoms describe its two planes and three profile capabilities.
 
-## Deltas
+- `control`: Runseal-owned commands parsed without a colon.
+- `profile`: the selected env, argv, and symlink declaration.
+- `tool`: one native atomic capability for a not-plumbable third-party
+  dependency.
+- `resource`: committed inert material under `.runseal/resources`.
+- `local`: ignored secret or machine-local material under `.local`.
+- `lease`: a symlink target owned for one invocation and refused when occupied.
 
-No compound atoms are registered. Additions require a described
-`[[vocabulary.term]]` entry in `ectropy.toml` and a matching meaning delta here.
-
-- Cloudflare flow, API, and test compounds moved into object, type, and module
-  namespaces; no vocabulary entries were added.
-- GitHub command, support, and test compounds moved into type and module
-  namespaces; no vocabulary entries were added.
-- Guard policy, hash, version, and test compounds moved into object, type, and
-  module namespaces; no vocabulary entries were added.
-- Init checks and specification compounds moved into type and module
-  namespaces; no vocabulary entries were added.
-- TypeScript CLI and standard-library compounds moved into object and type
-  namespaces; no vocabulary entries were added.
-- Injection lifecycle, environment editing, and symlink internals moved into
-  type and module namespaces; no vocabulary entries were added.
-- Application context, runtime configuration, and profile schema compounds
-  moved into module and type namespaces; no vocabulary entries were added.
-- Runtime parsing, internal commands, process execution, and wrapper discovery
-  moved into type and module namespaces; no vocabulary entries were added.
-- Discovery, startup, resource, and tool-help tests moved into fixture and
-  behavior namespaces; no vocabulary entries were added.
-- CLI tests moved shell, script, probe, and wrapper setup into type namespaces;
-  no vocabulary entries were added.
-- Internal command and wrapper behavior tests moved file, fixture, path, and
-  assertion compounds into type namespaces; no vocabulary entries were added.
-- Operator repository tests moved fixture, stub, path, land, and release
-  compounds into type and module namespaces; no vocabulary entries were added.
-- Compound file names moved into owner module namespaces (cloudflare, github,
-  core help); no vocabulary entries were added.
-- GitHub support grab-bag dissolved into request, token, input, options, and
-  git modules; stateless namespace structs became module functions; no
-  vocabulary entries were added.
+No compound atoms are currently registered. New vocabulary must represent a
+durable product distinction rather than an implementation helper.

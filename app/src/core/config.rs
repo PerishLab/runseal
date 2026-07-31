@@ -3,147 +3,90 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use path_absolutize::Absolutize;
 
-#[derive(Debug, Clone)]
-pub struct Input {
-    pub profile: Option<PathBuf>,
-    pub command: Vec<String>,
-}
+use super::symbol;
 
-#[derive(Debug, Clone)]
-pub struct Env {
-    pub home: Option<PathBuf>,
-    pub runseal: Option<PathBuf>,
-    pub profile: Option<PathBuf>,
-}
-
-impl Env {
-    pub fn process() -> Self {
-        Self {
-            home: std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .filter(|path| present(path)),
-            runseal: std::env::var_os("RUNSEAL_HOME")
-                .map(PathBuf::from)
-                .filter(|path| present(path)),
-            profile: std::env::var_os("RUNSEAL_PROFILE_HOME")
-                .map(PathBuf::from)
-                .filter(|path| present(path)),
-        }
-    }
+#[derive(Debug, Clone, Default, plumb::config::Cascade)]
+struct Settings {
+    home: PathBuf,
 }
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub profile: PathBuf,
     pub command: Vec<String>,
     pub home: PathBuf,
-    pub profiles: PathBuf,
+    pub name: Option<String>,
+    pub path: Option<PathBuf>,
+    pub root: PathBuf,
 }
 
 impl Config {
-    pub fn build(input: Input, env: Env, cwd: &Path) -> Result<Self> {
-        let home = absolute(&resolve(&env)?, cwd, "RUNSEAL_HOME")?;
-        let profiles = env
-            .profile
-            .filter(|path| present(path))
-            .unwrap_or_else(|| home.join("profiles"));
-        let profiles = absolute(&profiles, cwd, "RUNSEAL_PROFILE_HOME")?;
-        let profile = discover(input.profile, cwd, &profiles)?;
+    pub fn build(name: Option<String>, command: Vec<String>, cwd: &Path) -> Result<Self> {
+        if let Some(name) = name.as_deref() {
+            symbol::valid(name).with_context(|| format!("invalid profile name: :{name}"))?;
+        }
+        let cwd = absolute(cwd, cwd, "current directory")?;
+        let base = Settings::resolve(None).context("unable to resolve Runseal configuration")?;
+        let initial = home(&base, &cwd)?;
+        let path = discover(name.as_deref(), &cwd, &initial)?;
+        let root = path
+            .as_deref()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| cwd.clone());
 
         Ok(Self {
-            profile,
-            command: input.command,
-            home,
-            profiles,
+            command,
+            home: initial,
+            name,
+            path,
+            root,
         })
     }
+
+    pub fn label(&self) -> &str {
+        self.name.as_deref().unwrap_or("default")
+    }
 }
 
-pub fn resolve(env: &Env) -> Result<PathBuf> {
-    env.runseal
-        .clone()
-        .filter(|path| present(path))
-        .or_else(|| {
-            env.home
-                .clone()
-                .filter(|path| present(path))
-                .map(|home| home.join(".runseal"))
-        })
-        .ok_or_else(|| anyhow::anyhow!("HOME is not set; pass --profile or set RUNSEAL_HOME"))
+fn home(settings: &Settings, cwd: &Path) -> Result<PathBuf> {
+    let selected = if settings.home.as_os_str().is_empty() {
+        plumb::config::data("runseal").unwrap_or_else(|| PathBuf::from(".runseal"))
+    } else {
+        settings.home.clone()
+    };
+    absolute(&selected, cwd, "RUNSEAL_HOME")
 }
 
-fn present(path: &Path) -> bool {
-    !path.as_os_str().is_empty()
-}
+fn discover(name: Option<&str>, cwd: &Path, home: &Path) -> Result<Option<PathBuf>> {
+    let file = match name {
+        None => "runseal.toml".to_string(),
+        Some(name) => format!("runseal.{name}.toml"),
+    };
 
-fn discover(explicit: Option<PathBuf>, cwd: &Path, profiles: &Path) -> Result<PathBuf> {
-    if let Some(profile) = explicit {
-        let profile = if profile.is_absolute() {
-            profile
-        } else {
-            cwd.join(profile)
-        };
-        if !profile.is_file() {
-            bail!("profile file not found: {}", profile.display());
-        }
-        return file(&profile);
+    if let Ok(path) = plumb::config::discover(cwd, &file) {
+        return absolute(&path, cwd, "profile file").map(Some);
     }
 
-    let mut searched = Vec::new();
-    for candidate in candidates(cwd, profiles) {
-        if candidate.is_file() {
-            return file(&candidate);
-        }
-        searched.push(candidate);
+    let fallback = home.join("profiles").join(match name {
+        None => "default.toml".to_string(),
+        Some(name) => format!("{name}.toml"),
+    });
+    if fallback.is_file() {
+        return absolute(&fallback, cwd, "profile file").map(Some);
     }
 
-    let searched = searched
-        .iter()
-        .map(|path| format!("- {}", path.display()))
-        .collect::<Vec<_>>()
-        .join("\n");
-    bail!(
-        "no runseal profile found from {} upward and no default profile under {}.\nHint: create runseal.toml here, pass --profile <path>, or add {}/default.toml.\nSearched:\n{searched}",
-        cwd.display(),
-        profiles.display(),
-        profiles.display()
-    )
-}
-
-fn candidates(cwd: &Path, profiles: &Path) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    for dir in cwd.ancestors() {
-        candidates.extend(
-            extensions()
-                .iter()
-                .map(|ext| dir.join(format!("runseal.{ext}"))),
+    if let Some(name) = name {
+        bail!(
+            "named profile not found: :{name}; expected {file} from {} upward or {}",
+            cwd.display(),
+            fallback.display()
         );
     }
-    candidates.extend(
-        extensions()
-            .iter()
-            .map(|ext| profiles.join(format!("default.{ext}"))),
-    );
-    candidates
-}
-
-fn file(path: &Path) -> Result<PathBuf> {
-    path.absolutize()
-        .with_context(|| format!("failed to absolutize profile file: {}", path.display()))
-        .map(|path| path.to_path_buf())
+    Ok(None)
 }
 
 fn absolute(path: &Path, cwd: &Path, name: &str) -> Result<PathBuf> {
-    let path = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        cwd.join(path)
-    };
-    path.absolutize()
+    path.absolutize_from(cwd)
         .with_context(|| format!("failed to absolutize {name}: {}", path.display()))
         .map(|path| path.to_path_buf())
-}
-
-pub fn extensions() -> &'static [&'static str] {
-    &["toml", "yaml", "yml", "json"]
 }

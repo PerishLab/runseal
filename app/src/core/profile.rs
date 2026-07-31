@@ -1,289 +1,116 @@
-use anyhow::{Context, Result};
-use path_absolutize::Absolutize;
-use serde::Deserialize;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
-fn enabled() -> bool {
-    true
-}
-fn cleanup() -> bool {
-    true
-}
-#[derive(Debug, Deserialize)]
+
+use anyhow::{Context, Result, bail};
+use path_absolutize::Absolutize;
+use serde::Deserialize;
+
+use super::config::Config;
+
+#[derive(Debug, Clone, Default, plumb::config::Cascade)]
+#[cascade(strict)]
 pub struct Profile {
-    #[serde(default)]
-    pub resources: Option<Resources>,
-    #[serde(default)]
-    pub deno: Option<Deno>,
-    #[serde(default)]
-    pub injections: Vec<Injection>,
+    #[cascade(section)]
+    pub env: Env,
+    pub argv: BTreeMap<String, Vec<String>>,
+    pub symlink: Vec<Symlink>,
 }
-#[derive(Debug, Deserialize)]
-struct Metadata {
-    #[serde(default)]
-    resources: Option<Resources>,
-}
-#[derive(Debug, Deserialize, Clone)]
-pub struct Resources {
-    pub root: PathBuf,
-}
-#[derive(Debug, Deserialize, Clone, Default)]
-pub struct Deno {
-    #[serde(default)]
-    pub config: Option<PathBuf>,
-    #[serde(default)]
-    pub lock: Option<PathBuf>,
-    #[serde(default)]
-    pub permissions: Vec<String>,
-}
-#[derive(Debug, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum Injection {
-    Env(Env),
-    Symlink(Symlink),
-    Argv(Argv),
-}
-#[derive(Debug, Deserialize, Clone)]
+
+#[derive(Debug, Clone, Default, plumb::config::Cascade)]
+#[cascade(section, strict)]
 pub struct Env {
-    #[serde(default = "enabled")]
-    pub enabled: bool,
-    #[serde(default)]
     pub vars: BTreeMap<String, String>,
-    #[serde(default)]
-    pub ops: Vec<Op>,
+    pub unset: Vec<String>,
 }
-#[derive(Debug, Deserialize, Clone)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum Op {
-    Set {
-        key: String,
-        value: String,
-    },
-    #[serde(rename = "set_if_absent")]
-    Absent {
-        key: String,
-        value: String,
-    },
-    Prepend {
-        key: String,
-        value: String,
-        #[serde(default)]
-        separator: Option<String>,
-        #[serde(default)]
-        dedup: bool,
-    },
-    Append {
-        key: String,
-        value: String,
-        #[serde(default)]
-        separator: Option<String>,
-        #[serde(default)]
-        dedup: bool,
-    },
-    Unset {
-        key: String,
-    },
-}
-impl Op {
-    pub fn key(&self) -> &str {
-        match self {
-            Self::Set { key, .. }
-            | Self::Absent { key, .. }
-            | Self::Prepend { key, .. }
-            | Self::Append { key, .. }
-            | Self::Unset { key } => key,
-        }
-    }
-}
-#[derive(Debug, Deserialize, Clone)]
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Symlink {
-    #[serde(default = "enabled")]
-    pub enabled: bool,
     pub source: PathBuf,
     pub target: PathBuf,
-    #[serde(default, rename = "on_exist")]
-    pub existing: Existing,
-    #[serde(default = "cleanup")]
-    pub cleanup: bool,
 }
-#[derive(Debug, Deserialize, Clone)]
-pub struct Argv {
-    #[serde(default = "enabled")]
-    pub enabled: bool,
-    pub command: String,
-    pub args: Vec<String>,
-}
-#[derive(Debug, Deserialize, Clone, Copy, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum Existing {
-    #[default]
-    Error,
-    Replace,
-}
-pub fn load(path: &Path) -> Result<Profile> {
-    let raw = std::fs::read_to_string(path)
-        .with_context(|| format!("failed to read profile file: {}", path.display()))?;
-    let mut profile: Profile = match path.extension().and_then(|ext| ext.to_str()) {
-        Some("toml") => toml::from_str(&raw)
-            .with_context(|| format!("failed to parse TOML: {}", path.display()))?,
-        Some("yaml") | Some("yml") => yaml_serde::from_str(&raw)
-            .with_context(|| format!("failed to parse YAML: {}", path.display()))?,
-        Some("json") => serde_json::from_str(&raw)
-            .with_context(|| format!("failed to parse JSON: {}", path.display()))?,
-        _ => anyhow::bail!(
-            "unsupported profile format: {} (expected .toml, .yaml, .yml, or .json)",
-            path.display()
-        ),
-    };
-    let doc = Doc { path };
-    doc.deno(&mut profile)?;
-    doc.symlinks(&mut profile)?;
-    let resources = profile.resources.clone();
-    doc.env(resources.as_ref(), &mut profile)?;
-    Ok(profile)
-}
-pub fn resources(path: &Path) -> Result<Option<Resources>> {
-    let raw = std::fs::read_to_string(path)
-        .with_context(|| format!("failed to read profile file: {}", path.display()))?;
-    let metadata: Metadata = match path.extension().and_then(|ext| ext.to_str()) {
-        Some("toml") => toml::from_str(&raw)
-            .with_context(|| format!("failed to parse TOML: {}", path.display()))?,
-        Some("yaml") | Some("yml") => yaml_serde::from_str(&raw)
-            .with_context(|| format!("failed to parse YAML: {}", path.display()))?,
-        Some("json") => serde_json::from_str(&raw)
-            .with_context(|| format!("failed to parse JSON: {}", path.display()))?,
-        _ => anyhow::bail!(
-            "unsupported profile format: {} (expected .toml, .yaml, .yml, or .json)",
-            path.display()
-        ),
-    };
-    Ok(metadata.resources)
-}
-pub fn resolve(profile: &Path, resources: Option<&Resources>, uri: &str) -> Result<PathBuf> {
-    let relative = parse(uri)?;
-    root(profile, resources)?
-        .join(relative)
-        .absolutize()
-        .with_context(|| format!("failed to absolutize resource URI: {uri}"))
-        .map(|path| path.to_path_buf())
-}
-pub fn root(profile: &Path, resources: Option<&Resources>) -> Result<PathBuf> {
-    let resources = resources.ok_or_else(|| {
-        anyhow::anyhow!(
-            "resource root is not configured in {}; add [resources] root = \".local\"",
-            profile.display()
-        )
-    })?;
-    if resources.root.as_os_str().is_empty() {
-        anyhow::bail!("resources.root must not be empty in {}", profile.display());
+
+impl Profile {
+    pub fn load(config: &Config) -> Result<Self> {
+        let mut profile =
+            Self::resolve(config.path.as_deref()).context("unable to resolve Runseal profile")?;
+        profile.normalize(&config.root)?;
+        Ok(profile)
     }
-    normalize(&resources.root, profile.parent().unwrap_or(Path::new(".")))
+
+    fn normalize(&mut self, root: &Path) -> Result<()> {
+        for held in self.env.vars.values_mut() {
+            *held = value(root, held)?;
+        }
+        for args in self.argv.values_mut() {
+            for held in args {
+                *held = value(root, held)?;
+            }
+        }
+        for link in &mut self.symlink {
+            link.source = seat(&link.source, root, "symlink source")?;
+            link.target = seat(&link.target, root, "symlink target")?;
+        }
+        Ok(())
+    }
 }
-fn parse(uri: &str) -> Result<PathBuf> {
-    let Some(raw) = uri.strip_prefix("resource://") else {
-        anyhow::bail!("expected resource URI to start with resource://");
+
+pub fn resolve(root: &Path, uri: &str) -> Result<PathBuf> {
+    let (seat, raw) = if let Some(raw) = uri.strip_prefix("resource://") {
+        (root.join(".runseal/resources"), raw)
+    } else if let Some(raw) = uri.strip_prefix("local://") {
+        (root.join(".local"), raw)
+    } else {
+        bail!("expected a resource:// or local:// URI");
     };
+    let relative = parse(raw)?;
+    absolute(&seat.join(relative), root, "profile URI")
+}
+
+fn value(root: &Path, held: &str) -> Result<String> {
+    if !held.starts_with("resource://") && !held.starts_with("local://") {
+        return Ok(held.to_string());
+    }
+    Ok(resolve(root, held)?.to_string_lossy().into_owned())
+}
+
+fn seat(path: &Path, root: &Path, name: &str) -> Result<PathBuf> {
+    match path.to_str() {
+        Some(uri) if uri.starts_with("resource://") || uri.starts_with("local://") => {
+            resolve(root, uri)
+        }
+        _ => absolute(path, root, name),
+    }
+}
+
+fn parse(raw: &str) -> Result<PathBuf> {
     if raw.is_empty() || raw == "." {
         return Ok(PathBuf::new());
     }
     if raw.contains('\\') {
-        anyhow::bail!("resource URI path must use '/' separators");
+        bail!("profile URI path must use '/' separators");
     }
 
     let mut path = PathBuf::new();
     for segment in raw.split('/') {
         if segment.is_empty() {
-            anyhow::bail!("resource URI path segment must not be empty");
+            bail!("profile URI path segment must not be empty");
         }
         if segment == "." || segment == ".." {
-            anyhow::bail!("resource URI path must not contain '.' or '..'");
+            bail!("profile URI path must not contain '.' or '..'");
         }
         if segment.contains(':') {
-            anyhow::bail!("resource URI path segment must not contain ':'");
+            bail!("profile URI path segment must not contain ':'");
         }
         path.push(segment);
     }
     Ok(path)
 }
-fn normalize(path: &Path, base: &Path) -> Result<PathBuf> {
-    let raw = path.to_string_lossy();
-    let expanded = shellexpand::tilde(&raw);
-    let expanded = PathBuf::from(expanded.as_ref());
-    if expanded.is_absolute() {
-        return Ok(expanded);
-    }
-    Ok(expanded.absolutize_from(base)?.to_path_buf())
-}
 
-struct Doc<'a> {
-    path: &'a Path,
-}
-
-impl Doc<'_> {
-    fn symlinks(&self, profile: &mut Profile) -> Result<()> {
-        let base = self.path.parent().unwrap_or(Path::new("."));
-        for injection in &mut profile.injections {
-            if let Injection::Symlink(spec) = injection {
-                spec.source = normalize(&spec.source, base)?;
-                spec.target = normalize(&spec.target, base)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn deno(&self, profile: &mut Profile) -> Result<()> {
-        let Some(deno) = &mut profile.deno else {
-            return Ok(());
-        };
-        let base = self.path.parent().unwrap_or(Path::new("."));
-        if let Some(config) = &mut deno.config {
-            *config = normalize(config, base)?;
-        }
-        if let Some(lock) = &mut deno.lock {
-            *lock = normalize(lock, base)?;
-        }
-        Ok(())
-    }
-
-    fn env(&self, resources: Option<&Resources>, profile: &mut Profile) -> Result<()> {
-        for injection in &mut profile.injections {
-            self.injection(resources, injection)?;
-        }
-        Ok(())
-    }
-
-    fn injection(&self, resources: Option<&Resources>, injection: &mut Injection) -> Result<()> {
-        let Injection::Env(spec) = injection else {
-            return Ok(());
-        };
-        for value in spec.vars.values_mut() {
-            self.value(resources, value)?;
-        }
-        for op in &mut spec.ops {
-            self.op(resources, op)?;
-        }
-        Ok(())
-    }
-
-    fn op(&self, resources: Option<&Resources>, op: &mut Op) -> Result<()> {
-        match op {
-            Op::Set { value, .. }
-            | Op::Absent { value, .. }
-            | Op::Prepend { value, .. }
-            | Op::Append { value, .. } => self.value(resources, value),
-            Op::Unset { .. } => Ok(()),
-        }
-    }
-
-    fn value(&self, resources: Option<&Resources>, value: &mut String) -> Result<()> {
-        if !value.starts_with("resource://") {
-            return Ok(());
-        }
-        *value = resolve(self.path, resources, value)?
-            .to_string_lossy()
-            .into_owned();
-        Ok(())
-    }
+fn absolute(path: &Path, root: &Path, name: &str) -> Result<PathBuf> {
+    path.absolutize_from(root)
+        .with_context(|| format!("failed to absolutize {name}: {}", path.display()))
+        .map(|path| path.to_path_buf())
 }

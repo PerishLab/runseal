@@ -2,110 +2,72 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 
-use crate::core::profile::{Existing, Symlink as Spec};
+use crate::core::profile::Symlink as Spec;
 
 pub(crate) struct Symlink {
     cfg: Spec,
-    cleanup: bool,
+    registered: bool,
 }
 
 impl Symlink {
     pub(crate) fn new(cfg: Spec) -> Self {
         Self {
             cfg,
-            cleanup: false,
+            registered: false,
         }
-    }
-
-    pub(crate) fn name(&self) -> &'static str {
-        "symlink"
     }
 
     pub(crate) fn validate(&self) -> Result<()> {
-        if self.cfg.source.to_string_lossy().trim().is_empty() {
-            bail!("source must not be empty");
-        }
-        if self.cfg.target.to_string_lossy().trim().is_empty() {
-            bail!("target must not be empty");
-        }
         if !self.cfg.source.exists() {
             bail!("source does not exist: {}", self.cfg.source.display());
         }
-        Ok(())
+        match std::fs::symlink_metadata(&self.cfg.target) {
+            Ok(_) => bail!(
+                "refusing occupied symlink target: {}",
+                self.cfg.target.display()
+            ),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
     }
 
     pub(crate) fn register(&mut self) -> Result<()> {
-        self.create(&self.cfg.source, &self.cfg.target, self.cfg.existing)?;
-        self.cleanup = true;
-        Ok(())
-    }
-
-    pub(crate) fn export(&self) -> Result<Vec<(String, String)>> {
-        Ok(Vec::new())
-    }
-
-    pub(crate) fn shutdown(&mut self) -> Result<()> {
-        if self.cleanup && self.cfg.cleanup {
-            self.remove(&self.cfg.target, &self.cfg.source)?;
-        }
-        self.cleanup = false;
-        Ok(())
-    }
-
-    fn create(&self, source: &Path, target: &Path, existing: Existing) -> Result<()> {
-        match std::fs::symlink_metadata(target) {
-            Ok(meta) => conflict(target, existing, meta)?,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err.into()),
-        }
-
-        if let Some(parent) = target.parent() {
+        if let Some(parent) = self.cfg.target.parent() {
             std::fs::create_dir_all(parent).with_context(|| {
                 format!("failed to create symlink parent: {}", parent.display())
             })?;
         }
-        link(source, target).with_context(|| context("create", target))?;
+        link(&self.cfg.source, &self.cfg.target)
+            .with_context(|| format!("failed to create symlink: {}", self.cfg.target.display()))?;
+        self.registered = true;
         Ok(())
     }
 
-    fn remove(&self, target: &Path, source: &Path) -> Result<()> {
-        let metadata = std::fs::symlink_metadata(target)
-            .with_context(|| context("inspect during shutdown", target))?;
-        if !metadata.file_type().is_symlink() {
-            bail!("refusing to remove non-symlink at {}", target.display());
+    pub(crate) fn shutdown(&mut self) -> Result<()> {
+        if !self.registered {
+            return Ok(());
         }
-        let link =
-            std::fs::read_link(target).with_context(|| context("read during shutdown", target))?;
-        if link != source {
+        let metadata = std::fs::symlink_metadata(&self.cfg.target)
+            .with_context(|| format!("failed to inspect symlink: {}", self.cfg.target.display()))?;
+        if !metadata.file_type().is_symlink() {
             bail!(
-                "refusing to remove symlink with unexpected target: {}",
-                target.display()
+                "refusing to remove non-symlink at {}",
+                self.cfg.target.display()
             );
         }
-        std::fs::remove_file(target).with_context(|| context("remove during shutdown", target))?;
+        let held = std::fs::read_link(&self.cfg.target)
+            .with_context(|| format!("failed to read symlink: {}", self.cfg.target.display()))?;
+        if held != self.cfg.source {
+            bail!(
+                "refusing to remove symlink with unexpected source: {}",
+                self.cfg.target.display()
+            );
+        }
+        std::fs::remove_file(&self.cfg.target)
+            .with_context(|| format!("failed to remove symlink: {}", self.cfg.target.display()))?;
+        self.registered = false;
         Ok(())
     }
-}
-
-fn conflict(target: &Path, existing: Existing, meta: std::fs::Metadata) -> Result<()> {
-    match existing {
-        Existing::Error => bail!("refusing to overwrite existing file: {}", target.display()),
-        Existing::Replace => replace(target, meta),
-    }
-}
-
-fn replace(target: &Path, meta: std::fs::Metadata) -> Result<()> {
-    if meta.file_type().is_dir() {
-        bail!("refusing to replace directory target: {}", target.display());
-    }
-    std::fs::remove_file(target).with_context(|| context("replace", target))
-}
-
-fn context(action: &str, target: &Path) -> String {
-    format!(
-        "failed to {action} symlink target {}; lifecycle symlink targets are single-owner and may already be managed by another concurrent runseal process",
-        target.display()
-    )
 }
 
 #[cfg(unix)]

@@ -1,15 +1,9 @@
-[[injections]]
-type = "env"
-
-[injections.vars]
+[env.vars]
 RUNSEAL_EXAMPLE = "dev"
 
-[[injections]]
-type = "env"
+[argv]
+cargo = ["--locked"]
 
-[[injections.ops]]
-op = "prepend"
-key = "PATH"
-value = "./bin"
-separator = "os"
-dedup = true
+[[symlink]]
+source = "resource://example"
+target = "local://example"
