@@ -96,8 +96,4 @@ cargo test --locked --workspace
 ectropy .
 ```
 
-The current feature line intentionally precedes Plumb's removal of
-filesystem-wrapper rules. Until that downstream bootstrap lands,
-`plumb doctor` reports the known shape transition.
-
 Repository: https://git.perish.top/PerishFire/runseal
