@@ -111,10 +111,7 @@ Do not commit `.task/`, `.local/`, generated state, behavior files under
 
 ## Validation
 
-Work only on a dedicated task branch. During the Runseal-to-Plumb bootstrap,
-the old Plumb doctor may report the intentional removal of filesystem wrappers;
-record that seam and do not recreate wrapper evidence to make the old rule
-green.
+Work only on a dedicated task branch.
 
 Run focused validation while iterating:
 
@@ -126,16 +123,13 @@ cargo test --locked --workspace
 ectropy .
 ```
 
-Prefer small focused commits. A one-time `--no-verify` bootstrap commit is
-permitted only when the installed hook invokes the obsolete runtime being
-replaced; record the reason.
+Prefer small focused commits.
 
 ## Release
 
 Stable Plumb owns binary build, archive, capsule, publication, activation,
 inspection, smoke, and packport topology. Product workflows remain thin
-callers. Do not publish or activate while the Runseal shape is still awaiting
-the Plumb bootstrap update.
+callers.
 
 Stable is the canonical release authority plus the stable channel. Non-stable
 releases use exact immutable versions and isolated install/bin paths. Stable
