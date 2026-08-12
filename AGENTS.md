@@ -36,8 +36,8 @@ A perish.code-owned CLI that is not plumbable must be repaired at its own
 boundary. A capability that stops being atomic should become a new product
 closure.
 
-Runseal has no Deno, Sealkit, Python, Node, shell-wrapper, or other scripting
-runtime model.
+Runseal has no Deno, Python, Node, shell-wrapper, or other scripting runtime
+model.
 
 ## Configuration
 
