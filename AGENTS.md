@@ -26,8 +26,9 @@ wrapper or scripting runtime.
 - `app/src/bin/runseal/skill.rs`: managed skill seat.
 - `app/src/core/config.rs`: cascade and profile discovery, including home
   `profiles/{name}.toml` and `profiles/{name}/runseal.toml`.
-- `app/src/core/forgejo/`: native `@forgejo`.
-- `app/src/core/wire.rs`: Forgejo HTTP.
+- `app/src/parse.rs`: shared `@tool` argv line and output envelope.
+- `app/src/http.rs`: generic HTTP send.
+- `app/src/tool/`: native `@tool` adaptors. `@forgejo` is the first.
 - `app/src/core/profile.rs`: profile vocabulary and path normalization.
 - `app/src/core/route.rs`: colon-mode routing.
 - `app/src/runtime.rs`: argv resolution and external/tool dispatch.

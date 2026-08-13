@@ -32,13 +32,7 @@ runseal profile [NAME]
 runseal resolve [--profile NAME] URI...
 runseal : <command> [args...]
 runseal :<name> <command> [args...]
-runseal :<name> @forgejo user show
-runseal :<name> @forgejo issue show [owner/name#]N
-runseal :<name> @forgejo issue list
-runseal :<name> @forgejo issue create --title TEXT
-runseal :<name> @forgejo issue edit [owner/name#]N
-runseal :<name> @forgejo issue comment list [owner/name#]N
-runseal :<name> @forgejo issue comment create [owner/name#]N --body TEXT
+runseal :<name> @forgejo <resource> <verb> ...
 runseal skill --help
 ```
 
