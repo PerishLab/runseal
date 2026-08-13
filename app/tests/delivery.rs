@@ -249,6 +249,29 @@ fn job(status: &str, done: bool) -> serde_json::Value {
 }
 
 #[test]
+fn jobs() {
+    let body = r#"{"state":{"run":{"jobs":[{"name":"resolve","status":"success"},{"name":"build","status":"failure"}]}}}"#;
+    let (url, handle) = serve("200 OK", body, 1);
+    let seat = Seat::new();
+    seat.write(&url);
+    let output = seat.run(&[
+        ":perish",
+        "@forgejo",
+        "--repo",
+        "PerishFire/runseal",
+        "job",
+        "list",
+        "261",
+    ]);
+    handle.join().expect("server");
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    assert_eq!(
+        text(&output.stdout),
+        "0\tsuccess\tresolve\n1\tfailure\tbuild\n"
+    );
+}
+
+#[test]
 fn help() {
     let seat = Seat::new();
     seat.write("http://127.0.0.1:1");

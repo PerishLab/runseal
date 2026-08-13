@@ -95,11 +95,12 @@ fn line(value: &Value) -> String {
     if let Some(name) = value.get("name").and_then(Value::as_str)
         && let Some(status) = value.get("status").and_then(Value::as_str)
     {
-        let run = value
+        let handle = value
             .get("run_number")
+            .or_else(|| value.get("index"))
             .map(|held| held.to_string())
             .unwrap_or_default();
-        return format!("{run}\t{status}\t{name}");
+        return format!("{handle}\t{status}\t{name}");
     }
     if let Some(name) = value
         .get("name")
