@@ -31,6 +31,9 @@ wrapper or scripting runtime.
 - `app/src/tool/`: native `@tool` adaptors. `@forgejo` is the first.
 - `runseal::tool::call`: structured native-tool entry for in-process consumers;
   CLI rendering remains outside the operation result.
+- The library core compiles with `default-features = false` and carries no
+  Plumb edge. The default `managed-skill` feature owns the optional Plumb skill
+  integration used by the binary.
 - `app/src/core/profile.rs`: profile vocabulary and path normalization.
 - `app/src/core/route.rs`: colon-mode routing.
 - `app/src/runtime.rs`: argv resolution and external/tool dispatch.

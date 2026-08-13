@@ -9,17 +9,16 @@ use serde::Deserialize;
 
 use super::config::Config;
 
-#[derive(Debug, Clone, Default, plumb::config::Cascade)]
-#[cascade(strict)]
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Profile {
-    #[cascade(section)]
     pub env: Env,
     pub argv: BTreeMap<String, Vec<String>>,
     pub symlink: Vec<Symlink>,
 }
 
-#[derive(Debug, Clone, Default, plumb::config::Cascade)]
-#[cascade(section, strict)]
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Env {
     pub vars: BTreeMap<String, String>,
     pub unset: Vec<String>,
@@ -34,8 +33,14 @@ pub struct Symlink {
 
 impl Profile {
     pub fn load(config: &Config) -> Result<Self> {
-        let mut profile =
-            Self::resolve(config.path.as_deref()).context("unable to resolve Runseal profile")?;
+        let mut profile = match config.path.as_deref() {
+            Some(path) => {
+                let text = std::fs::read_to_string(path)
+                    .with_context(|| format!("cannot read {}", path.display()))?;
+                toml::from_str(&text).with_context(|| format!("cannot parse {}", path.display()))?
+            }
+            None => Self::default(),
+        };
         profile.normalize(&config.root)?;
         Ok(profile)
     }

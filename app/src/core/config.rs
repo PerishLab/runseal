@@ -5,11 +5,6 @@ use path_absolutize::Absolutize;
 
 use super::symbol;
 
-#[derive(Debug, Clone, Default, plumb::config::Cascade)]
-struct Settings {
-    home: PathBuf,
-}
-
 #[derive(Debug, Clone)]
 pub struct Config {
     pub command: Vec<String>,
@@ -25,8 +20,7 @@ impl Config {
             symbol::valid(name).with_context(|| format!("invalid profile name: :{name}"))?;
         }
         let cwd = absolute(cwd, cwd, "current directory")?;
-        let base = Settings::resolve(None).context("unable to resolve Runseal configuration")?;
-        let initial = home(&base, &cwd)?;
+        let initial = home(&cwd)?;
         let path = Seek {
             name: name.as_deref(),
             cwd: &cwd,
@@ -53,13 +47,27 @@ impl Config {
     }
 }
 
-fn home(settings: &Settings, cwd: &Path) -> Result<PathBuf> {
-    let selected = if settings.home.as_os_str().is_empty() {
-        plumb::config::data("runseal").unwrap_or_else(|| PathBuf::from(".runseal"))
-    } else {
-        settings.home.clone()
-    };
+fn home(cwd: &Path) -> Result<PathBuf> {
+    let selected = std::env::var_os("RUNSEAL_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(data)
+        .unwrap_or_else(|| PathBuf::from(".runseal"));
     absolute(&selected, cwd, "RUNSEAL_HOME")
+}
+
+fn data() -> Option<PathBuf> {
+    if cfg!(windows) {
+        std::env::var_os("LOCALAPPDATA")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .map(|path| path.join("runseal"))
+    } else {
+        std::env::var_os("HOME")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .map(|path| path.join(".runseal"))
+    }
 }
 
 struct Seek<'a> {
@@ -87,10 +95,13 @@ impl Seek<'_> {
             None => "runseal.toml".to_string(),
             Some(name) => format!("runseal.{name}.toml"),
         };
-        match plumb::config::discover(self.cwd, &file) {
-            Ok(path) => absolute(&path, self.cwd, "profile file").map(Some),
-            Err(_) => Ok(None),
+        for root in self.cwd.ancestors() {
+            let path = root.join(&file);
+            if path.is_file() {
+                return absolute(&path, self.cwd, "profile file").map(Some);
+            }
         }
+        Ok(None)
     }
 
     fn flat(&self) -> PathBuf {

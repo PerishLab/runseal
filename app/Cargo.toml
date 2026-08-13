@@ -3,12 +3,17 @@ name = "runseal"
 version.workspace = true
 edition = "2024"
 
+[features]
+default = ["managed-skill"]
+managed-skill = ["dep:plumb"]
+
 [dependencies]
-plumb = { version = "0", registry = "perish", features = ["skill"] }
+plumb = { version = "0", registry = "perish", features = ["skill"], optional = true }
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+toml = "0.9"
 path-absolutize = "3.1"
 ureq = "3"
 
