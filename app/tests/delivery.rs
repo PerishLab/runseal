@@ -3,7 +3,7 @@ mod support;
 use std::collections::BTreeMap;
 
 use serde_json::json;
-use support::{Seat, serve, text};
+use support::{Seat, sequence, serve, text};
 
 struct Case {
     args: &'static [&'static str],
@@ -182,6 +182,70 @@ fn paged() {
     let seen = handle.join().expect("server");
     assert_eq!(reply.value.as_array().map(Vec::len), Some(2));
     assert!(seen[1].contains("page=2"), "{}", seen[1]);
+}
+
+#[test]
+fn follows() {
+    let running = job("running", false);
+    let success = job("success", true);
+    let (url, handle) = sequence(vec![
+        ("200 OK".into(), running.to_string()),
+        ("200 OK".into(), "one\n".into()),
+        ("200 OK".into(), success.to_string()),
+        ("200 OK".into(), "one\ntwo\n".into()),
+    ]);
+    let seat = Seat::new();
+    seat.write(&url);
+    let output = seat.run(&[
+        ":perish",
+        "@forgejo",
+        "--repo",
+        "PerishFire/runseal",
+        "job",
+        "log",
+        "9",
+        "0",
+        "--watch",
+        "--poll-ms",
+        "0",
+        "--timeout-ms",
+        "1000",
+    ]);
+    let seen = handle.join().expect("server");
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout), "one\ntwo\n");
+    assert!(seen[0].starts_with("POST /PerishFire/runseal/actions/runs/9/jobs/0/attempt/1 "));
+    assert!(seen[1].starts_with("GET /PerishFire/runseal/actions/runs/9/jobs/0/attempt/1/logs "));
+}
+
+#[test]
+fn fails() {
+    let (url, handle) = sequence(vec![
+        ("200 OK".into(), job("failure", true).to_string()),
+        ("200 OK".into(), "held log\n".into()),
+    ]);
+    let seat = Seat::new();
+    seat.write(&url);
+    let output = seat.run(&[
+        ":perish",
+        "@forgejo",
+        "--repo",
+        "PerishFire/runseal",
+        "job",
+        "log",
+        "9",
+        "0",
+        "--watch",
+    ]);
+    handle.join().expect("server");
+    assert!(!output.status.success());
+    assert_eq!(text(&output.stdout), "held log\n");
+    assert!(text(&output.stderr).contains("ended with failure"));
+}
+
+fn job(status: &str, done: bool) -> serde_json::Value {
+    let jobs = vec![json!({"status": status})];
+    json!({"state": {"run": {"done": done, "jobs": jobs}}})
 }
 
 #[test]

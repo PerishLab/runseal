@@ -57,6 +57,7 @@ runseal :perish @forgejo pull merge 71 --head SHA
 runseal :perish @forgejo status show <ref>
 runseal :perish @forgejo workflow dispatch release.yml --ref main
 runseal :perish @forgejo task list <run-number>
+runseal :perish @forgejo job log <run-number> <job-index> --watch
 runseal :perish @forgejo get https://releases.runseal.perish.uk/stable
 runseal :perish @forgejo --help
 ```
