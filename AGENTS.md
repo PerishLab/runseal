@@ -12,7 +12,7 @@ wrapper or scripting runtime.
   The colon is the only profile-mode signal.
 - An external CLI remains external when the profile triad can isolate it.
   `@tool` is reserved for a third-party dependency that is not isolatable, and
-  must stay atomic.
+  must stay atomic. `@forgejo` is the first native tool.
 - A perish.code-owned CLI that is not isolatable must be repaired at its own
   boundary. A capability that stops being atomic becomes a new product.
 - Runseal has no Deno, Python, Node, shell-wrapper, or other scripting runtime
@@ -24,7 +24,9 @@ wrapper or scripting runtime.
 
 - `app/src/bin/runseal/main.rs`: CLI plane selection and Clap control commands.
 - `app/src/bin/runseal/skill.rs`: managed skill seat.
-- `app/src/core/config.rs`: cascade and profile discovery.
+- `app/src/core/config.rs`: cascade and profile discovery, including home
+  `profiles/{name}.toml` and `profiles/{name}/runseal.toml`.
+- `app/src/core/forgejo.rs` / `app/src/core/wire.rs`: native `@forgejo`.
 - `app/src/core/profile.rs`: profile vocabulary and path normalization.
 - `app/src/core/route.rs`: colon-mode routing.
 - `app/src/runtime.rs`: argv resolution and external/tool dispatch.

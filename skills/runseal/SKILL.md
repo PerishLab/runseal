@@ -22,8 +22,8 @@ tree. Use this brief when inspecting or applying a profile, editing a
 - **`argv`** inserts fixed arguments after one matching command token.
 - **`symlink`** leases an otherwise absent target for the child lifecycle.
 - **`@tool`** is reserved for a third-party dependency that cannot be isolated
-  by the profile triad. It must stay one atomic operation. No native tools
-  ship.
+  by the profile triad. It must stay one atomic operation. `@forgejo` is the
+  first native tool: one Forgejo HTTP resource verb per invocation.
 
 ## Actions
 
@@ -32,6 +32,9 @@ runseal profile [NAME]
 runseal resolve [--profile NAME] URI...
 runseal : <command> [args...]
 runseal :<name> <command> [args...]
+runseal :<name> @forgejo user show
+runseal :<name> @forgejo issue show [owner/name#]N
+runseal :<name> @forgejo issue list
 runseal skill --help
 ```
 
@@ -52,7 +55,9 @@ an unfamiliar action.
   environment keys or read the process environment directly.
 - The default profile discovers `runseal.toml` from the current directory
   upward and may be empty. A named profile discovers `runseal.<name>.toml`
-  and refuses when that file does not exist.
+  upward, then `$RUNSEAL_HOME/profiles/{name}.toml`, then
+  `$RUNSEAL_HOME/profiles/{name}/runseal.toml`, and refuses when none exist.
+  A flat home file wins when both home writings are present.
 - `resource://` resolves below committed `.runseal/resources`. `local://`
   resolves below ignored `.local`.
 - Profile context keys `RUNSEAL_HOME`, `RUNSEAL_PROFILE`,

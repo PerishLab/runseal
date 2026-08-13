@@ -27,7 +27,12 @@ impl Config {
         let cwd = absolute(cwd, cwd, "current directory")?;
         let base = Settings::resolve(None).context("unable to resolve Runseal configuration")?;
         let initial = home(&base, &cwd)?;
-        let path = discover(name.as_deref(), &cwd, &initial)?;
+        let path = Seek {
+            name: name.as_deref(),
+            cwd: &cwd,
+            home: &initial,
+        }
+        .find()?;
         let root = path
             .as_deref()
             .and_then(Path::parent)
@@ -57,32 +62,67 @@ fn home(settings: &Settings, cwd: &Path) -> Result<PathBuf> {
     absolute(&selected, cwd, "RUNSEAL_HOME")
 }
 
-fn discover(name: Option<&str>, cwd: &Path, home: &Path) -> Result<Option<PathBuf>> {
-    let file = match name {
-        None => "runseal.toml".to_string(),
-        Some(name) => format!("runseal.{name}.toml"),
-    };
+struct Seek<'a> {
+    name: Option<&'a str>,
+    cwd: &'a Path,
+    home: &'a Path,
+}
 
-    if let Ok(path) = plumb::config::discover(cwd, &file) {
-        return absolute(&path, cwd, "profile file").map(Some);
+impl Seek<'_> {
+    fn find(self) -> Result<Option<PathBuf>> {
+        if let Some(path) = self.walk()? {
+            return Ok(Some(path));
+        }
+        if let Some(path) = self.held(self.flat())? {
+            return Ok(Some(path));
+        }
+        if let Some(path) = self.held(self.nested())? {
+            return Ok(Some(path));
+        }
+        self.missing()
     }
 
-    let fallback = home.join("profiles").join(match name {
-        None => "default.toml".to_string(),
-        Some(name) => format!("{name}.toml"),
-    });
-    if fallback.is_file() {
-        return absolute(&fallback, cwd, "profile file").map(Some);
+    fn walk(&self) -> Result<Option<PathBuf>> {
+        let file = match self.name {
+            None => "runseal.toml".to_string(),
+            Some(name) => format!("runseal.{name}.toml"),
+        };
+        match plumb::config::discover(self.cwd, &file) {
+            Ok(path) => absolute(&path, self.cwd, "profile file").map(Some),
+            Err(_) => Ok(None),
+        }
     }
 
-    if let Some(name) = name {
+    fn flat(&self) -> PathBuf {
+        self.home.join("profiles").join(match self.name {
+            None => "default.toml".to_string(),
+            Some(name) => format!("{name}.toml"),
+        })
+    }
+
+    fn nested(&self) -> PathBuf {
+        let dir = self.name.unwrap_or("default");
+        self.home.join("profiles").join(dir).join("runseal.toml")
+    }
+
+    fn held(&self, path: PathBuf) -> Result<Option<PathBuf>> {
+        if path.is_file() {
+            return absolute(&path, self.cwd, "profile file").map(Some);
+        }
+        Ok(None)
+    }
+
+    fn missing(&self) -> Result<Option<PathBuf>> {
+        let Some(name) = self.name else {
+            return Ok(None);
+        };
         bail!(
-            "named profile not found: :{name}; expected {file} from {} upward or {}",
-            cwd.display(),
-            fallback.display()
+            "named profile not found: :{name}; expected runseal.{name}.toml from {} upward, {}, or {}",
+            self.cwd.display(),
+            self.flat().display(),
+            self.nested().display()
         );
     }
-    Ok(None)
 }
 
 fn absolute(path: &Path, cwd: &Path, name: &str) -> Result<PathBuf> {

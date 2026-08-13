@@ -1,4 +1,5 @@
 pub mod config;
+pub(crate) mod forgejo;
 #[path = "../injections/mod.rs"]
 pub mod injections;
 pub(crate) mod key;
@@ -7,3 +8,4 @@ pub mod route;
 #[path = "../runtime.rs"]
 pub mod runtime;
 pub(crate) mod symbol;
+pub(crate) mod wire;
