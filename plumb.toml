@@ -12,7 +12,7 @@ skill = true
 
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "6b9b7dcb70240f16dc6b0969016eb3913f4ffda5095d4e4db8fbd3f43b357137" }]
+source = [{ path = ".", seal = "5b61e8fa63c8ff3d69292eb5bfc0e469932a37dc5b90aac5ae6e059c6664a6aa" }]
 target-seal = "6758b55442b4f3ab71282183aa141ddd2da4ea0b78d88878a35f22e631b02102"
 
 [[document]]

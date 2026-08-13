@@ -106,7 +106,7 @@ fn seat() {
     assert!(output.status.success(), "{}", text(&output.stderr));
     let stdout = text(&output.stdout);
     assert!(stdout.contains("RUNSEAL_PROFILE=perish"));
-    assert!(stdout.contains("profiles/perish/runseal.toml"));
+    assert!(stdout.contains(&face(home.join("profiles/perish/runseal.toml"))));
     assert!(stdout.contains(&format!(
         "RUNSEAL_ROOT={}",
         home.join("profiles/perish").display()
@@ -117,7 +117,9 @@ fn seat() {
         &["resolve", "--profile", "perish", "local://secrets/forgejo"],
     );
     assert!(resolved.status.success(), "{}", text(&resolved.stderr));
-    assert!(text(&resolved.stdout).contains("profiles/perish/.local/secrets/forgejo"));
+    assert!(
+        text(&resolved.stdout).contains(&face(home.join("profiles/perish/.local/secrets/forgejo")))
+    );
 }
 
 #[test]
@@ -137,8 +139,8 @@ fn prefer() {
     let output = invoke(&home, &cwd, &["profile", "perish"]);
     assert!(output.status.success(), "{}", text(&output.stderr));
     let stdout = text(&output.stdout);
-    assert!(stdout.contains("profiles/perish.toml"));
-    assert!(!stdout.contains("profiles/perish/runseal.toml"));
+    assert!(stdout.contains(&face(home.join("profiles/perish.toml"))));
+    assert!(!stdout.contains(&face(home.join("profiles/perish/runseal.toml"))));
 }
 
 #[test]
@@ -151,8 +153,8 @@ fn vacant() {
     assert!(!output.status.success());
     let stderr = text(&output.stderr);
     assert!(stderr.contains("named profile not found: :perish"));
-    assert!(stderr.contains("profiles/perish.toml"));
-    assert!(stderr.contains("profiles/perish/runseal.toml"));
+    assert!(stderr.contains(&face(home.join("profiles/perish.toml"))));
+    assert!(stderr.contains(&face(home.join("profiles/perish/runseal.toml"))));
 }
 
 #[test]
@@ -168,7 +170,11 @@ fn usual() {
     let output = invoke(&home, &cwd, &["profile"]);
     assert!(output.status.success(), "{}", text(&output.stderr));
     let stdout = text(&output.stdout);
-    assert!(stdout.contains("profiles/default/runseal.toml"));
+    assert!(stdout.contains(&face(home.join("profiles/default/runseal.toml"))));
+}
+
+fn face(path: impl AsRef<std::path::Path>) -> String {
+    path.as_ref().display().to_string()
 }
 
 fn text(bytes: &[u8]) -> String {
