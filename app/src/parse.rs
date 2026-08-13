@@ -92,6 +92,15 @@ fn line(value: &Value) -> String {
         let state = value.get("state").and_then(Value::as_str).unwrap_or("");
         return format!("{number}\t{state}\t{title}");
     }
+    if let Some(name) = value.get("name").and_then(Value::as_str)
+        && let Some(status) = value.get("status").and_then(Value::as_str)
+    {
+        let run = value
+            .get("run_number")
+            .map(|held| held.to_string())
+            .unwrap_or_default();
+        return format!("{run}\t{status}\t{name}");
+    }
     if let Some(name) = value
         .get("name")
         .or_else(|| value.get("full_name"))

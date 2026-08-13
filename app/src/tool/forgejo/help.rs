@@ -38,6 +38,7 @@ Resource verbs:
   secret delete NAME
   workflow dispatch FILE --ref REF [--inputs JSON]
   run show ID
+  job list RUN
   job log RUN JOB [--attempt N] [--watch] [--poll-ms N] [--timeout-ms N]
   task list RUN_NUMBER
   label list
