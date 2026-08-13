@@ -76,7 +76,7 @@ pub fn sequence(answers: Vec<(String, String)>) -> (String, thread::JoinHandle<V
 fn reply(mut stream: std::net::TcpStream, status: &str, body: &str) -> String {
     let head = drain(&mut stream);
     let reply = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nRetry-After: 0\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     let _ = stream.write_all(reply.as_bytes());

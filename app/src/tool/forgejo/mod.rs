@@ -74,10 +74,7 @@ impl Seat {
         }
         let deed = deed(&self.line.rest)?;
         let value = self.work(&deed)?;
-        Ok(Reply {
-            kind: kind(&deed),
-            value: self.clip(value),
-        })
+        Ok(Reply::plain(kind(&deed), self.clip(value)))
     }
 
     fn work(&self, deed: &Deed) -> Result<Value> {
@@ -172,18 +169,6 @@ impl Seat {
 
     fn flag(&self, name: &str) -> Option<&str> {
         self.line.flag(name)
-    }
-}
-
-impl Reply {
-    fn emit(self, argv: &[String]) -> Result<()> {
-        let line = parse::Line::take(argv)?;
-        if line.json {
-            println!("{}", parse::dump(self.kind, &self.value)?);
-        } else {
-            parse::show(&self.value);
-        }
-        Ok(())
     }
 }
 

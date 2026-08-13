@@ -12,7 +12,8 @@ wrapper or scripting runtime.
   The colon is the only profile-mode signal.
 - An external CLI remains external when the profile triad can isolate it.
   `@tool` is reserved for a third-party dependency that is not isolatable, and
-  must stay atomic. `@forgejo` is the first native tool.
+  must stay atomic. `@forgejo` and `@cloudflare` are native provider HTTP
+  dialects.
 - A perish.code-owned CLI that is not isolatable must be repaired at its own
   boundary. A capability that stops being atomic becomes a new product.
 - Runseal has no Deno, Python, Node, shell-wrapper, or other scripting runtime
@@ -27,10 +28,12 @@ wrapper or scripting runtime.
 - `app/src/core/config.rs`: cascade and profile discovery, including home
   `profiles/{name}.toml` and `profiles/{name}/runseal.toml`.
 - `app/src/parse.rs`: shared `@tool` argv line and output envelope.
-- `app/src/http.rs`: generic HTTP send.
-- `app/src/tool/`: native `@tool` adaptors. `@forgejo` is the first.
+- `app/src/http.rs`: structured HTTP status, headers, body, and typed faults.
+- `app/src/tool/`: native `@tool` adaptors for Forgejo and Cloudflare.
 - `runseal::tool::call`: structured native-tool entry for in-process consumers;
   CLI rendering remains outside the operation result.
+- `runseal::tool::cloudflare::invoke`: Cloudflare entry that also accepts an
+  in-memory request body and returns token values through a redacted secret.
 - The library core compiles with `default-features = false` and carries no
   Plumb edge. The default `managed-skill` feature owns the optional Plumb skill
   integration used by the binary.

@@ -1,3 +1,5 @@
+#[path = "support/cloudflare/mod.rs"]
+mod cloudflare;
 mod support;
 
 use support::{Seat, serve, text};

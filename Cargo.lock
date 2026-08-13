@@ -523,9 +523,11 @@ dependencies = [
  "plumb",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "toml",
  "ureq",
+ "zeroize",
 ]
 
 [[package]]

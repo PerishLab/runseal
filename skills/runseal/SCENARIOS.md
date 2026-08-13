@@ -17,8 +17,8 @@ occupant only when that is the caller's explicit intent, then retry.
 
 Keep it external. `@tool` exists only for a third-party dependency that the
 profile triad cannot isolate, and must remain one atomic operation. `@forgejo`
-is that native tool for Forgejo HTTP. Do not add aliases, convenience
-wrappers, or command sequences.
+and `@cloudflare` own their provider HTTP dialects. Do not add aliases,
+convenience wrappers, raw request escape hatches, or command sequences.
 
 ## Profile mode has no command
 
