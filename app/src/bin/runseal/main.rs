@@ -7,6 +7,8 @@ use runseal::{
     inspect, resolve, run,
 };
 
+mod skill;
+
 #[derive(Debug, Parser)]
 #[command(
     name = "runseal",
@@ -44,6 +46,11 @@ enum Control {
         #[arg(required = true, help = "One or more profile paths")]
         uri: Vec<String>,
     },
+    #[command(about = "Manage Runseal agent skill installations")]
+    Skill {
+        #[command(subcommand)]
+        deed: skill::Deed,
+    },
 }
 
 fn main() -> Result<()> {
@@ -80,6 +87,13 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
         Control::Profile { name } => inspect(&Config::build(name, Vec::new(), cwd)?),
         Control::Resolve { profile, uri } => {
             resolve(&Config::build(profile, Vec::new(), cwd)?, &uri)
+        }
+        Control::Skill { deed } => {
+            let code = skill::run(deed);
+            if code != 0 {
+                process::exit(code);
+            }
+            Ok(())
         }
     }
 }
