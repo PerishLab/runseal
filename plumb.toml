@@ -10,13 +10,17 @@ targets = [
 ]
 skill = true
 
+[release.cargo]
+registry = "perish"
+packages = ["runseal"]
+
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "cc3a32e8b39b74e08779e22c2b5f1bcf28445045b32107954768377c3ce79394" }]
-target-seal = "ab088b8909173e6ec23e5506a334f3d7eeb501e4ddfd3e046f0f479cfaaad8db"
+source = [{ path = ".", seal = "4ee22df959203a7fdd07afb4a669ce325fb39a1d64d7411dc4dace60c37168cb" }]
+target-seal = "d8ddab714ca7c038676f7d3ba0672147da4925ad9a143146bffe7ec264b8e720"
 
 [[document]]
 strategy = "brief"
 name = "runseal"
-source = [{ path = "app/src", seal = "5588bcb9a3676b340e06bdb8161d2641ca93578d2ec94a0e3b24771bf4e9d1b4" }]
-target-seal = "5c304ab9540fb894241e301939094203461440c9cc1ef3236400e034310c7d86"
+source = [{ path = "app/src", seal = "9e859f1e651f0637317be5ab2ebc163d9c829095b7d5f60839fa1e1d09d574dd" }]
+target-seal = "303f343c324892cb4a05f2f82b250ebe73266b6e3ef9ef6d34d7de088bfc8f96"
