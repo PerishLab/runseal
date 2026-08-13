@@ -16,11 +16,11 @@ packages = ["runseal"]
 
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "f4266cc359745e5ebecb520ed0b94c4603916d5b49fb24ed2ba13237445c95c7" }]
+source = [{ path = ".", seal = "4ee22df959203a7fdd07afb4a669ce325fb39a1d64d7411dc4dace60c37168cb" }]
 target-seal = "d8ddab714ca7c038676f7d3ba0672147da4925ad9a143146bffe7ec264b8e720"
 
 [[document]]
 strategy = "brief"
 name = "runseal"
-source = [{ path = "app/src", seal = "284c2d0756ca6a7c975b1099f72377d5f18b1bf9cbf81e22b8f02f63ec4a8b5c" }]
+source = [{ path = "app/src", seal = "9e859f1e651f0637317be5ab2ebc163d9c829095b7d5f60839fa1e1d09d574dd" }]
 target-seal = "303f343c324892cb4a05f2f82b250ebe73266b6e3ef9ef6d34d7de088bfc8f96"
