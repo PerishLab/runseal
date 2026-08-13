@@ -22,8 +22,8 @@ tree. Use this brief when inspecting or applying a profile, editing a
 - **`argv`** inserts fixed arguments after one matching command token.
 - **`symlink`** leases an otherwise absent target for the child lifecycle.
 - **`@tool`** is reserved for a third-party dependency that cannot be isolated
-  by the profile triad. It must stay one atomic operation. `@forgejo` is the
-  first native tool: one Forgejo HTTP resource verb per invocation.
+  by the profile triad. It must stay one atomic operation. `@forgejo` and
+  `@cloudflare` each perform one provider HTTP resource verb per invocation.
 
 ## Actions
 
@@ -33,6 +33,7 @@ runseal resolve [--profile NAME] URI...
 runseal : <command> [args...]
 runseal :<name> <command> [args...]
 runseal :<name> @forgejo <resource> <verb> ...
+runseal :<name> @cloudflare <resource> <verb> ...
 runseal skill --help
 ```
 

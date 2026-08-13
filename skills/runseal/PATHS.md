@@ -54,24 +54,32 @@ FORGEJO_TOKEN_FILE = "local://secrets/forgejo"
 ```bash
 runseal :perish @forgejo --json issue show 154
 runseal :perish @forgejo pull merge 71 --head SHA
-runseal :perish @forgejo status show <ref>
-runseal :perish @forgejo workflow dispatch release.yml --ref main
 runseal :perish @forgejo task list <run-number>
 runseal :perish @forgejo job log <run-number> <job-index> --watch
-runseal :perish @forgejo get https://releases.runseal.perish.uk/stable
 runseal :perish @forgejo --help
 ```
 
-`@forgejo` verbs: user show; issue show/list/create/edit; issue comment
-list/create; pull show/list/create/edit/merge; review list/create; status
-show; branch show/create; protection show/create/edit; repo show/edit/delete;
-secret list/set/delete; workflow dispatch; run show; job log; task list;
-label list; get URL. One HTTP operation per invocation. Merge sends Forgejo `Do` and
-`head_commit_id`. `get` is unauthenticated.
+`@forgejo --help` is the complete verb map. Lists page fully; `--watch` belongs
+only to `job log RUN JOB`. Merge sends Forgejo `Do` and `head_commit_id`.
 
 `@forgejo` reads `FORGEJO_URL` and either `FORGEJO_TOKEN_FILE` or
 `FORGEJO_TOKEN` from the resolved profile. `--url` and `--token-file`
 override. There is no login verb. Dialect is Forgejo 15.0.6.
+
+Cloudflare seats provide `CLOUDFLARE_ACCOUNT_ID` plus
+`CLOUDFLARE_API_TOKEN_FILE` or `CLOUDFLARE_API_TOKEN`:
+
+```bash
+runseal :perish @cloudflare token account permission list
+runseal :perish @cloudflare token user create --body-file policy.json --value-file token
+runseal :perish @cloudflare worker domain list
+runseal :perish @cloudflare r2 bucket show BUCKET
+runseal :perish @cloudflare --help
+```
+
+Token owners are explicit. Create and roll reserve a new mode-0600 value file;
+the secret never enters ordinary output. The tool also covers token lifecycle,
+Worker perception, and R2 bucket/custom-domain teardown.
 
 ## Embed a native tool
 
@@ -81,9 +89,9 @@ Rust consumers call the same operation surface without CLI rendering:
 runseal = { version = "0", registry = "perish", default-features = false }
 ```
 
-Call `runseal::tool::call("forgejo", argv, vars)` and consume its structured
-`Reply`. Keep `default-features = false` in a Plumb consumer so the optional
-managed-skill integration does not create a dependency cycle.
+Call `runseal::tool::call` for ordinary verbs. Cloudflare callers with an
+in-memory policy use `tool::cloudflare::invoke`; a returned token value is a
+redacted, zeroizing `Reply::secret`. Keep `default-features = false` in Plumb.
 
 ## Write a profile
 
