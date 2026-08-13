@@ -3,18 +3,29 @@ use std::{collections::BTreeMap, fs, process::Command};
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
+use super::Reply;
 use crate::{http, parse};
 
 mod deed;
 mod flow;
+mod help;
 mod issue;
 mod pull;
 mod repo;
 
 use deed::{Deed, Kind, deed, kind};
 
-pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
+pub fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<Reply> {
     Seat::open(argv, vars)?.act()
+}
+
+pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
+    if argv.iter().any(|arg| arg == "--help") {
+        print!("{}", help::TEXT);
+        return Ok(());
+    }
+    let reply = call(argv, vars)?;
+    reply.emit(argv)
 }
 
 struct Seat {
@@ -48,10 +59,13 @@ impl Seat {
         })
     }
 
-    fn act(&self) -> Result<()> {
+    fn act(&self) -> Result<Reply> {
         let deed = deed(&self.line.rest)?;
         let value = self.work(&deed)?;
-        self.emit(kind(&deed), value)
+        Ok(Reply {
+            kind: kind(&deed),
+            value: self.clip(value),
+        })
     }
 
     fn work(&self, deed: &Deed) -> Result<Value> {
@@ -83,22 +97,13 @@ impl Seat {
             Deed::Flow(id) => self.sent(id),
             Deed::Run(id) => self.running(id),
             Deed::Job(run, job) => self.logged(run, job),
+            Deed::Task(run) => self.tasks(run),
             Deed::Review(Kind::Show(id)) => self.reviews(id),
             Deed::Review(Kind::Set(id)) => self.reviewed(id),
             Deed::Label => self.labels(),
             Deed::Fetch(url) => http::send("GET", url, None, None),
             _ => bail!("@forgejo expected a known resource verb"),
         }
-    }
-
-    fn emit(&self, kind: &str, value: Value) -> Result<()> {
-        let value = self.clip(value);
-        if self.line.json {
-            println!("{}", parse::dump(kind, &value)?);
-            return Ok(());
-        }
-        parse::show(&value);
-        Ok(())
     }
 
     fn clip(&self, value: Value) -> Value {
@@ -154,6 +159,18 @@ impl Seat {
 
     fn flag(&self, name: &str) -> Option<&str> {
         self.line.flag(name)
+    }
+}
+
+impl Reply {
+    fn emit(self, argv: &[String]) -> Result<()> {
+        let line = parse::Line::take(argv)?;
+        if line.json {
+            println!("{}", parse::dump(self.kind, &self.value)?);
+        } else {
+            parse::show(&self.value);
+        }
+        Ok(())
     }
 }
 

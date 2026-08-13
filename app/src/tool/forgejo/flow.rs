@@ -62,4 +62,41 @@ impl Seat {
             None,
         )
     }
+
+    pub(super) fn tasks(&self, run: &str) -> Result<Value> {
+        let run = run.parse::<u64>().context("invalid task run number")?;
+        let (owner, name) = super::pair(&self.repo()?)?;
+        let mut page = 1;
+        let mut seen = 0;
+        let mut found = Vec::new();
+        loop {
+            let value = self.send(
+                "GET",
+                &format!(
+                    "{}/repos/{owner}/{name}/actions/tasks?page={page}&limit=50",
+                    self.base
+                ),
+                None,
+            )?;
+            let rows = value
+                .get("workflow_runs")
+                .and_then(Value::as_array)
+                .ok_or_else(|| anyhow::anyhow!("Forgejo action task list has no workflow_runs"))?;
+            let total = value
+                .get("total_count")
+                .and_then(Value::as_u64)
+                .unwrap_or(rows.len() as u64) as usize;
+            seen += rows.len();
+            found.extend(
+                rows.iter()
+                    .filter(|task| task.get("run_number").and_then(Value::as_u64) == Some(run))
+                    .cloned(),
+            );
+            if seen >= total || rows.len() < 50 {
+                break;
+            }
+            page += 1;
+        }
+        Ok(Value::Array(found))
+    }
 }

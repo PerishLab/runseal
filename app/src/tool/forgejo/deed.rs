@@ -17,6 +17,7 @@ pub(super) enum Deed {
     Flow(String),
     Run(String),
     Job(String, String),
+    Task(String),
     Review(Kind),
     Label,
     Fetch(String),
@@ -91,6 +92,7 @@ pub(super) fn deed(rest: &[String]) -> Result<Deed> {
         [kind, verb, run, job] if kind == "job" && verb == "log" => {
             Ok(Deed::Job(run.clone(), job.clone()))
         }
+        [kind, verb, run] if kind == "task" && verb == "list" => Ok(Deed::Task(run.clone())),
         [kind, verb, id] if kind == "review" && verb == "list" => {
             Ok(Deed::Review(Kind::Show(id.clone())))
         }
@@ -120,6 +122,7 @@ pub(super) fn kind(deed: &Deed) -> &'static str {
         Deed::Secret(_) => "secret",
         Deed::Flow(_) | Deed::Run(_) => "run",
         Deed::Job(_, _) => "log",
+        Deed::Task(_) => "tasks",
         Deed::Review(Kind::Show(_)) => "reviews",
         Deed::Review(_) => "review",
         Deed::Label => "labels",

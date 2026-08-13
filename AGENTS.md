@@ -29,6 +29,8 @@ wrapper or scripting runtime.
 - `app/src/parse.rs`: shared `@tool` argv line and output envelope.
 - `app/src/http.rs`: generic HTTP send.
 - `app/src/tool/`: native `@tool` adaptors. `@forgejo` is the first.
+- `runseal::tool::call`: structured native-tool entry for in-process consumers;
+  CLI rendering remains outside the operation result.
 - `app/src/core/profile.rs`: profile vocabulary and path normalization.
 - `app/src/core/route.rs`: colon-mode routing.
 - `app/src/runtime.rs`: argv resolution and external/tool dispatch.
@@ -51,7 +53,7 @@ wrapper or scripting runtime.
 
 ## Release
 
-- This repository declares the product and skill in `plumb.toml`; its
+- This repository declares the binary, crate, and skill in `plumb.toml`; its
   exact/stable workflows are thin callers.
 - Every release produces immutable content-addressed objects and one exact
   seal. Non-stable releases stop at that seal and install only into explicit
