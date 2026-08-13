@@ -1,5 +1,5 @@
 pub mod config;
-pub(crate) mod forgejo;
+pub mod forgejo;
 #[path = "../injections/mod.rs"]
 pub mod injections;
 pub(crate) mod key;

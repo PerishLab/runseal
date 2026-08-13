@@ -12,11 +12,11 @@ skill = true
 
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "1c4a75dd515c5c612a0e8f30d95641fdc7da57879ea377451d5c61005d71b632" }]
-target-seal = "6758b55442b4f3ab71282183aa141ddd2da4ea0b78d88878a35f22e631b02102"
+source = [{ path = ".", seal = "034232039d82a6a8746c6bac5edd59dbfd5b217de87f38f223be20f7a6703967" }]
+target-seal = "fffd92105f0a3e12825003e0fef8121800b05b460c7081b2694e71d5ea677190"
 
 [[document]]
 strategy = "brief"
 name = "runseal"
-source = [{ path = "app/src", seal = "3a4d311f9562876a89acda096c05efcd892da4b1b469ebb3192a594b268a9c5e" }]
-target-seal = "850ddb9af6da7fe2579cfa9968dbde98ee057afe2b4e024ee7df3ea63b2a52b8"
+source = [{ path = "app/src", seal = "8a03b49f96fe228f24a063e58fc058b169f941d1b2920c2b915e2a22baa10103" }]
+target-seal = "13e6d79f023722eeedd5d05919fe5ef5a9d00578252df98a78c44af51e4426ed"
