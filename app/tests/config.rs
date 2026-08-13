@@ -75,3 +75,102 @@ fn nested() {
     assert!(stderr.contains("unknown field"));
     assert!(stderr.contains("unknown"));
 }
+
+fn invoke(home: &std::path::Path, cwd: &std::path::Path, args: &[&str]) -> std::process::Output {
+    bin()
+        .current_dir(cwd)
+        .env("RUNSEAL_HOME", home)
+        .args(args)
+        .output()
+        .expect("Runseal should execute")
+}
+
+fn store(path: &std::path::Path, body: &str) {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("parent should exist");
+    }
+    std::fs::write(path, body).expect("profile should be written");
+}
+
+#[test]
+fn seat() {
+    let temp = TempDir::new().expect("temp dir should exist");
+    let home = temp.path().join("held");
+    let cwd = temp.path().join("work");
+    std::fs::create_dir_all(&cwd).expect("work should exist");
+    store(
+        &home.join("profiles/perish/runseal.toml"),
+        "[env.vars]\nPICKED = \"nested\"\n",
+    );
+    let output = invoke(&home, &cwd, &["profile", "perish"]);
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    let stdout = text(&output.stdout);
+    assert!(stdout.contains("RUNSEAL_PROFILE=perish"));
+    assert!(stdout.contains("profiles/perish/runseal.toml"));
+    assert!(stdout.contains(&format!(
+        "RUNSEAL_ROOT={}",
+        home.join("profiles/perish").display()
+    )));
+    let resolved = invoke(
+        &home,
+        &cwd,
+        &["resolve", "--profile", "perish", "local://secrets/forgejo"],
+    );
+    assert!(resolved.status.success(), "{}", text(&resolved.stderr));
+    assert!(text(&resolved.stdout).contains("profiles/perish/.local/secrets/forgejo"));
+}
+
+#[test]
+fn prefer() {
+    let temp = TempDir::new().expect("temp dir should exist");
+    let home = temp.path().join("held");
+    let cwd = temp.path().join("work");
+    std::fs::create_dir_all(&cwd).expect("work should exist");
+    store(
+        &home.join("profiles/perish.toml"),
+        "[env.vars]\nPICKED = \"flat\"\n",
+    );
+    store(
+        &home.join("profiles/perish/runseal.toml"),
+        "[env.vars]\nPICKED = \"nested\"\n",
+    );
+    let output = invoke(&home, &cwd, &["profile", "perish"]);
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    let stdout = text(&output.stdout);
+    assert!(stdout.contains("profiles/perish.toml"));
+    assert!(!stdout.contains("profiles/perish/runseal.toml"));
+}
+
+#[test]
+fn vacant() {
+    let temp = TempDir::new().expect("temp dir should exist");
+    let home = temp.path().join("held");
+    let cwd = temp.path().join("work");
+    std::fs::create_dir_all(&cwd).expect("work should exist");
+    let output = invoke(&home, &cwd, &["profile", "perish"]);
+    assert!(!output.status.success());
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("named profile not found: :perish"));
+    assert!(stderr.contains("profiles/perish.toml"));
+    assert!(stderr.contains("profiles/perish/runseal.toml"));
+}
+
+#[test]
+fn usual() {
+    let temp = TempDir::new().expect("temp dir should exist");
+    let home = temp.path().join("held");
+    let cwd = temp.path().join("work");
+    std::fs::create_dir_all(&cwd).expect("work should exist");
+    store(
+        &home.join("profiles/default/runseal.toml"),
+        "[env.vars]\nPICKED = \"usual\"\n",
+    );
+    let output = invoke(&home, &cwd, &["profile"]);
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    let stdout = text(&output.stdout);
+    assert!(stdout.contains("profiles/default/runseal.toml"));
+}
+
+fn text(bytes: &[u8]) -> String {
+    String::from_utf8(bytes.to_vec()).expect("output should be UTF-8")
+}

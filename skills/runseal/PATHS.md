@@ -30,6 +30,35 @@ runseal resolve --profile NAME local://secrets/token
 Each argument must be a `resource://` or `local://` URI. The printed paths are
 traversal-resistant seats under `.runseal/resources` or `.local`.
 
+## Home profiles
+
+A named seat that is not in the repository walk-up is read from
+`$RUNSEAL_HOME/profiles`. Two writings are valid; a flat file wins when both
+exist:
+
+```
+$RUNSEAL_HOME/profiles/{name}.toml
+$RUNSEAL_HOME/profiles/{name}/runseal.toml
+```
+
+The directory writing keeps `local://` under that seat:
+`$RUNSEAL_HOME/profiles/{name}/.local`. Operator Forgejo seats use the
+directory form:
+
+```toml
+[env.vars]
+FORGEJO_URL = "https://git.perish.top"
+FORGEJO_TOKEN_FILE = "local://secrets/forgejo"
+```
+
+```bash
+runseal :perish @forgejo --json issue show 154
+```
+
+`@forgejo` reads `FORGEJO_URL` and `FORGEJO_TOKEN_FILE` from the resolved
+profile. `--url` and `--token-file` override. There is no login verb. Dialect
+is Forgejo 15.0.6.
+
 ## Write a profile
 
 ```toml
