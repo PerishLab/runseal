@@ -53,11 +53,18 @@ FORGEJO_TOKEN_FILE = "local://secrets/forgejo"
 
 ```bash
 runseal :perish @forgejo --json issue show 154
-runseal :perish @forgejo issue create --title "K1"
-runseal :perish @forgejo issue edit 154 --state closed
-runseal :perish @forgejo issue comment list 154
-runseal :perish @forgejo issue comment create 154 --body "ack"
+runseal :perish @forgejo pull merge 71 --head SHA
+runseal :perish @forgejo status show <ref>
+runseal :perish @forgejo workflow dispatch release.yml --ref main
+runseal :perish @forgejo get https://releases.runseal.perish.uk/stable
 ```
+
+`@forgejo` verbs: user show; issue show/list/create/edit; issue comment
+list/create; pull show/list/create/edit/merge; review list/create; status
+show; branch show/create; protection show/create/edit; repo show/edit/delete;
+secret list/set/delete; workflow dispatch; run show; job log; label list;
+get URL. One HTTP operation per invocation. Merge sends Forgejo `Do` and
+`head_commit_id`. `get` is unauthenticated.
 
 `@forgejo` reads `FORGEJO_URL` and either `FORGEJO_TOKEN_FILE` or
 `FORGEJO_TOKEN` from the resolved profile. `--url` and `--token-file`

@@ -2,10 +2,11 @@ use anyhow::{Context, Result, bail};
 
 use crate::core::{
     config::Config,
-    forgejo, injections,
+    injections,
     profile::{self, Profile},
     symbol,
 };
+use crate::tool;
 
 #[path = "runner.rs"]
 mod runner;
@@ -22,9 +23,9 @@ pub fn run(config: &Config) -> Result<Outcome> {
             let code = runner::Runner::run(config, argv, env)?;
             Ok(Outcome { code: Some(code) })
         }
-        Command::Forgejo(argv) => {
+        Command::Tool(name, argv) => {
             let _ = env;
-            forgejo::run(argv, &profile.env.vars)?;
+            tool::run(name, argv, &profile.env.vars)?;
             Ok(Outcome { code: Some(0) })
         }
     })
@@ -53,7 +54,7 @@ pub fn resolve(config: &Config, uris: &[String]) -> Result<()> {
 
 enum Command {
     External(Vec<String>),
-    Forgejo(Vec<String>),
+    Tool(String, Vec<String>),
 }
 
 impl Command {
@@ -69,10 +70,7 @@ impl Command {
             bail!("@tool name must not be empty");
         }
         symbol::valid(name).with_context(|| format!("invalid @tool name: @{name}"))?;
-        if name == "forgejo" {
-            return Ok(Self::Forgejo(argv[1..].to_vec()));
-        }
-        bail!("unknown Runseal tool: @{name}")
+        Ok(Self::Tool(name.to_string(), argv[1..].to_vec()))
     }
 }
 
