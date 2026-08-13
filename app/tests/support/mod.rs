@@ -84,18 +84,15 @@ fn reply(mut stream: std::net::TcpStream, status: &str, body: &str) -> String {
 fn drain(stream: &mut std::net::TcpStream) -> String {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 1024];
-    loop {
-        let Ok(n) = stream.read(&mut chunk) else {
-            break;
-        };
+    while let Ok(n) = stream.read(&mut chunk) {
         if n == 0 {
             break;
         }
         buf.extend_from_slice(&chunk[..n]);
-        if let Some(at) = buf.windows(4).position(|held| held == b"\r\n\r\n") {
-            if buf.len() >= at + 4 + length(&buf[..at]) {
-                break;
-            }
+        if let Some(at) = buf.windows(4).position(|held| held == b"\r\n\r\n")
+            && buf.len() >= at + 4 + length(&buf[..at])
+        {
+            break;
         }
     }
     String::from_utf8_lossy(&buf)
