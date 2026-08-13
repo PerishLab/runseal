@@ -7,6 +7,7 @@ use runseal::{
     inspect, resolve, run,
 };
 
+#[cfg(feature = "managed-skill")]
 mod skill;
 
 #[derive(Debug, Parser)]
@@ -46,6 +47,7 @@ enum Control {
         #[arg(required = true, help = "One or more profile paths")]
         uri: Vec<String>,
     },
+    #[cfg(feature = "managed-skill")]
     #[command(about = "Manage Runseal agent skill installations")]
     Skill {
         #[command(subcommand)]
@@ -88,6 +90,7 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
         Control::Resolve { profile, uri } => {
             resolve(&Config::build(profile, Vec::new(), cwd)?, &uri)
         }
+        #[cfg(feature = "managed-skill")]
         Control::Skill { deed } => {
             let code = skill::run(deed);
             if code != 0 {
@@ -99,5 +102,5 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
 }
 
 fn version() -> &'static str {
-    plumb::version!("RUNSEAL")
+    option_env!("RUNSEAL_BUILD_VERSION").unwrap_or(concat!("v", env!("CARGO_PKG_VERSION")))
 }
