@@ -109,6 +109,7 @@ impl Seat {
             Deed::Flow(id) => self.sent(id),
             Deed::Run(id) => self.running(id),
             Deed::Job(run, job) => self.logged(run, job),
+            Deed::Jobs(run) => self.jobs(run),
             Deed::Task(run) => self.tasks(run),
             Deed::Review(Kind::Show(id)) => self.reviews(id),
             Deed::Review(Kind::Set(id)) => self.reviewed(id),

@@ -43,11 +43,18 @@ impl Seat {
 
     pub(super) fn running(&self, id: &str) -> Result<Value> {
         let (owner, name) = super::pair(&self.repo()?)?;
-        self.send(
+        let direct = self.send(
             "GET",
             &format!("{}/repos/{owner}/{name}/actions/runs/{id}", self.base),
             None,
-        )
+        );
+        if direct.is_ok() {
+            return direct;
+        }
+        match self.tasks(id)? {
+            Value::Array(found) if !found.is_empty() => Ok(found[0].clone()),
+            _ => direct,
+        }
     }
 
     pub(super) fn logged(&self, run: &str, job: &str) -> Result<Value> {

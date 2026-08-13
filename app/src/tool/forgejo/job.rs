@@ -43,6 +43,33 @@ impl Seat {
         }
     }
 
+    pub(super) fn jobs(&self, run: &str) -> Result<Value> {
+        let attempt = self.flag("attempt").unwrap_or("1");
+        let (owner, name) = super::pair(&self.repo()?)?;
+        let origin = self.base.trim_end_matches("/api/v1");
+        let value = self.send(
+            "POST",
+            &format!("{origin}/{owner}/{name}/actions/runs/{run}/jobs/0/attempt/{attempt}"),
+            Some(&json!({"logCursors": []})),
+        )?;
+        let held = value
+            .pointer("/state/run/jobs")
+            .and_then(Value::as_array)
+            .ok_or_else(|| anyhow::anyhow!("Forgejo action run response has no jobs"))?;
+        let rows: Vec<Value> = held
+            .iter()
+            .enumerate()
+            .map(|(index, job)| {
+                json!({
+                    "index": index,
+                    "name": job.get("name").and_then(Value::as_str).unwrap_or(""),
+                    "status": job.get("status").and_then(Value::as_str).unwrap_or(""),
+                })
+            })
+            .collect();
+        Ok(Value::Array(rows))
+    }
+
     fn state(&self, run: &str, job: &str) -> Result<(String, bool)> {
         let attempt = self.flag("attempt").unwrap_or("1");
         let index = job.parse::<usize>().context("invalid job index")?;
