@@ -16,7 +16,7 @@ packages = ["runseal"]
 
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "21b01bd25d63127e150953e95f02e8bc0a50f8c765129918b2251c3cdca3525d" }]
+source = [{ path = ".", seal = "b8096c7237c489d65e272d543e1764497ea3fa8e783644cb6deeb49d0a09e258" }]
 target-seal = "d2955a1ebeb295b5ec000ebeb85ee134e3241219e4ca8fc3217acd2c4e993a89"
 
 [[document]]

@@ -3,4 +3,4 @@ members = ["app"]
 resolver = "2"
 
 [workspace.package]
-version = "0.16.4"
+version = "0.16.5"
