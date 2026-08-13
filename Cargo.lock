@@ -515,7 +515,7 @@ dependencies = [
 
 [[package]]
 name = "runseal"
-version = "0.16.4"
+version = "0.16.6"
 dependencies = [
  "anyhow",
  "clap",
