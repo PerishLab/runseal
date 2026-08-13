@@ -10,6 +10,7 @@ mod deed;
 mod flow;
 mod help;
 mod issue;
+mod job;
 mod pull;
 mod repo;
 
@@ -24,7 +25,15 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
         print!("{}", help::TEXT);
         return Ok(());
     }
-    let reply = call(argv, vars)?;
+    let seat = Seat::open(argv, vars)?;
+    let deed = deed(&seat.line.rest)?;
+    if seat.line.watch {
+        return match deed {
+            Deed::Job(run, job) => seat.follow(&run, &job),
+            _ => bail!("@forgejo --watch requires job log RUN JOB"),
+        };
+    }
+    let reply = seat.act()?;
     reply.emit(argv)
 }
 
@@ -60,6 +69,9 @@ impl Seat {
     }
 
     fn act(&self) -> Result<Reply> {
+        if self.line.watch {
+            bail!("structured @forgejo calls cannot watch a job log");
+        }
         let deed = deed(&self.line.rest)?;
         let value = self.work(&deed)?;
         Ok(Reply {

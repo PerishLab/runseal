@@ -56,13 +56,15 @@ impl Seat {
 }
 
 pub fn serve(status: &str, body: &str, hits: usize) -> (String, thread::JoinHandle<Vec<String>>) {
+    sequence(vec![(status.to_string(), body.to_string()); hits])
+}
+
+pub fn sequence(answers: Vec<(String, String)>) -> (String, thread::JoinHandle<Vec<String>>) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
     let addr = listener.local_addr().expect("addr");
-    let status = status.to_string();
-    let body = body.to_string();
     let handle = thread::spawn(move || {
         let mut seen = Vec::new();
-        for _ in 0..hits {
+        for (status, body) in answers {
             let (stream, _) = listener.accept().expect("accept");
             seen.push(reply(stream, &status, &body));
         }

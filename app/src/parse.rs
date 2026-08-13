@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 pub struct Line {
     pub json: bool,
+    pub watch: bool,
     pub url: Option<String>,
     pub file: Option<String>,
     pub repo: Option<String>,
@@ -17,6 +18,7 @@ impl Line {
     pub fn take(argv: &[String]) -> Result<Self> {
         let mut held = Self {
             json: false,
+            watch: false,
             url: None,
             file: None,
             repo: None,
@@ -38,6 +40,7 @@ impl Line {
     fn step(&mut self, arg: &str, seen: &mut std::slice::Iter<String>) -> Result<()> {
         match arg {
             "--json" => self.json = true,
+            "--watch" => self.watch = true,
             "--url" => self.url = Some(need(seen, "--url")?),
             "--token-file" => self.file = Some(need(seen, "--token-file")?),
             "--repo" => self.repo = Some(need(seen, "--repo")?),
