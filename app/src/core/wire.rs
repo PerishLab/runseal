@@ -2,16 +2,51 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
 
 pub fn get(url: &str, token: &str) -> Result<Value> {
-    let done = agent()
-        .get(url)
-        .header("Authorization", &format!("token {token}"))
-        .call()
-        .context("forgejo request failed")?;
+    finish(
+        agent()
+            .get(url)
+            .header("Authorization", &format!("token {token}"))
+            .call(),
+    )
+}
+
+pub fn post(url: &str, token: &str, body: &Value) -> Result<Value> {
+    let text = serde_json::to_string(body).context("unable to encode JSON")?;
+    finish(
+        agent()
+            .post(url)
+            .header("Authorization", &format!("token {token}"))
+            .header("Content-Type", "application/json")
+            .send(text),
+    )
+}
+
+pub fn patch(url: &str, token: &str, body: &Value) -> Result<Value> {
+    let text = serde_json::to_string(body).context("unable to encode JSON")?;
+    finish(
+        agent()
+            .patch(url)
+            .header("Authorization", &format!("token {token}"))
+            .header("Content-Type", "application/json")
+            .send(text),
+    )
+}
+
+fn finish(
+    done: std::result::Result<ureq::http::Response<ureq::Body>, ureq::Error>,
+) -> Result<Value> {
+    let done = done.context("forgejo request failed")?;
     let code = done.status();
     let text = done
         .into_body()
         .read_to_string()
         .context("forgejo response is unreadable")?;
+    if text.trim().is_empty() {
+        if code.is_success() {
+            return Ok(Value::Null);
+        }
+        bail!("forgejo: request failed");
+    }
     let value: Value = serde_json::from_str(&text).context("forgejo response is not JSON")?;
     if code.is_success() {
         return Ok(value);
@@ -35,12 +70,8 @@ fn reject(value: Value) -> Result<Value> {
     bail!("forgejo: {detail}")
 }
 
-pub fn envelope(value: &Value) -> Result<String> {
-    let body = match value {
-        Value::Array(_) => json!({"version": 1, "issues": value}),
-        object if object.get("login").is_some() => json!({"version": 1, "user": value}),
-        _ => json!({"version": 1, "issue": value}),
-    };
+pub fn envelope(kind: &str, value: &Value) -> Result<String> {
+    let body = json!({"version": 1, kind: value});
     serde_json::to_string(&body).context("unable to encode JSON")
 }
 
@@ -59,11 +90,28 @@ fn line(value: &Value) -> String {
     if let Some(login) = value.get("login").and_then(Value::as_str) {
         return login.to_string();
     }
-    let number = value
-        .get("number")
+    if let Some(title) = value.get("title").and_then(Value::as_str) {
+        let number = value
+            .get("number")
+            .map(|held| held.to_string())
+            .unwrap_or_default();
+        let state = value.get("state").and_then(Value::as_str).unwrap_or("");
+        return format!("{number}\t{state}\t{title}");
+    }
+    let id = value
+        .get("id")
         .map(|held| held.to_string())
         .unwrap_or_default();
-    let state = value.get("state").and_then(Value::as_str).unwrap_or("");
-    let title = value.get("title").and_then(Value::as_str).unwrap_or("");
-    format!("{number}\t{state}\t{title}")
+    let login = value
+        .pointer("/user/login")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let body = value
+        .get("body")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .lines()
+        .next()
+        .unwrap_or("");
+    format!("{id}\t{login}\t{body}")
 }

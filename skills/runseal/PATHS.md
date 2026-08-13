@@ -53,11 +53,15 @@ FORGEJO_TOKEN_FILE = "local://secrets/forgejo"
 
 ```bash
 runseal :perish @forgejo --json issue show 154
+runseal :perish @forgejo issue create --title "K1"
+runseal :perish @forgejo issue edit 154 --state closed
+runseal :perish @forgejo issue comment list 154
+runseal :perish @forgejo issue comment create 154 --body "ack"
 ```
 
-`@forgejo` reads `FORGEJO_URL` and `FORGEJO_TOKEN_FILE` from the resolved
-profile. `--url` and `--token-file` override. There is no login verb. Dialect
-is Forgejo 15.0.6.
+`@forgejo` reads `FORGEJO_URL` and either `FORGEJO_TOKEN_FILE` or
+`FORGEJO_TOKEN` from the resolved profile. `--url` and `--token-file`
+override. There is no login verb. Dialect is Forgejo 15.0.6.
 
 ## Write a profile
 

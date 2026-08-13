@@ -5,114 +5,87 @@ use serde_json::Value;
 
 use super::wire;
 
+mod issue;
+
 pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
     Call::parse(argv, vars)?.act()
 }
 
-struct Call {
+pub(crate) struct Call {
     json: bool,
-    base: String,
-    file: String,
-    repo: Option<String>,
-    limit: Option<usize>,
+    pub(crate) base: String,
+    auth: Auth,
+    pub(crate) repo: Option<String>,
+    pub(crate) limit: Option<usize>,
+    pub(crate) title: Option<String>,
+    pub(crate) body: Option<String>,
+    pub(crate) state: Option<String>,
     deed: Deed,
+}
+
+enum Auth {
+    File(String),
+    Token(String),
 }
 
 enum Deed {
     User,
     Show(String),
     List,
+    Create,
+    Edit(String),
+    Notes(String),
+    Comment(String),
 }
 
 impl Call {
     fn parse(argv: &[String], vars: &BTreeMap<String, String>) -> Result<Self> {
         let held = Flags::parse(argv)?;
-        let base = held.base.or_else(|| vars.get("FORGEJO_URL").cloned());
-        let file = held
-            .file
-            .or_else(|| vars.get("FORGEJO_TOKEN_FILE").cloned());
-        let Some(base) = base.filter(|held| !held.is_empty()) else {
+        let Some(base) = held
+            .base
+            .or_else(|| vars.get("FORGEJO_URL").cloned())
+            .filter(|held| !held.is_empty())
+        else {
             bail!("@forgejo requires FORGEJO_URL or --url");
         };
-        let Some(file) = file.filter(|held| !held.is_empty()) else {
-            bail!("@forgejo requires FORGEJO_TOKEN_FILE or --token-file");
-        };
+        let auth = auth(&held.file, vars)?;
         Ok(Self {
             json: held.json,
             base: host(&base),
-            file,
+            auth,
             repo: held.repo,
             limit: held.limit,
+            title: held.title,
+            body: held.body,
+            state: held.state,
             deed: deed(&held.rest)?,
         })
     }
 
     fn act(&self) -> Result<()> {
-        let token = secret(&self.file)?;
+        let token = self.token()?;
         match &self.deed {
-            Deed::User => self.emit(wire::get(&format!("{}/user", self.base), &token)?),
-            Deed::Show(id) => self.emit(wire::get(&self.shown(id)?, &token)?),
-            Deed::List => self.emit(self.listed(&token)?),
+            Deed::User => self.emit("user", wire::get(&format!("{}/user", self.base), &token)?),
+            Deed::Show(id) => self.emit("issue", self.shown(id, &token)?),
+            Deed::List => self.emit("issues", self.listed(&token)?),
+            Deed::Create => self.emit("issue", self.created(&token)?),
+            Deed::Edit(id) => self.emit("issue", self.edited(id, &token)?),
+            Deed::Notes(id) => self.emit("comments", self.notes(id, &token)?),
+            Deed::Comment(id) => self.emit("comment", self.posted(id, &token)?),
         }
     }
 
-    fn shown(&self, id: &str) -> Result<String> {
-        let (owner, name, index) = self.target(id)?;
-        Ok(format!("{}/repos/{owner}/{name}/issues/{index}", self.base))
-    }
-
-    fn target(&self, id: &str) -> Result<(String, String, String)> {
-        if let Some((repo, index)) = id.rsplit_once('#') {
-            let (owner, name) = pair(repo)?;
-            return Ok((owner, name, index.to_string()));
-        }
-        let (owner, name) = pair(&self.repo()?)?;
-        Ok((owner, name, id.to_string()))
-    }
-
-    fn repo(&self) -> Result<String> {
-        match &self.repo {
-            Some(held) => Ok(held.clone()),
-            None => remote(),
+    fn token(&self) -> Result<String> {
+        match &self.auth {
+            Auth::Token(held) => Ok(held.clone()),
+            Auth::File(path) => load(path),
         }
     }
 
-    fn listed(&self, token: &str) -> Result<Value> {
-        let mut items = Vec::new();
-        let mut turn = 1usize;
-        loop {
-            let rows = self.batch(token, turn)?;
-            let count = rows.len();
-            items.extend(rows);
-            if !self.more(items.len(), count) {
-                break;
-            }
-            turn += 1;
-        }
-        Ok(Value::Array(items))
-    }
-
-    fn batch(&self, token: &str, turn: usize) -> Result<Vec<Value>> {
-        let (owner, name) = pair(&self.repo()?)?;
-        let url = format!(
-            "{}/repos/{owner}/{name}/issues?state=all&limit=50&page={turn}",
-            self.base
-        );
-        let value = wire::get(&url, token)?;
-        let Some(rows) = value.as_array() else {
-            bail!("forgejo issue list did not return an array");
-        };
-        Ok(rows.clone())
-    }
-
-    fn more(&self, total: usize, count: usize) -> bool {
-        count >= 50 && self.limit.is_none_or(|limit| total < limit)
-    }
-
-    fn emit(&self, value: Value) -> Result<()> {
+    fn emit(&self, kind: &str, value: Value) -> Result<()> {
         let value = self.clip(value);
         if self.json {
-            println!("{}", wire::envelope(&value)?);
+            println!("{}", wire::envelope(kind, &value)?);
             return Ok(());
         }
         wire::print(&value);
@@ -131,6 +104,22 @@ impl Call {
             other => other,
         }
     }
+
+    pub(crate) fn target(&self, id: &str) -> Result<(String, String, String)> {
+        if let Some((repo, index)) = id.rsplit_once('#') {
+            let (owner, name) = pair(repo)?;
+            return Ok((owner, name, index.to_string()));
+        }
+        let (owner, name) = pair(&self.repo()?)?;
+        Ok((owner, name, id.to_string()))
+    }
+
+    pub(crate) fn repo(&self) -> Result<String> {
+        match &self.repo {
+            Some(held) => Ok(held.clone()),
+            None => remote(),
+        }
+    }
 }
 
 struct Flags {
@@ -139,6 +128,9 @@ struct Flags {
     file: Option<String>,
     repo: Option<String>,
     limit: Option<usize>,
+    title: Option<String>,
+    body: Option<String>,
+    state: Option<String>,
     rest: Vec<String>,
 }
 
@@ -150,6 +142,9 @@ impl Flags {
             file: None,
             repo: None,
             limit: None,
+            title: None,
+            body: None,
+            state: None,
             rest: Vec::new(),
         };
         let mut seen = argv.iter();
@@ -165,6 +160,9 @@ impl Flags {
             "--url" => self.base = Some(need(seen, "--url")?),
             "--token-file" => self.file = Some(need(seen, "--token-file")?),
             "--repo" => self.repo = Some(need(seen, "--repo")?),
+            "--title" => self.title = Some(need(seen, "--title")?),
+            "--body" => self.body = Some(need(seen, "--body")?),
+            "--state" => self.state = Some(need(seen, "--state")?),
             "--limit" => {
                 self.limit = Some(need(seen, "--limit")?.parse().context("invalid --limit")?)
             }
@@ -180,16 +178,42 @@ fn need(seen: &mut std::slice::Iter<String>, flag: &str) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("{flag} requires a value"))
 }
 
+fn auth(file: &Option<String>, vars: &BTreeMap<String, String>) -> Result<Auth> {
+    if let Some(file) = file.as_deref().filter(|held| !held.is_empty()) {
+        return Ok(Auth::File(file.to_string()));
+    }
+    if let Some(token) = vars.get("FORGEJO_TOKEN").filter(|held| !held.is_empty()) {
+        return Ok(Auth::Token(token.clone()));
+    }
+    if let Some(file) = vars
+        .get("FORGEJO_TOKEN_FILE")
+        .filter(|held| !held.is_empty())
+    {
+        return Ok(Auth::File(file.clone()));
+    }
+    bail!("@forgejo requires FORGEJO_TOKEN_FILE, FORGEJO_TOKEN, or --token-file")
+}
+
 fn deed(rest: &[String]) -> Result<Deed> {
     match rest {
         [kind, verb] if kind == "user" && verb == "show" => Ok(Deed::User),
         [kind, verb] if kind == "issue" && verb == "list" => Ok(Deed::List),
+        [kind, verb] if kind == "issue" && verb == "create" => Ok(Deed::Create),
         [kind, verb, id] if kind == "issue" && verb == "show" => Ok(Deed::Show(id.clone())),
-        _ => bail!("@forgejo expected user show, issue show <id>, or issue list"),
+        [kind, verb, id] if kind == "issue" && verb == "edit" => Ok(Deed::Edit(id.clone())),
+        [kind, verb, deed, id] if kind == "issue" && verb == "comment" && deed == "list" => {
+            Ok(Deed::Notes(id.clone()))
+        }
+        [kind, verb, deed, id] if kind == "issue" && verb == "comment" && deed == "create" => {
+            Ok(Deed::Comment(id.clone()))
+        }
+        _ => bail!(
+            "@forgejo expected user show, issue show <id>, issue list, issue create, issue edit <id>, issue comment list <id>, or issue comment create <id>"
+        ),
     }
 }
 
-fn secret(path: &str) -> Result<String> {
+fn load(path: &str) -> Result<String> {
     let held =
         fs::read_to_string(path).with_context(|| format!("unable to read token file {path}"))?;
     let token = held.trim();
@@ -203,7 +227,7 @@ fn host(url: &str) -> String {
     format!("{}/api/v1", url.trim_end_matches('/'))
 }
 
-fn pair(repo: &str) -> Result<(String, String)> {
+pub(crate) fn pair(repo: &str) -> Result<(String, String)> {
     let Some((owner, name)) = repo.split_once('/') else {
         bail!("repository must be owner/name: {repo}");
     };
