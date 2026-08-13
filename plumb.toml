@@ -8,8 +8,15 @@ targets = [
   "x86_64-apple-darwin",
   "x86_64-pc-windows-msvc",
 ]
+skill = true
 
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "6fed7e702a0e5ad662ab8b3675495471a504030cefd1550be76ff119d2a8a8b3" }]
-target-seal = "13811791cbd0fde50e95677d6e716621d74975a610e414b2974f3b13ee5a96a9"
+source = [{ path = ".", seal = "d09cc59c4f54a5ffd132d8a38b35743e72ac019416f510292596733f00651beb" }]
+target-seal = "a47425f32d77c9d4551e5934073ff9e77e70ea0e136b797d7b1ec0414ddfe104"
+
+[[document]]
+strategy = "brief"
+name = "runseal"
+source = [{ path = "app/src", seal = "3921dac94d8c01996f47a55b973a80dc8dbeda352eac16b6976749b0ee4ceaa2" }]
+target-seal = "d15f177c85b203785ced7f59e9c672f97214ba833f72778cc77f369d5b24e113"

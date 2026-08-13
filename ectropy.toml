@@ -7,7 +7,7 @@ syntax = "test"
 
 [[grant]]
 paths = [
-    "app/src/bin/runseal.rs",
+    "app/src/bin/runseal/**/*.rs",
     "app/tests/**/*.rs",
 ]
 syntax = "environment"
@@ -26,6 +26,7 @@ roots = [
     "app/src",
     "app/tests",
     "docs",
+    "skills/*",
 ]
 
 [scan]
@@ -35,6 +36,7 @@ include = [
     "app/src/**/*.rs",
     "app/tests/**/*.rs",
     "docs/**/*.md",
+    "skills/**/*.md",
 ]
 
 [vocabulary]
