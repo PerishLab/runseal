@@ -72,6 +72,18 @@ label list; get URL. One HTTP operation per invocation. Merge sends Forgejo `Do`
 `FORGEJO_TOKEN` from the resolved profile. `--url` and `--token-file`
 override. There is no login verb. Dialect is Forgejo 15.0.6.
 
+## Embed a native tool
+
+Rust consumers call the same operation surface without CLI rendering:
+
+```toml
+runseal = { version = "0", registry = "perish", default-features = false }
+```
+
+Call `runseal::tool::call("forgejo", argv, vars)` and consume its structured
+`Reply`. Keep `default-features = false` in a Plumb consumer so the optional
+managed-skill integration does not create a dependency cycle.
+
 ## Write a profile
 
 ```toml
