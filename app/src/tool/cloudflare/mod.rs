@@ -37,7 +37,7 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
             .line
             .flag("value-file")
             .context("@cloudflare token create and roll require --value-file")?;
-        Some(Reserved::open(path)?)
+        Some(Reserved::open(path, seat.deed.rolls())?)
     } else {
         None
     };

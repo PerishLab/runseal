@@ -16,10 +16,11 @@ use crate::tool::Reply;
 pub(super) struct Reserved {
     file: Option<File>,
     path: PathBuf,
+    rolls: bool,
 }
 
 impl Reserved {
-    pub fn open(path: &str) -> Result<Self> {
+    pub fn open(path: &str, rolls: bool) -> Result<Self> {
         let path = PathBuf::from(path);
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
@@ -31,14 +32,18 @@ impl Reserved {
         Ok(Self {
             file: Some(file),
             path,
+            rolls,
         })
     }
 
     pub fn commit(mut self, reply: &mut Reply) -> Result<()> {
-        let secret = reply
-            .secret()
-            .context("cloudflare did not return a token secret")?
-            .expose();
+        let Some(held) = reply.secret() else {
+            anyhow::bail!(
+                "cloudflare did not return a token secret; {}",
+                failure(reply, &self.path, self.rolls)
+            );
+        };
+        let secret = held.expose();
         let digest = format!("{:x}", Sha256::digest(secret.as_bytes()));
         let mut file = self.file.take().expect("reserved file is held");
         let written = file
@@ -47,7 +52,7 @@ impl Reserved {
             .and_then(|_| file.sync_all());
         if let Err(error) = written {
             let _ = std::fs::remove_file(&self.path);
-            return Err(error).with_context(|| failure(reply, &self.path));
+            return Err(error).with_context(|| failure(reply, &self.path, self.rolls));
         }
         enrich(&mut reply.value, &self.path, &digest);
         Ok(())
@@ -73,14 +78,20 @@ fn enrich(value: &mut Value, path: &Path, digest: &str) {
     object.insert("value_sha256".into(), Value::String(digest.to_string()));
 }
 
-fn failure(reply: &Reply, path: &Path) -> String {
+fn failure(reply: &Reply, path: &Path, rolls: bool) -> String {
     let id = reply
         .value
         .get("id")
         .and_then(Value::as_str)
         .unwrap_or("unknown");
+    if rolls {
+        return format!(
+            "cloudflare rolled token {id}, so its previous value is already dead and the new one reached nobody; roll it again at once. Nothing was written to {}",
+            path.display()
+        );
+    }
     format!(
-        "cloudflare created or rolled token {id}, but its secret could not be written to {}",
+        "cloudflare created token {id}, but its secret could not be written to {}; delete that token, it is unreachable",
         path.display()
     )
 }

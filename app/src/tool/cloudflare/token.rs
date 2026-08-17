@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 
 use super::{
     Seat,
-    api::Client,
+    api::{Client, Fault, Page},
     deed::{Action, Owner, Token},
 };
 use crate::{parse, tool::Reply};
@@ -27,31 +27,55 @@ pub(super) fn act(seat: &Seat, client: &Client, token: &Token) -> Result<Reply> 
             let body = seat.body()?;
             client.send("PUT", &format!("{stem}/{}", segment(id)), Some(&body))?
         }
-        Action::Roll(id) => {
-            let mut page = client.send(
+        Action::Roll(id) => rolled(
+            client.send(
                 "PUT",
                 &format!("{stem}/{}/value", segment(id)),
                 Some(&json!({})),
-            )?;
-            if let Some(object) = page.result.as_object_mut() {
-                object
-                    .entry("id")
-                    .or_insert_with(|| Value::String(id.clone()));
-            }
-            page
-        }
+            )?,
+            id,
+        ),
         Action::Drop(id) => client.send(
             "DELETE",
             &format!("{stem}/{}", segment(id)),
             Some(&json!({})),
         )?,
-        Action::Verify => client.send("GET", &format!("{stem}/verify"), None)?,
+        Action::Verify => client
+            .send("GET", &format!("{stem}/verify"), None)
+            .map_err(|error| crossed(error, token.owner))?,
         Action::Permissions => {
             let route = filters(&seat.line, &format!("{stem}/permission_groups"));
             client.send("GET", &route, None)?
         }
     };
     reply(token.label(), page.result)
+}
+
+fn rolled(mut page: Page, id: &str) -> Page {
+    if let Some(secret) = page.result.as_str().map(str::to_string) {
+        page.result = json!({"id": id, "value": secret});
+        return page;
+    }
+    if let Some(object) = page.result.as_object_mut() {
+        object
+            .entry("id")
+            .or_insert_with(|| Value::String(id.to_string()));
+    }
+    page
+}
+
+fn crossed(error: anyhow::Error, owner: Owner) -> anyhow::Error {
+    let denied = error
+        .downcast_ref::<Fault>()
+        .is_some_and(|fault| fault.status() == 401);
+    if !denied {
+        return error;
+    }
+    error.context(format!(
+        "verify answers only for the owner that holds the token, so a live {} token refuses here too; try token {} verify",
+        owner.other(),
+        owner.other()
+    ))
 }
 
 fn scope(seat: &Seat, owner: Owner) -> Result<String> {

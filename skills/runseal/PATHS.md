@@ -77,9 +77,11 @@ runseal :perish @cloudflare r2 bucket show BUCKET
 runseal :perish @cloudflare --help
 ```
 
-Token owners are explicit. Create and roll reserve a new mode-0600 value file;
-the secret never enters ordinary output. The tool also covers token lifecycle,
-Worker perception, and R2 bucket/custom-domain teardown.
+Token owners are explicit; each endpoint answers only for its own tokens, so
+`verify` refuses a live token of the other owner as it would a dead one. Create
+and roll reserve a new mode-0600 value file and the secret never enters output.
+Roll kills the previous value before that file is written, so a failed roll is a
+lost credential. The tool also covers Worker perception and R2 teardown.
 
 ## Embed a native tool
 
