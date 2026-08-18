@@ -48,9 +48,6 @@ an unfamiliar action.
 - A perish.code-owned CLI that cannot be isolated must be repaired at its own
   boundary. A capability that stops being atomic becomes a new product.
 - Runseal has no scripting runtime model.
-- Minting reads its credential from the seat, never a flag, because Forgejo
-  refuses to mint a token from a token. Which seat may mint is a profile
-  question, and a minted secret leaves through `--value-file`, never stdout.
 - Cascade precedence is defaults, then the selected TOML file, then typed
   `RUNSEAL_*` values, then explicit arguments when a field admits them.
   Runseal owns every profile field and name. Product code does not invent

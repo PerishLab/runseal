@@ -11,17 +11,16 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use super::Reply;
+use crate::tool::Reply;
 
-pub(crate) struct Reserved {
+pub(super) struct Reserved {
     file: Option<File>,
     path: PathBuf,
-    plane: &'static str,
     rolls: bool,
 }
 
 impl Reserved {
-    pub fn open(path: &str, plane: &'static str, rolls: bool) -> Result<Self> {
+    pub fn open(path: &str, rolls: bool) -> Result<Self> {
         let path = PathBuf::from(path);
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
@@ -33,7 +32,6 @@ impl Reserved {
         Ok(Self {
             file: Some(file),
             path,
-            plane,
             rolls,
         })
     }
@@ -41,9 +39,8 @@ impl Reserved {
     pub fn commit(mut self, reply: &mut Reply) -> Result<()> {
         let Some(held) = reply.secret() else {
             anyhow::bail!(
-                "{} did not return a token secret; {}",
-                self.plane,
-                failure(reply, &self.path, self.plane, self.rolls)
+                "cloudflare did not return a token secret; {}",
+                failure(reply, &self.path, self.rolls)
             );
         };
         let secret = held.expose();
@@ -55,7 +52,7 @@ impl Reserved {
             .and_then(|_| file.sync_all());
         if let Err(error) = written {
             let _ = std::fs::remove_file(&self.path);
-            return Err(error).with_context(|| failure(reply, &self.path, self.plane, self.rolls));
+            return Err(error).with_context(|| failure(reply, &self.path, self.rolls));
         }
         enrich(&mut reply.value, &self.path, &digest);
         Ok(())
@@ -81,7 +78,7 @@ fn enrich(value: &mut Value, path: &Path, digest: &str) {
     object.insert("value_sha256".into(), Value::String(digest.to_string()));
 }
 
-fn failure(reply: &Reply, path: &Path, plane: &'static str, rolls: bool) -> String {
+fn failure(reply: &Reply, path: &Path, rolls: bool) -> String {
     let id = reply
         .value
         .get("id")
@@ -89,12 +86,12 @@ fn failure(reply: &Reply, path: &Path, plane: &'static str, rolls: bool) -> Stri
         .unwrap_or("unknown");
     if rolls {
         return format!(
-            "{plane} rolled token {id}, so its previous value is already dead and the new one reached nobody; roll it again at once. Nothing was written to {}",
+            "cloudflare rolled token {id}, so its previous value is already dead and the new one reached nobody; roll it again at once. Nothing was written to {}",
             path.display()
         );
     }
     format!(
-        "{plane} created token {id}, but its secret could not be written to {}; delete that token, it is unreachable",
+        "cloudflare created token {id}, but its secret could not be written to {}; delete that token, it is unreachable",
         path.display()
     )
 }
