@@ -3,15 +3,15 @@ use std::{collections::BTreeMap, fs};
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
-use self::{api::Client, deed::Deed};
+use self::{api::Client, deed::Deed, secret::Reserved};
 use super::Reply;
 use crate::parse;
-use crate::tool::secret::Reserved;
 
 pub mod api;
 mod control;
 mod deed;
 mod help;
+mod secret;
 mod token;
 
 pub fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<Reply> {
@@ -37,7 +37,7 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
             .line
             .flag("value-file")
             .context("@cloudflare token create and roll require --value-file")?;
-        Some(Reserved::open(path, "cloudflare", seat.deed.rolls())?)
+        Some(Reserved::open(path, seat.deed.rolls())?)
     } else {
         None
     };
