@@ -7,6 +7,7 @@ use zeroize::Zeroize;
 
 pub mod cloudflare;
 pub mod forgejo;
+pub(crate) mod secret;
 
 #[derive(PartialEq)]
 pub struct Reply {

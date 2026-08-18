@@ -21,6 +21,7 @@ pub(super) enum Deed {
     Task(String),
     Review(Kind),
     Label,
+    Token(Kind),
     Fetch(String),
 }
 
@@ -81,6 +82,13 @@ pub(super) fn deed(rest: &[String]) -> Result<Deed> {
         [kind, verb] if kind == "repo" && verb == "delete" => {
             Ok(Deed::Repo(Kind::Drop(String::new())))
         }
+        [kind, verb] if kind == "token" && verb == "list" => Ok(Deed::Token(Kind::List)),
+        [kind, verb, id] if kind == "token" && verb == "create" => {
+            Ok(Deed::Token(Kind::Set(id.clone())))
+        }
+        [kind, verb, id] if kind == "token" && verb == "delete" => {
+            Ok(Deed::Token(Kind::Drop(id.clone())))
+        }
         [kind, verb] if kind == "secret" && verb == "list" => Ok(Deed::Secret(Kind::List)),
         [kind, verb, id] if kind == "secret" && verb == "set" => {
             Ok(Deed::Secret(Kind::Set(id.clone())))
@@ -128,6 +136,8 @@ pub(super) fn kind(deed: &Deed) -> &'static str {
         Deed::Task(_) => "tasks",
         Deed::Review(Kind::Show(_)) => "reviews",
         Deed::Review(_) => "review",
+        Deed::Token(Kind::List) => "tokens",
+        Deed::Token(_) => "token",
         Deed::Label => "labels",
         Deed::Fetch(_) => "value",
     }

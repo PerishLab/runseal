@@ -13,6 +13,7 @@ mod issue;
 mod job;
 mod pull;
 mod repo;
+mod token;
 
 use deed::{Deed, Kind, deed, kind};
 
@@ -33,7 +34,18 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
             _ => bail!("@forgejo --watch requires job log RUN JOB"),
         };
     }
-    let reply = seat.act()?;
+    let reserved = if matches!(deed, Deed::Token(Kind::Set(_))) {
+        let Some(path) = seat.line.flag("value-file") else {
+            bail!("@forgejo token create requires --value-file");
+        };
+        Some(crate::tool::secret::Reserved::open(path, "forgejo", false)?)
+    } else {
+        None
+    };
+    let mut reply = seat.act()?;
+    if let Some(reserved) = reserved {
+        reserved.commit(&mut reply)?;
+    }
     reply.emit(argv)
 }
 
@@ -41,6 +53,7 @@ struct Seat {
     line: parse::Line,
     base: String,
     auth: Option<String>,
+    user: Option<String>,
 }
 
 impl Seat {
@@ -51,6 +64,7 @@ impl Seat {
                 line,
                 base: String::new(),
                 auth: None,
+                user: None,
             });
         }
         let Some(url) = line
@@ -61,9 +75,16 @@ impl Seat {
         else {
             bail!("@forgejo requires FORGEJO_URL or --url");
         };
+        let minting = matches!(line.rest.first().map(String::as_str), Some("token"));
+        let auth = if minting {
+            token::password(&line, vars)?
+        } else {
+            token(&line, vars)?
+        };
         Ok(Self {
-            auth: Some(token(&line, vars)?),
+            auth: Some(auth),
             base: format!("{}/api/v1", url.trim_end_matches('/')),
+            user: vars.get("FORGEJO_USERNAME").cloned(),
             line,
         })
     }
@@ -74,6 +95,9 @@ impl Seat {
         }
         let deed = deed(&self.line.rest)?;
         let value = self.work(&deed)?;
+        if matches!(deed, Deed::Token(Kind::Set(_))) {
+            return Ok(token::guarded(kind(&deed), value));
+        }
         Ok(Reply::plain(kind(&deed), self.clip(value)))
     }
 
@@ -100,6 +124,9 @@ impl Seat {
             Deed::Repo(Kind::Show(_)) => self.home(),
             Deed::Repo(Kind::Edit(_)) => self.patched(),
             Deed::Repo(Kind::Drop(_)) => self.removed(),
+            Deed::Token(Kind::List) => self.roster(),
+            Deed::Token(Kind::Set(name)) => self.minted(name),
+            Deed::Token(Kind::Drop(id)) => self.revoked(id),
             Deed::Secret(Kind::List) => self.secrets(),
             Deed::Secret(Kind::Set(id)) => self.stored(id),
             Deed::Secret(Kind::Drop(id)) => self.cleared(id),

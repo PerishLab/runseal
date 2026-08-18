@@ -8,7 +8,7 @@ default = ["managed-skill"]
 managed-skill = ["dep:plumb"]
 
 [dependencies]
-plumb = { version = "0.18.27", registry = "perish", features = ["skill"], optional = true }
+plumb = { version = "0.26.0", registry = "perish", features = ["skill"], optional = true }
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }

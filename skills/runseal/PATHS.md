@@ -53,18 +53,15 @@ FORGEJO_TOKEN_FILE = "local://secrets/forgejo"
 
 ```bash
 runseal :perish @forgejo --json issue show 154
-runseal :perish @forgejo pull merge 71 --head SHA
-runseal :perish @forgejo task list <run-number>
 runseal :perish @forgejo job log <run-number> <job-index> --watch
+runseal :factory @forgejo token create NAME --scopes write:package --value-file PATH
 runseal :perish @forgejo --help
 ```
 
-`@forgejo --help` is the complete verb map. Lists page fully; `--watch` belongs
-only to `job log RUN JOB`. Merge sends Forgejo `Do` and `head_commit_id`.
-
-`@forgejo` reads `FORGEJO_URL` and either `FORGEJO_TOKEN_FILE` or
-`FORGEJO_TOKEN` from the resolved profile. `--url` and `--token-file`
-override. There is no login verb. Dialect is Forgejo 15.0.6.
+`@forgejo --help` is the complete verb map; `--watch` belongs only to
+`job log RUN JOB`. It reads `FORGEJO_URL` and `FORGEJO_TOKEN_FILE`, except
+`token` verbs, which read `FORGEJO_USERNAME` with `FORGEJO_PASSWORD_FILE`:
+a minting seat is a different seat. Dialect is Forgejo 15.0.6.
 
 Cloudflare seats provide `CLOUDFLARE_ACCOUNT_ID` plus
 `CLOUDFLARE_API_TOKEN_FILE` or `CLOUDFLARE_API_TOKEN`:
