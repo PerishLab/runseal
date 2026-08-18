@@ -6,6 +6,9 @@ Owners:
   account   Account-owned API tokens; requires --account or CLOUDFLARE_ACCOUNT_ID
   user      User-owned API tokens
 
+An owner endpoint answers only for the tokens it holds, so verify refuses a
+live token of the other owner with the same 401 it gives a dead one.
+
 Verbs:
   token OWNER list
   token OWNER show ID
@@ -28,7 +31,10 @@ Options:
   --account ID
   --token-file PATH
   --body-file PATH
-  --value-file PATH         Must not already exist; created mode 0600
+  --value-file PATH         Must not already exist; created mode 0600.
+                            roll invalidates the previous value before this
+                            file is written, so a failure here is unrecoverable
+                            except by rolling again.
   --direction asc|desc
   --include-expired true|false
   --limit COUNT

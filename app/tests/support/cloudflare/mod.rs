@@ -7,6 +7,7 @@ use super::support::{Seat, sequence, serve, text};
 use serde_json::{Value, json};
 
 mod control;
+mod roll;
 
 struct Case {
     args: Vec<&'static str>,
@@ -188,7 +189,7 @@ fn cases(owner: &str) -> Vec<Case> {
             args: vec!["roll", "token-id"],
             method: "PUT",
             route: format!("{stem}/token-id/value"),
-            result: json!({"value": "generated-secret"}),
+            result: json!("generated-secret"),
         },
         Case {
             args: vec!["delete", "token-id"],

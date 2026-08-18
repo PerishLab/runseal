@@ -6,6 +6,15 @@ pub(super) enum Owner {
     User,
 }
 
+impl Owner {
+    pub fn other(self) -> &'static str {
+        match self {
+            Self::Account => "user",
+            Self::User => "account",
+        }
+    }
+}
+
 pub(super) enum Action {
     List,
     Show(String),
@@ -50,6 +59,16 @@ impl Deed {
             self,
             Self::Token(Token {
                 kind: Action::Create | Action::Roll(_),
+                ..
+            })
+        )
+    }
+
+    pub fn rolls(&self) -> bool {
+        matches!(
+            self,
+            Self::Token(Token {
+                kind: Action::Roll(_),
                 ..
             })
         )

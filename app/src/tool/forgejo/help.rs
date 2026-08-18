@@ -33,6 +33,9 @@ Resource verbs:
   repo show
   repo edit --body JSON
   repo delete
+  token list
+  token create NAME --scopes S1,S2 --value-file PATH
+  token delete ID
   secret list
   secret set NAME --body VALUE
   secret delete NAME
