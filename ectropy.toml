@@ -19,14 +19,13 @@ fanout = 10
 file = 300
 markup = 8
 param = 4
-path = 4
+path = 3
 
 [module]
 roots = [
     ".runseal",
     "app/src",
     "app/tests",
-    "docs",
     "skills/*",
 ]
 
@@ -36,7 +35,6 @@ include = [
     ".runseal/**",
     "app/src/**/*.rs",
     "app/tests/**/*.rs",
-    "docs/**/*.md",
     "skills/**/*.md",
 ]
 
