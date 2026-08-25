@@ -1,3 +1,48 @@
+[layout]
+
+[[layout.seat]]
+path = "app"
+anchor = ["Cargo.toml"]
+note = "The Runseal Rust package."
+
+[[layout.seat]]
+path = "skills/*"
+anchor = ["SKILL.md"]
+note = "Published agent skill packages."
+
+[[layout.seat]]
+path = ".cargo"
+note = "Cargo registry configuration."
+
+[[layout.seat]]
+path = ".forgejo"
+note = "The canonical forge namespace."
+
+[[layout.seat]]
+path = ".runseal"
+note = "Committed inert Runseal resources."
+
+[[layout.seat]]
+path = ".plumb"
+note = "Plumb-owned affirmation records."
+
+[[layout.file]]
+name = ["AGENTS.md"]
+rule = ["rule://seat/affirmed"]
+note = "The repository entrypoint is affirmed against its governed faces."
+
+[[layout.file]]
+name = ["LICENSE", ".gitignore", ".gitattributes"]
+note = "Repository identity and Git policy."
+
+[[layout.file]]
+name = ["Cargo.toml", "Cargo.lock"]
+note = "Rust workspace anchors."
+
+[[layout.file]]
+name = ["plumb.toml", "ectropy.toml", "runseal.toml"]
+note = "Governance and isolated execution declarations."
+
 [release]
 product = "runseal"
 authority = "https://releases.runseal.perish.uk"
@@ -13,14 +58,3 @@ skill = true
 [release.cargo]
 registry = "perish"
 packages = ["runseal"]
-
-[[document]]
-strategy = "agent"
-source = [{ path = ".", seal = "4942cefba7fc618b5c894ecbc72d1b67fafa676c9339c167d857407eac515963" }]
-target-seal = "b64abb009e521cac4023b629d83ba2a15a1a20991971f809a0a62c390d5fa067"
-
-[[document]]
-strategy = "brief"
-name = "runseal"
-source = [{ path = "app/src", seal = "abfb717dfd88e970e66116cc218f55a4ff4f0e79460577361d2afd781ff1a93d" }]
-target-seal = "f2ad0f722f877476977fc402ff3f7d2c97538a3335e988ef2e54aa26716c80c6"
