@@ -75,6 +75,7 @@ pub(super) fn deed(rest: &[String]) -> Result<Deed> {
         [kind, verb] if kind == "repo" && verb == "show" => {
             Ok(Deed::Repo(Kind::Show(String::new())))
         }
+        [kind, verb] if kind == "repo" && verb == "create" => Ok(Deed::Repo(Kind::Create)),
         [kind, verb] if kind == "repo" && verb == "edit" => {
             Ok(Deed::Repo(Kind::Edit(String::new())))
         }

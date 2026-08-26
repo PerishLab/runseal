@@ -9,6 +9,28 @@ impl Seat {
         self.send("GET", &format!("{}/repos/{owner}/{name}", self.base), None)
     }
 
+    pub(super) fn provisioned(&self) -> Result<Value> {
+        let Some(raw) = self.flag("body").filter(|held| !held.is_empty()) else {
+            bail!("@forgejo repo create requires --body");
+        };
+        let mut body: Value = serde_json::from_str(raw).context("invalid --body")?;
+        let Some(fields) = body.as_object_mut() else {
+            bail!("@forgejo repo create --body must be a JSON object");
+        };
+        let (owner, name) = super::pair(&self.repo()?)?;
+        if let Some(held) = fields.get("name")
+            && held.as_str() != Some(&name)
+        {
+            bail!("@forgejo repo create --body name must match --repo");
+        }
+        fields.insert("name".into(), Value::String(name));
+        self.send(
+            "POST",
+            &format!("{}/orgs/{}/repos", self.base, super::quote(&owner)),
+            Some(&body),
+        )
+    }
+
     pub(super) fn patched(&self) -> Result<Value> {
         let Some(raw) = self.flag("body").filter(|held| !held.is_empty()) else {
             bail!("@forgejo repo edit requires --body");

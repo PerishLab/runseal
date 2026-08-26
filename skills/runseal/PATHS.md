@@ -53,6 +53,7 @@ FORGEJO_TOKEN_FILE = "local://secrets/forgejo"
 
 ```bash
 runseal :perish @forgejo --json issue show 154
+runseal :perish @forgejo --repo PerishLab/portfolio repo create --body '{"private":false}'
 runseal :perish @forgejo pull merge 71 --head SHA
 runseal :perish @forgejo task list <run-number>
 runseal :perish @forgejo job log <run-number> <job-index> --watch
@@ -60,7 +61,10 @@ runseal :perish @forgejo --help
 ```
 
 `@forgejo --help` is the complete verb map. Lists page fully; `--watch` belongs
-only to `job log RUN JOB`. Merge sends Forgejo `Do` and `head_commit_id`.
+only to `job log RUN JOB`. Repository creation is organization-scoped;
+`--repo OWNER/NAME` supplies both the organization and the name while `--body`
+supplies Forgejo's other creation fields. Merge sends Forgejo `Do` and
+`head_commit_id`.
 
 `@forgejo` reads `FORGEJO_URL` and either `FORGEJO_TOKEN_FILE` or
 `FORGEJO_TOKEN` from the resolved profile. `--url` and `--token-file`
