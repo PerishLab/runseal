@@ -97,11 +97,7 @@ fn drain(stream: &mut std::net::TcpStream) -> String {
             break;
         }
     }
-    String::from_utf8_lossy(&buf)
-        .lines()
-        .next()
-        .unwrap_or("")
-        .to_string()
+    String::from_utf8_lossy(&buf).to_string()
 }
 
 fn length(head: &[u8]) -> usize {

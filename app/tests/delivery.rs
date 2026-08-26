@@ -279,6 +279,7 @@ fn help() {
     assert!(output.status.success(), "{}", text(&output.stderr));
     let shown = text(&output.stdout);
     assert!(shown.contains("RESOURCE VERB"), "{shown}");
+    assert!(shown.contains("repo create"), "{shown}");
     assert!(shown.contains("task list"), "{shown}");
 }
 

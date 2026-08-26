@@ -31,6 +31,7 @@ Resource verbs:
   protection create --body JSON
   protection edit NAME --body JSON
   repo show
+  repo create --body JSON
   repo edit --body JSON
   repo delete
   secret list

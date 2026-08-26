@@ -200,3 +200,51 @@ fn fetch() {
     assert!(stdout.contains(r#""version":1"#) || stdout.contains(r#""version": 1"#));
     assert!(stdout.contains(r#""ok":true"#) || stdout.contains(r#""ok": true"#));
 }
+
+#[test]
+fn creates() {
+    let (url, handle) = serve("201 Created", r#"{"name":"portfolio"}"#, 1);
+    let seat = Seat::new();
+    seat.write(&url);
+    let output = seat.run(&[
+        ":perish",
+        "@forgejo",
+        "--repo",
+        "PerishLab/portfolio",
+        "repo",
+        "create",
+        "--body",
+        r#"{"private":false}"#,
+    ]);
+    let seen = handle.join().expect("server");
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    assert!(
+        seen[0].starts_with("POST /api/v1/orgs/PerishLab/repos "),
+        "{}",
+        seen[0]
+    );
+    assert!(seen[0].contains(r#""name":"portfolio""#), "{}", seen[0]);
+    assert!(seen[0].contains(r#""private":false"#), "{}", seen[0]);
+}
+
+#[test]
+fn mismatch() {
+    let seat = Seat::new();
+    seat.write("http://127.0.0.1:1");
+    let output = seat.run(&[
+        ":perish",
+        "@forgejo",
+        "--repo",
+        "PerishLab/portfolio",
+        "repo",
+        "create",
+        "--body",
+        r#"{"name":"another"}"#,
+    ]);
+    assert!(!output.status.success());
+    assert!(
+        text(&output.stderr).contains("name must match --repo"),
+        "{}",
+        text(&output.stderr)
+    );
+}

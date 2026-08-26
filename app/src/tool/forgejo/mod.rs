@@ -110,6 +110,7 @@ impl Seat {
             Deed::Guard(Kind::Create) => self.shield(),
             Deed::Guard(Kind::Edit(id)) => self.ruled(id),
             Deed::Repo(Kind::Show(_)) => self.home(),
+            Deed::Repo(Kind::Create) => self.provisioned(),
             Deed::Repo(Kind::Edit(_)) => self.patched(),
             Deed::Repo(Kind::Drop(_)) => self.removed(),
             Deed::Secret(Kind::List) => self.secrets(),
