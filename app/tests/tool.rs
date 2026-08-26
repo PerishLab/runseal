@@ -187,3 +187,26 @@ fn injection() {
     .expect_err("refusal");
     assert!(error.to_string().contains("simple token"));
 }
+
+#[test]
+fn authority() {
+    let (url, handle) = serve(
+        "200 OK",
+        r#"[{"id":42,"name":"plumb-release-registry-v1","scopes":["public-only","read:user","write:package"],"token_last_eight":"12345678"}]"#,
+        1,
+    );
+    let environment = BTreeMap::from([
+        ("FORGEJO_URL".into(), url),
+        ("FORGEJO_TOKEN".into(), "secret-token".into()),
+    ]);
+    let reply = runseal::tool::call(
+        "forgejo",
+        &words(&["admin", "token", "list", "PerishFire"]),
+        &environment,
+    )
+    .expect("token list");
+    let seen = handle.join().expect("server");
+    assert_eq!(reply.kind, "tokens");
+    assert_eq!(reply.value[0]["id"], 42);
+    assert!(seen[0].starts_with("GET /api/v1/users/PerishFire/tokens?limit=50&page=1 "));
+}

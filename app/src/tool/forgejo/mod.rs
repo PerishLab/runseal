@@ -182,6 +182,14 @@ impl Seat {
     fn flag(&self, name: &str) -> Option<&str> {
         self.line.flag(name)
     }
+
+    fn authority(&self, account: &str) -> Result<Value> {
+        self.pages(&format!(
+            "{}/users/{}/tokens?limit=50",
+            self.base,
+            quote(account)
+        ))
+    }
 }
 
 fn token(line: &parse::Line, vars: &BTreeMap<String, String>) -> Result<String> {

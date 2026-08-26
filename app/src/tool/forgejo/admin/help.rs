@@ -3,6 +3,7 @@ pub(super) const TEXT: &str = r#"@forgejo admin — one Forgejo server authority
 Usage: runseal :PROFILE @forgejo [--json] admin RESOURCE VERB ...
 
 Resource verbs:
+  token list ACCOUNT
   token create ACCOUNT NAME --scopes SCOPE[,SCOPE...]
   token delete ACCOUNT NAME ID
 
