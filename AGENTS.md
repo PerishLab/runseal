@@ -34,6 +34,9 @@ wrapper or scripting runtime.
   CLI rendering remains outside the operation result.
 - `runseal::tool::cloudflare::invoke`: Cloudflare entry that also accepts an
   in-memory request body and returns token values through a redacted secret.
+- `runseal::tool::forgejo::admin`: two atomic Forgejo access-token issuer/store
+  operations. Profile environment owns the private Kubernetes projection;
+  callers own desired token identity and verify provider state over HTTP.
 - The library core compiles with `default-features = false` and carries no
   Plumb edge. The default `managed-skill` feature owns the optional Plumb skill
   integration used by the binary.

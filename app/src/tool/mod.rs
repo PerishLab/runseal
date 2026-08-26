@@ -82,6 +82,7 @@ pub fn call(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Res
     match name {
         "cloudflare" => cloudflare::call(argv, vars),
         "forgejo" => forgejo::call(argv, vars),
+        "forgejo-admin" => forgejo::admin::call(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }
@@ -90,6 +91,7 @@ pub fn run(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Resu
     match name {
         "cloudflare" => cloudflare::run(argv, vars),
         "forgejo" => forgejo::run(argv, vars),
+        "forgejo-admin" => forgejo::admin::run(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }

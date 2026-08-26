@@ -16,6 +16,8 @@ mod repo;
 
 use deed::{Deed, Kind, deed, kind};
 
+pub mod admin;
+
 pub fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<Reply> {
     Seat::open(argv, vars)?.act()
 }

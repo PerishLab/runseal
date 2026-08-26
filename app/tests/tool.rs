@@ -2,6 +2,10 @@
 mod cloudflare;
 mod support;
 
+use std::collections::BTreeMap;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt as _;
 use support::{Seat, serve, text};
 
 #[test]
@@ -96,4 +100,81 @@ fn token() {
     handle.join().expect("server");
     assert!(output.status.success(), "{}", text(&output.stderr));
     assert_eq!(text(&output.stdout).trim(), "perish");
+}
+
+fn projection(path: &str) -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("PATH".into(), path.into()),
+        ("RUNSEAL_FORGEJO_ISSUER_NAMESPACE".into(), "forge".into()),
+        (
+            "RUNSEAL_FORGEJO_ISSUER_WORKLOAD".into(),
+            "deployment/forgejo".into(),
+        ),
+        ("RUNSEAL_FORGEJO_ISSUER_CONTAINER".into(), "forgejo".into()),
+        ("RUNSEAL_FORGEJO_STORE_NAMESPACE".into(), "data".into()),
+        ("RUNSEAL_FORGEJO_STORE_POD".into(), "postgres-0".into()),
+        ("RUNSEAL_FORGEJO_STORE_DATABASE".into(), "forgejo".into()),
+        ("RUNSEAL_FORGEJO_STORE_USER".into(), "forgejo".into()),
+    ])
+}
+
+fn words(values: &[&str]) -> Vec<String> {
+    values.iter().map(|value| value.to_string()).collect()
+}
+
+#[test]
+#[cfg(unix)]
+fn issuer() {
+    let fixture = tempfile::tempdir().expect("fixture");
+    let command = fixture.path().join("kubectl");
+    std::fs::write(
+        &command,
+        "#!/bin/sh\ncase \"$*\" in *generate-access-token*) printf '0123456789secret\\n' ;; *psql*) printf '1\\n' ;; *) exit 9 ;; esac\n",
+    )
+    .expect("fake kubectl");
+    std::fs::set_permissions(&command, std::fs::Permissions::from_mode(0o700)).expect("executable");
+    let environment = projection(fixture.path().to_str().expect("path"));
+
+    let create = runseal::tool::call(
+        "forgejo-admin",
+        &words(&[
+            "token",
+            "create",
+            "PerishFire",
+            "plumb-release-registry-v1",
+            "--scopes",
+            "public-only,read:user,write:package",
+        ]),
+        &environment,
+    )
+    .expect("create");
+    assert_eq!(
+        create.secret().map(runseal::tool::Secret::expose),
+        Some("0123456789secret")
+    );
+
+    let drop = runseal::tool::call(
+        "forgejo-admin",
+        &words(&[
+            "token",
+            "delete",
+            "PerishFire",
+            "plumb-release-registry-v1",
+            "42",
+        ]),
+        &environment,
+    )
+    .expect("drop");
+    assert_eq!(drop.value["revoked"], true);
+}
+
+#[test]
+fn injection() {
+    let error = runseal::tool::call(
+        "forgejo-admin",
+        &words(&["token", "delete", "PerishFire", "name';delete", "42"]),
+        &projection("/unavailable"),
+    )
+    .expect_err("refusal");
+    assert!(error.to_string().contains("simple token"));
 }
