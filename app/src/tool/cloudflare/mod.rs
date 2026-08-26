@@ -109,7 +109,7 @@ impl Seat {
         let path = self
             .line
             .flag("body-file")
-            .context("@cloudflare token create and edit require --body-file")?;
+            .context("@cloudflare operation requires --body-file")?;
         api::object(path)
     }
 }

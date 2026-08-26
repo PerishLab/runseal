@@ -14,6 +14,7 @@ struct Case {
     args: &'static [&'static str],
     method: &'static str,
     route: &'static str,
+    body: Option<&'static str>,
 }
 
 #[test]
@@ -23,21 +24,50 @@ fn surface() {
             args: &["worker", "service", "show", "site"],
             method: "GET",
             route: "/client/v4/accounts/account-id/workers/services/site",
+            body: None,
         },
         Case {
             args: &["worker", "domain", "list"],
             method: "GET",
             route: "/client/v4/accounts/account-id/workers/domains",
+            body: None,
         },
         Case {
             args: &["r2", "bucket", "show", "archive"],
             method: "GET",
             route: "/client/v4/accounts/account-id/r2/buckets/archive",
+            body: None,
+        },
+        Case {
+            args: &["r2", "bucket", "create", "archive"],
+            method: "POST",
+            route: "/client/v4/accounts/account-id/r2/buckets",
+            body: Some(r#"{"name":"archive"}"#),
         },
         Case {
             args: &["r2", "bucket", "domain", "list", "archive"],
             method: "GET",
             route: "/client/v4/accounts/account-id/r2/buckets/archive/domains/custom",
+            body: None,
+        },
+        Case {
+            args: &["r2", "bucket", "domain", "create", "archive"],
+            method: "POST",
+            route: "/client/v4/accounts/account-id/r2/buckets/archive/domains/custom",
+            body: Some(r#"{"domain":"assets.example.com","enabled":true,"zoneId":"zone"}"#),
+        },
+        Case {
+            args: &[
+                "r2",
+                "bucket",
+                "domain",
+                "edit",
+                "archive",
+                "assets.example.com",
+            ],
+            method: "PUT",
+            route: "/client/v4/accounts/account-id/r2/buckets/archive/domains/custom/assets.example.com",
+            body: Some(r#"{"domain":"assets.example.com","enabled":true,"zoneId":"zone"}"#),
         },
         Case {
             args: &[
@@ -50,15 +80,51 @@ fn surface() {
             ],
             method: "DELETE",
             route: "/client/v4/accounts/account-id/r2/buckets/archive/domains/custom/assets.example.com",
+            body: None,
         },
         Case {
             args: &["r2", "bucket", "delete", "archive"],
             method: "DELETE",
             route: "/client/v4/accounts/account-id/r2/buckets/archive",
+            body: None,
         },
     ];
     for case in cases {
         check(case);
+    }
+}
+
+#[test]
+fn writes() {
+    let cases = [
+        (
+            &["r2", "bucket", "create", "archive"][..],
+            r#"{"name":"archive"}"#,
+            None,
+        ),
+        (
+            &["r2", "bucket", "domain", "create", "archive"][..],
+            r#"{"domain":"assets.example.com","enabled":true,"zoneId":"zone"}"#,
+            Some(r#"{"domain":"assets.example.com","enabled":true,"zoneId":"zone"}"#),
+        ),
+        (
+            &[
+                "r2",
+                "bucket",
+                "domain",
+                "edit",
+                "archive",
+                "assets.example.com",
+            ][..],
+            r#"{"enabled":true,"minTLS":"1.2"}"#,
+            Some(r#"{"enabled":true,"minTLS":"1.2"}"#),
+        ),
+    ];
+    for (args, expected, input) in cases {
+        let (url, handle) = request(expected);
+        let body = input.map(|value| serde_json::from_str(value).expect("fixture body"));
+        runseal::tool::cloudflare::invoke(&words(args), &vars(&url), body).expect("operation");
+        assert!(handle.join().expect("server"));
     }
 }
 
@@ -111,10 +177,50 @@ fn retry() {
 fn check(case: Case) {
     let body = envelope(json!({}), serde_json::Value::Null);
     let (url, handle) = serve("200 OK", &body, 1);
-    runseal::tool::call("cloudflare", &words(case.args), &vars(&url)).expect("operation");
+    let input = case
+        .body
+        .map(|body| serde_json::from_str(body).expect("fixture body"));
+    runseal::tool::cloudflare::invoke(&words(case.args), &vars(&url), input).expect("operation");
     let seen = handle.join().expect("server");
     let expected = format!("{} {} ", case.method, case.route);
     assert!(seen[0].starts_with(&expected), "{}", seen[0]);
+}
+
+fn request(expected: &'static str) -> (String, thread::JoinHandle<bool>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let addr = listener.local_addr().expect("address");
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept");
+        let mut request = Vec::new();
+        let mut chunk = [0u8; 1024];
+        loop {
+            let count = stream.read(&mut chunk).expect("request");
+            request.extend_from_slice(&chunk[..count]);
+            let Some(head) = request.windows(4).position(|held| held == b"\r\n\r\n") else {
+                continue;
+            };
+            let length = String::from_utf8_lossy(&request[..head])
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+            if request.len() >= head + 4 + length {
+                break;
+            }
+        }
+        let body = envelope(json!({}), serde_json::Value::Null);
+        let reply = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        stream.write_all(reply.as_bytes()).expect("reply");
+        String::from_utf8_lossy(&request).contains(expected)
+    });
+    (format!("http://{addr}"), handle)
 }
 
 fn gate() -> (String, thread::JoinHandle<bool>) {

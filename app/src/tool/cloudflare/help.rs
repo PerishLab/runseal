@@ -21,7 +21,10 @@ Verbs:
   worker service show NAME
   worker domain list
   r2 bucket show NAME
+  r2 bucket create NAME
   r2 bucket domain list NAME
+  r2 bucket domain create NAME --body-file PATH
+  r2 bucket domain edit NAME DOMAIN --body-file PATH
   r2 bucket domain delete NAME DOMAIN
   r2 bucket delete NAME
 

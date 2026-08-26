@@ -35,7 +35,10 @@ pub(super) enum Control {
     Worker(String),
     Domains,
     Bucket(String),
+    Create(String),
     Custom(String),
+    Attach(String),
+    Normalize { bucket: String, domain: String },
     Detach { bucket: String, domain: String },
     Drop(String),
 }
@@ -118,7 +121,13 @@ fn control(args: &[String]) -> Result<Control> {
         ["worker", "service", "show", name] => Ok(Control::Worker((*name).into())),
         ["worker", "domain", "list"] => Ok(Control::Domains),
         ["r2", "bucket", "show", name] => Ok(Control::Bucket((*name).into())),
+        ["r2", "bucket", "create", name] => Ok(Control::Create((*name).into())),
         ["r2", "bucket", "domain", "list", name] => Ok(Control::Custom((*name).into())),
+        ["r2", "bucket", "domain", "create", name] => Ok(Control::Attach((*name).into())),
+        ["r2", "bucket", "domain", "edit", name, hostname] => Ok(Control::Normalize {
+            bucket: (*name).into(),
+            domain: (*hostname).into(),
+        }),
         ["r2", "bucket", "domain", "delete", name, hostname] => Ok(Control::Detach {
             bucket: (*name).into(),
             domain: (*hostname).into(),
