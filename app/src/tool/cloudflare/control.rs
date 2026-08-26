@@ -1,43 +1,50 @@
 use anyhow::Result;
 
-use super::{Seat, api::Client, deed::Control, token::segment};
+use super::{
+    Seat,
+    api::Client,
+    deed::{Bucket, Control, Domain, Worker},
+    token::segment,
+};
 use crate::tool::Reply;
 
 pub(super) fn act(seat: &Seat, client: &Client, deed: &Control) -> Result<Reply> {
     let account = seat.account()?;
     let (method, route, kind, body) = match deed {
-        Control::Worker(name) => (
+        Control::Worker(Worker::Service(name)) => (
             "GET",
             format!("{account}/workers/services/{}", segment(name)),
             "worker",
             None,
         ),
-        Control::Domains => ("GET", format!("{account}/workers/domains"), "domains", None),
-        Control::Bucket(name) => (
+        Control::Worker(Worker::Domains) => {
+            ("GET", format!("{account}/workers/domains"), "domains", None)
+        }
+        Control::Bucket(Bucket::Show(name)) => (
             "GET",
             format!("{account}/r2/buckets/{}", segment(name)),
             "bucket",
             None,
         ),
-        Control::Create(name) => (
+        Control::Bucket(Bucket::Create(name)) => (
             "POST",
             format!("{account}/r2/buckets"),
             "bucket",
             Some(serde_json::json!({ "name": name })),
         ),
-        Control::Custom(name) => (
+        Control::Bucket(Bucket::Domain(Domain::List(name))) => (
             "GET",
             format!("{account}/r2/buckets/{}/domains/custom", segment(name)),
             "domains",
             None,
         ),
-        Control::Attach(name) => (
+        Control::Bucket(Bucket::Domain(Domain::Create(name))) => (
             "POST",
             format!("{account}/r2/buckets/{}/domains/custom", segment(name)),
             "domain",
             Some(seat.body()?),
         ),
-        Control::Normalize { bucket, domain } => (
+        Control::Bucket(Bucket::Domain(Domain::Edit { bucket, domain })) => (
             "PUT",
             format!(
                 "{account}/r2/buckets/{}/domains/custom/{}",
@@ -47,7 +54,7 @@ pub(super) fn act(seat: &Seat, client: &Client, deed: &Control) -> Result<Reply>
             "domain",
             Some(seat.body()?),
         ),
-        Control::Detach { bucket, domain } => (
+        Control::Bucket(Bucket::Domain(Domain::Drop { bucket, domain })) => (
             "DELETE",
             format!(
                 "{account}/r2/buckets/{}/domains/custom/{}",
@@ -57,7 +64,7 @@ pub(super) fn act(seat: &Seat, client: &Client, deed: &Control) -> Result<Reply>
             "domain",
             None,
         ),
-        Control::Drop(name) => (
+        Control::Bucket(Bucket::Drop(name)) => (
             "DELETE",
             format!("{account}/r2/buckets/{}", segment(name)),
             "bucket",
