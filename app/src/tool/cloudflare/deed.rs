@@ -32,15 +32,27 @@ pub(super) struct Token {
 }
 
 pub(super) enum Control {
-    Worker(String),
+    Worker(Worker),
+    Bucket(Bucket),
+}
+
+pub(super) enum Worker {
+    Service(String),
     Domains,
-    Bucket(String),
+}
+
+pub(super) enum Bucket {
+    Show(String),
     Create(String),
-    Custom(String),
-    Attach(String),
-    Normalize { bucket: String, domain: String },
-    Detach { bucket: String, domain: String },
+    Domain(Domain),
     Drop(String),
+}
+
+pub(super) enum Domain {
+    List(String),
+    Create(String),
+    Edit { bucket: String, domain: String },
+    Drop { bucket: String, domain: String },
 }
 
 pub(super) enum Deed {
@@ -118,21 +130,29 @@ fn token(args: &[String]) -> Result<Token> {
 fn control(args: &[String]) -> Result<Control> {
     let line = args.iter().map(String::as_str).collect::<Vec<_>>();
     match line.as_slice() {
-        ["worker", "service", "show", name] => Ok(Control::Worker((*name).into())),
-        ["worker", "domain", "list"] => Ok(Control::Domains),
-        ["r2", "bucket", "show", name] => Ok(Control::Bucket((*name).into())),
-        ["r2", "bucket", "create", name] => Ok(Control::Create((*name).into())),
-        ["r2", "bucket", "domain", "list", name] => Ok(Control::Custom((*name).into())),
-        ["r2", "bucket", "domain", "create", name] => Ok(Control::Attach((*name).into())),
-        ["r2", "bucket", "domain", "edit", name, hostname] => Ok(Control::Normalize {
-            bucket: (*name).into(),
-            domain: (*hostname).into(),
-        }),
-        ["r2", "bucket", "domain", "delete", name, hostname] => Ok(Control::Detach {
-            bucket: (*name).into(),
-            domain: (*hostname).into(),
-        }),
-        ["r2", "bucket", "delete", name] => Ok(Control::Drop((*name).into())),
+        ["worker", "service", "show", name] => Ok(Control::Worker(Worker::Service((*name).into()))),
+        ["worker", "domain", "list"] => Ok(Control::Worker(Worker::Domains)),
+        ["r2", "bucket", "show", name] => Ok(Control::Bucket(Bucket::Show((*name).into()))),
+        ["r2", "bucket", "create", name] => Ok(Control::Bucket(Bucket::Create((*name).into()))),
+        ["r2", "bucket", "domain", "list", name] => Ok(Control::Bucket(Bucket::Domain(
+            Domain::List((*name).into()),
+        ))),
+        ["r2", "bucket", "domain", "create", name] => Ok(Control::Bucket(Bucket::Domain(
+            Domain::Create((*name).into()),
+        ))),
+        ["r2", "bucket", "domain", "edit", name, hostname] => {
+            Ok(Control::Bucket(Bucket::Domain(Domain::Edit {
+                bucket: (*name).into(),
+                domain: (*hostname).into(),
+            })))
+        }
+        ["r2", "bucket", "domain", "delete", name, hostname] => {
+            Ok(Control::Bucket(Bucket::Domain(Domain::Drop {
+                bucket: (*name).into(),
+                domain: (*hostname).into(),
+            })))
+        }
+        ["r2", "bucket", "delete", name] => Ok(Control::Bucket(Bucket::Drop((*name).into()))),
         _ => bail!("@cloudflare expected a known worker or r2 resource verb"),
     }
 }
