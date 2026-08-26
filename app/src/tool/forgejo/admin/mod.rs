@@ -12,7 +12,7 @@ use super::Reply;
 use crate::parse;
 
 pub fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<Reply> {
-    Seat::open(argv, vars)?.act("kubectl")
+    Seat::open(argv, vars)?.act("kubectl", argv)
 }
 
 pub(super) fn selected(argv: &[String]) -> Result<bool> {
@@ -48,8 +48,12 @@ impl<'a> Seat<'a> {
         Ok(Self { deed, vars })
     }
 
-    fn act(&self, command: &str) -> Result<Reply> {
+    fn act(&self, command: &str, argv: &[String]) -> Result<Reply> {
         match &self.deed {
+            Deed::Admin(Admin::Token(Token::List { account })) => {
+                let value = super::Seat::open(argv, self.vars)?.authority(account)?;
+                Ok(Reply::plain("tokens", value))
+            }
             Deed::Admin(Admin::Token(Token::Create {
                 account,
                 name,

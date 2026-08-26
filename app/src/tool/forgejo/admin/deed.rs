@@ -9,6 +9,9 @@ pub(super) enum Admin {
 }
 
 pub(super) enum Token {
+    List {
+        account: String,
+    },
     Create {
         account: String,
         name: String,
@@ -24,6 +27,14 @@ pub(super) enum Token {
 impl Deed {
     pub(super) fn take(rest: &[String], scopes: Option<&str>) -> Result<Self> {
         let deed = match rest {
+            [admin, resource, verb, account]
+                if admin == "admin" && resource == "token" && verb == "list" =>
+            {
+                validate(account, "account")?;
+                Token::List {
+                    account: account.clone(),
+                }
+            }
             [admin, resource, verb, account, name]
                 if admin == "admin" && resource == "token" && verb == "create" =>
             {
@@ -64,7 +75,7 @@ impl Deed {
                 }
             }
             _ => bail!(
-                "@forgejo admin expected token create ACCOUNT NAME --scopes LIST or token delete ACCOUNT NAME ID"
+                "@forgejo admin expected token list ACCOUNT, token create ACCOUNT NAME --scopes LIST, or token delete ACCOUNT NAME ID"
             ),
         };
         Ok(Self::Admin(Admin::Token(deed)))
