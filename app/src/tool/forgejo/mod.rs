@@ -19,13 +19,23 @@ use deed::{Deed, Kind, deed, kind};
 pub mod admin;
 
 pub fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<Reply> {
+    if admin::selected(argv)? {
+        return admin::call(argv, vars);
+    }
     Seat::open(argv, vars)?.act()
 }
 
 pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
     if argv.iter().any(|arg| arg == "--help") {
-        print!("{}", help::TEXT);
+        if argv.iter().any(|arg| arg == "admin") {
+            admin::help();
+        } else {
+            print!("{}", help::TEXT);
+        }
         return Ok(());
+    }
+    if admin::selected(argv)? {
+        return admin::run(argv, vars);
     }
     let seat = Seat::open(argv, vars)?;
     let deed = deed(&seat.line.rest)?;

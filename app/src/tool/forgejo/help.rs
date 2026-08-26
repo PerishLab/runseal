@@ -36,6 +36,8 @@ Resource verbs:
   secret list
   secret set NAME --body VALUE
   secret delete NAME
+  admin token create ACCOUNT NAME --scopes SCOPE[,SCOPE...]
+  admin token delete ACCOUNT NAME ID
   workflow dispatch FILE --ref REF [--inputs JSON]
   run show ID
   job list RUN

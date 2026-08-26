@@ -1,6 +1,10 @@
 use anyhow::{Result, bail};
 
 pub(super) enum Deed {
+    Admin(Admin),
+}
+
+pub(super) enum Admin {
     Token(Token),
 }
 
@@ -20,10 +24,12 @@ pub(super) enum Token {
 impl Deed {
     pub(super) fn take(rest: &[String], scopes: Option<&str>) -> Result<Self> {
         let deed = match rest {
-            [resource, verb, account, name] if resource == "token" && verb == "create" => {
+            [admin, resource, verb, account, name]
+                if admin == "admin" && resource == "token" && verb == "create" =>
+            {
                 let scopes = scopes
                     .ok_or_else(|| {
-                        anyhow::anyhow!("@forgejo-admin token create requires --scopes")
+                        anyhow::anyhow!("@forgejo admin token create requires --scopes")
                     })?
                     .split(',')
                     .map(str::to_string)
@@ -31,7 +37,7 @@ impl Deed {
                 validate(account, "account")?;
                 validate(name, "token name")?;
                 if scopes.is_empty() {
-                    bail!("@forgejo-admin --scopes cannot be empty");
+                    bail!("@forgejo admin --scopes cannot be empty");
                 }
                 for scope in &scopes {
                     validate(scope, "scope")?;
@@ -42,12 +48,14 @@ impl Deed {
                     scopes,
                 }
             }
-            [resource, verb, account, name, id] if resource == "token" && verb == "delete" => {
+            [admin, resource, verb, account, name, id]
+                if admin == "admin" && resource == "token" && verb == "delete" =>
+            {
                 validate(account, "account")?;
                 validate(name, "token name")?;
                 let id =
                     id.parse::<u64>().ok().filter(|id| *id > 0).ok_or_else(|| {
-                        anyhow::anyhow!("@forgejo-admin token ID must be positive")
+                        anyhow::anyhow!("@forgejo admin token ID must be positive")
                     })?;
                 Token::Drop {
                     account: account.clone(),
@@ -56,10 +64,10 @@ impl Deed {
                 }
             }
             _ => bail!(
-                "@forgejo-admin expected token create ACCOUNT NAME --scopes LIST or token delete ACCOUNT NAME ID"
+                "@forgejo admin expected token create ACCOUNT NAME --scopes LIST or token delete ACCOUNT NAME ID"
             ),
         };
-        Ok(Self::Token(deed))
+        Ok(Self::Admin(Admin::Token(deed)))
     }
 }
 
@@ -69,7 +77,7 @@ fn validate(value: &str, label: &str) -> Result<()> {
             .chars()
             .any(|character| !character.is_ascii_alphanumeric() && !"._:-".contains(character));
     if invalid {
-        bail!("@forgejo-admin {label} must be one simple token");
+        bail!("@forgejo admin {label} must be one simple token");
     }
     Ok(())
 }
