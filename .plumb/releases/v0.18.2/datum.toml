@@ -1,0 +1,7 @@
+schema = 1
+version = "v0.18.2"
+
+[[answer]]
+ecosystem = "cargo"
+name = "plumb"
+latest = "0.34.0"
