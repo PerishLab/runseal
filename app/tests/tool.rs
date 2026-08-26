@@ -136,8 +136,9 @@ fn issuer() {
     let environment = projection(fixture.path().to_str().expect("path"));
 
     let create = runseal::tool::call(
-        "forgejo-admin",
+        "forgejo",
         &words(&[
+            "admin",
             "token",
             "create",
             "PerishFire",
@@ -154,8 +155,9 @@ fn issuer() {
     );
 
     let drop = runseal::tool::call(
-        "forgejo-admin",
+        "forgejo",
         &words(&[
+            "admin",
             "token",
             "delete",
             "PerishFire",
@@ -171,8 +173,15 @@ fn issuer() {
 #[test]
 fn injection() {
     let error = runseal::tool::call(
-        "forgejo-admin",
-        &words(&["token", "delete", "PerishFire", "name';delete", "42"]),
+        "forgejo",
+        &words(&[
+            "admin",
+            "token",
+            "delete",
+            "PerishFire",
+            "name';delete",
+            "42",
+        ]),
         &projection("/unavailable"),
     )
     .expect_err("refusal");

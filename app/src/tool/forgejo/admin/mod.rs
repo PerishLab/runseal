@@ -7,7 +7,7 @@ use std::process::{Command, Output};
 use anyhow::{Context, Result, bail};
 use serde_json::json;
 
-use self::deed::{Deed, Token};
+use self::deed::{Admin, Deed, Token};
 use super::Reply;
 use crate::parse;
 
@@ -15,15 +15,20 @@ pub fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<Reply> {
     Seat::open(argv, vars)?.act("kubectl")
 }
 
-pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
-    if argv.iter().any(|arg| arg == "--help") {
-        print!("{}", help::TEXT);
-        return Ok(());
-    }
+pub(super) fn selected(argv: &[String]) -> Result<bool> {
     let line = parse::Line::take(argv)?;
-    if matches!(line.rest.as_slice(), [resource, verb, ..] if resource == "token" && verb == "create")
+    Ok(line.rest.first().is_some_and(|held| held == "admin"))
+}
+
+pub(super) fn help() {
+    print!("{}", help::TEXT);
+}
+
+pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
+    let line = parse::Line::take(argv)?;
+    if matches!(line.rest.as_slice(), [admin, resource, verb, ..] if admin == "admin" && resource == "token" && verb == "create")
     {
-        bail!("@forgejo-admin token create is available only to a structured caller");
+        bail!("@forgejo admin token create is available only to a structured caller");
     }
     call(argv, vars)?.emit(argv)
 }
@@ -37,7 +42,7 @@ impl<'a> Seat<'a> {
     fn open(argv: &[String], vars: &'a BTreeMap<String, String>) -> Result<Self> {
         let line = parse::Line::take(argv)?;
         if line.watch {
-            bail!("@forgejo-admin does not support --watch");
+            bail!("@forgejo admin does not support --watch");
         }
         let deed = Deed::take(&line.rest, line.flag("scopes"))?;
         Ok(Self { deed, vars })
@@ -45,12 +50,12 @@ impl<'a> Seat<'a> {
 
     fn act(&self, command: &str) -> Result<Reply> {
         match &self.deed {
-            Deed::Token(Token::Create {
+            Deed::Admin(Admin::Token(Token::Create {
                 account,
                 name,
                 scopes,
-            }) => self.create(command, account, name, scopes),
-            Deed::Token(Token::Drop { account, name, id }) => {
+            })) => self.create(command, account, name, scopes),
+            Deed::Admin(Admin::Token(Token::Drop { account, name, id })) => {
                 self.drop(command, account, name, *id)
             }
         }
@@ -152,7 +157,7 @@ fn required<'a>(vars: &'a BTreeMap<String, String>, name: &str) -> Result<&'a st
     vars.get(name)
         .map(String::as_str)
         .filter(|value| !value.is_empty())
-        .with_context(|| format!("@forgejo-admin requires {name}"))
+        .with_context(|| format!("@forgejo admin requires {name}"))
 }
 
 fn text(bytes: Vec<u8>, label: &str) -> Result<String> {

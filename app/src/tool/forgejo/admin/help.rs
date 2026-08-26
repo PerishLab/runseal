@@ -1,6 +1,6 @@
-pub(super) const TEXT: &str = r#"@forgejo-admin — one Forgejo server authority operation
+pub(super) const TEXT: &str = r#"@forgejo admin — one Forgejo server authority operation
 
-Usage: runseal :PROFILE @forgejo-admin [--json] RESOURCE VERB ...
+Usage: runseal :PROFILE @forgejo [--json] admin RESOURCE VERB ...
 
 Resource verbs:
   token create ACCOUNT NAME --scopes SCOPE[,SCOPE...]
