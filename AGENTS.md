@@ -37,6 +37,9 @@ wrapper or scripting runtime.
 - `runseal::tool::forgejo::admin`: two atomic Forgejo access-token issuer/store
   operations. Profile environment owns the private Kubernetes projection;
   callers own desired token identity and verify provider state over HTTP.
+- `@forgejo org secret`: atomic organization Actions-secret observation and
+  mutation. It carries one organization and at most one opaque secret per
+  call; desired bundles and convergence remain in the consuming product.
 - The library core compiles with `default-features = false` and carries no
   Plumb edge. The default `managed-skill` feature owns the optional Plumb skill
   integration used by the binary.

@@ -115,43 +115,59 @@ impl Seat {
         )
     }
 
-    pub(super) fn secrets(&self) -> Result<Value> {
-        let (owner, name) = super::pair(&self.repo()?)?;
-        let value = self.send(
-            "GET",
-            &format!("{}/repos/{owner}/{name}/actions/secrets", self.base),
-            None,
-        )?;
+    pub(super) fn secrets(&self, held: Option<&str>) -> Result<Value> {
+        let route = match held {
+            Some(owner) => format!("{}/orgs/{}/actions/secrets", self.base, super::quote(owner)),
+            None => {
+                let (owner, name) = super::pair(&self.repo()?)?;
+                format!("{}/repos/{owner}/{name}/actions/secrets", self.base)
+            }
+        };
+        let value = self.send("GET", &route, None)?;
         Ok(value.get("secrets").cloned().unwrap_or(value))
     }
 
-    pub(super) fn stored(&self, id: &str) -> Result<Value> {
+    pub(super) fn stored(&self, held: Option<&str>, id: &str) -> Result<Value> {
         let Some(data) = self.flag("body").filter(|held| !held.is_empty()) else {
             bail!("@forgejo secret set requires --body");
         };
-        let (owner, name) = super::pair(&self.repo()?)?;
-        self.send(
-            "PUT",
-            &format!(
-                "{}/repos/{owner}/{name}/actions/secrets/{}",
+        let route = match held {
+            Some(owner) => format!(
+                "{}/orgs/{}/actions/secrets/{}",
                 self.base,
+                super::quote(owner),
                 super::quote(id)
             ),
-            Some(&json!({ "data": data })),
-        )
+            None => {
+                let (owner, name) = super::pair(&self.repo()?)?;
+                format!(
+                    "{}/repos/{owner}/{name}/actions/secrets/{}",
+                    self.base,
+                    super::quote(id)
+                )
+            }
+        };
+        self.send("PUT", &route, Some(&json!({ "data": data })))
     }
 
-    pub(super) fn cleared(&self, id: &str) -> Result<Value> {
-        let (owner, name) = super::pair(&self.repo()?)?;
-        self.send(
-            "DELETE",
-            &format!(
-                "{}/repos/{owner}/{name}/actions/secrets/{}",
+    pub(super) fn cleared(&self, held: Option<&str>, id: &str) -> Result<Value> {
+        let route = match held {
+            Some(owner) => format!(
+                "{}/orgs/{}/actions/secrets/{}",
                 self.base,
+                super::quote(owner),
                 super::quote(id)
             ),
-            None,
-        )
+            None => {
+                let (owner, name) = super::pair(&self.repo()?)?;
+                format!(
+                    "{}/repos/{owner}/{name}/actions/secrets/{}",
+                    self.base,
+                    super::quote(id)
+                )
+            }
+        };
+        self.send("DELETE", &route, None)
     }
 
     pub(super) fn labels(&self) -> Result<Value> {

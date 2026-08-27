@@ -13,7 +13,7 @@ pub(super) enum Deed {
     Branch(Kind),
     Guard(Kind),
     Repo(Kind),
-    Secret(Kind),
+    Secret(Option<String>, Kind),
     Flow(String),
     Run(String),
     Job(String, String),
@@ -82,12 +82,27 @@ pub(super) fn deed(rest: &[String]) -> Result<Deed> {
         [kind, verb] if kind == "repo" && verb == "delete" => {
             Ok(Deed::Repo(Kind::Drop(String::new())))
         }
-        [kind, verb] if kind == "secret" && verb == "list" => Ok(Deed::Secret(Kind::List)),
+        [kind, verb] if kind == "secret" && verb == "list" => Ok(Deed::Secret(None, Kind::List)),
         [kind, verb, id] if kind == "secret" && verb == "set" => {
-            Ok(Deed::Secret(Kind::Set(id.clone())))
+            Ok(Deed::Secret(None, Kind::Set(id.clone())))
         }
         [kind, verb, id] if kind == "secret" && verb == "delete" => {
-            Ok(Deed::Secret(Kind::Drop(id.clone())))
+            Ok(Deed::Secret(None, Kind::Drop(id.clone())))
+        }
+        [kind, resource, verb, owner]
+            if kind == "org" && resource == "secret" && verb == "list" =>
+        {
+            Ok(Deed::Secret(Some(owner.clone()), Kind::List))
+        }
+        [kind, resource, verb, owner, id]
+            if kind == "org" && resource == "secret" && verb == "set" =>
+        {
+            Ok(Deed::Secret(Some(owner.clone()), Kind::Set(id.clone())))
+        }
+        [kind, resource, verb, owner, id]
+            if kind == "org" && resource == "secret" && verb == "delete" =>
+        {
+            Ok(Deed::Secret(Some(owner.clone()), Kind::Drop(id.clone())))
         }
         [kind, verb, id] if kind == "workflow" && verb == "dispatch" => Ok(Deed::Flow(id.clone())),
         [kind, verb, id] if kind == "run" && verb == "show" => Ok(Deed::Run(id.clone())),
@@ -121,8 +136,8 @@ pub(super) fn kind(deed: &Deed) -> &'static str {
         Deed::Branch(_) => "branch",
         Deed::Guard(_) => "protection",
         Deed::Repo(_) => "repo",
-        Deed::Secret(Kind::List) => "secrets",
-        Deed::Secret(_) => "secret",
+        Deed::Secret(_, Kind::List) => "secrets",
+        Deed::Secret(_, _) => "secret",
         Deed::Flow(_) | Deed::Run(_) => "run",
         Deed::Job(_, _) => "log",
         Deed::Jobs(_) => "jobs",
