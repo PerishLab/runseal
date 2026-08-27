@@ -37,6 +37,9 @@ Resource verbs:
   secret list
   secret set NAME --body VALUE
   secret delete NAME
+  org secret list ORGANIZATION
+  org secret set ORGANIZATION NAME --body VALUE
+  org secret delete ORGANIZATION NAME
   admin token list ACCOUNT
   admin token create ACCOUNT NAME --scopes SCOPE[,SCOPE...]
   admin token delete ACCOUNT NAME ID

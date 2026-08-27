@@ -210,3 +210,65 @@ fn authority() {
     assert_eq!(reply.value[0]["id"], 42);
     assert!(seen[0].starts_with("GET /api/v1/users/PerishFire/tokens?limit=50&page=1 "));
 }
+
+fn passed(args: &[&str], status: &str, body: &str) -> (String, Vec<String>) {
+    let (url, handle) = serve(status, body, 1);
+    let seat = Seat::new();
+    seat.write(&url);
+    let output = seat.run(args);
+    let seen = handle.join().expect("server");
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    (text(&output.stdout), seen)
+}
+
+#[test]
+fn secrets() {
+    let (out, seen) = passed(
+        &[":perish", "@forgejo", "org", "secret", "list", "PerishLab"],
+        "200 OK",
+        r#"{"secrets":[{"name":"WORKFLOW_INVENTORY_BUCKET"}]}"#,
+    );
+    assert!(out.contains("WORKFLOW_INVENTORY_BUCKET"), "{out}");
+    assert!(seen[0].starts_with("GET /api/v1/orgs/PerishLab/actions/secrets "));
+}
+
+#[test]
+fn stored() {
+    let (out, seen) = passed(
+        &[
+            ":perish",
+            "@forgejo",
+            "org",
+            "secret",
+            "set",
+            "PerishLab",
+            "T",
+            "--body",
+            "held",
+        ],
+        "204 No Content",
+        "",
+    );
+    assert_eq!(out.trim(), "ok");
+    assert!(seen[0].starts_with("PUT /api/v1/orgs/PerishLab/actions/secrets/T "));
+    assert!(seen[0].contains(r#"{"data":"held"}"#), "{}", seen[0]);
+}
+
+#[test]
+fn cleared() {
+    let (out, seen) = passed(
+        &[
+            ":perish",
+            "@forgejo",
+            "org",
+            "secret",
+            "delete",
+            "PerishLab",
+            "T",
+        ],
+        "204 No Content",
+        "",
+    );
+    assert_eq!(out.trim(), "ok");
+    assert!(seen[0].starts_with("DELETE /api/v1/orgs/PerishLab/actions/secrets/T "));
+}
