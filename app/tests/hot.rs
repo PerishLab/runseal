@@ -108,6 +108,39 @@ fn standing() {
 }
 
 #[test]
+fn marked() {
+    let (out, seen) = pass(
+        &[
+            ":perish",
+            "@forgejo",
+            "--repo",
+            "PerishFire/runseal",
+            "status",
+            "set",
+            "abc",
+            "--state",
+            "success",
+            "--context",
+            "plumb/guard",
+            "--description",
+            "proved",
+            "--target-url",
+            "https://git.perish.top/PerishFire/runseal",
+        ],
+        "201 Created",
+        r#"{"id":7,"state":"success","context":"plumb/guard"}"#,
+    );
+    assert!(out.contains("7"), "{out}");
+    assert!(
+        seen[0].starts_with("POST /api/v1/repos/PerishFire/runseal/statuses/abc "),
+        "{}",
+        seen[0]
+    );
+    assert!(seen[0].contains(r#""context":"plumb/guard""#));
+    assert!(seen[0].contains(r#""target_url":"https://git.perish.top/PerishFire/runseal""#));
+}
+
+#[test]
 fn stem() {
     let (out, seen) = pass(
         &[

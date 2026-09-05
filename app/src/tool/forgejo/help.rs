@@ -25,6 +25,7 @@ Resource verbs:
   review list ID
   review create ID --body TEXT [--event EVENT]
   status show REF
+  status set REF --state STATE --context NAME [--description TEXT] [--target-url URL]
   branch show NAME
   branch create NAME --from REF
   protection show NAME

@@ -17,6 +17,45 @@ impl Seat {
         )
     }
 
+    pub(super) fn marked(&self, id: &str) -> Result<Value> {
+        let state = self
+            .flag("state")
+            .filter(|held| {
+                matches!(
+                    *held,
+                    "pending" | "success" | "error" | "failure" | "warning"
+                )
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "@forgejo status set requires --state pending|success|error|failure|warning"
+                )
+            })?;
+        let context = self
+            .flag("context")
+            .filter(|held| !held.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("@forgejo status set requires --context"))?;
+        let mut body = serde_json::Map::from_iter([
+            ("state".to_string(), json!(state)),
+            ("context".to_string(), json!(context)),
+        ]);
+        for (flag, field) in [("description", "description"), ("target-url", "target_url")] {
+            if let Some(value) = self.flag(flag).filter(|held| !held.is_empty()) {
+                body.insert(field.to_string(), json!(value));
+            }
+        }
+        let (owner, name) = super::pair(&self.repo()?)?;
+        self.send(
+            "POST",
+            &format!(
+                "{}/repos/{owner}/{name}/statuses/{}",
+                self.base,
+                super::quote(id)
+            ),
+            Some(&Value::Object(body)),
+        )
+    }
+
     pub(super) fn sent(&self, id: &str) -> Result<Value> {
         let Some(git) = self.flag("ref").filter(|held| !held.is_empty()) else {
             bail!("@forgejo workflow dispatch requires --ref");
