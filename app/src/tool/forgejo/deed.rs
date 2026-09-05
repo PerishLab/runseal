@@ -9,7 +9,7 @@ pub(super) enum Deed {
     Notes(String),
     Comment(String),
     Pull(Kind),
-    Status(String),
+    Status(Kind),
     Branch(Kind),
     Guard(Kind),
     Repo(Kind),
@@ -58,7 +58,12 @@ pub(super) fn deed(rest: &[String]) -> Result<Deed> {
         [kind, verb, id] if kind == "pull" && verb == "merge" => {
             Ok(Deed::Pull(Kind::Merge(id.clone())))
         }
-        [kind, verb, id] if kind == "status" && verb == "show" => Ok(Deed::Status(id.clone())),
+        [kind, verb, id] if kind == "status" && verb == "show" => {
+            Ok(Deed::Status(Kind::Show(id.clone())))
+        }
+        [kind, verb, id] if kind == "status" && verb == "set" => {
+            Ok(Deed::Status(Kind::Set(id.clone())))
+        }
         [kind, verb, id] if kind == "branch" && verb == "create" => {
             Ok(Deed::Branch(Kind::Set(id.clone())))
         }
