@@ -1,0 +1,2 @@
+Runseal has no recovery entry. Its refusals identify the invalid profile field,
+path, provider operation, or process boundary directly.

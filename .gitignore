@@ -1,11 +1,3 @@
-/target
 /.task/
 /.local/
-/scripts/.venv/
-__pycache__/
-/.forgejo/release.env
-node_modules/
-docs/.vitepress/cache/
-docs/.vitepress/dist/
-/.playwright-cli/
 target/
