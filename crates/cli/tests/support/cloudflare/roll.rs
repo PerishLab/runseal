@@ -30,7 +30,8 @@ fn written() {
     assert!(!stdout.contains(generated));
     assert!(!text(&output.stderr).contains(generated));
     assert!(stdout.contains("token-id"));
-    assert!(stdout.contains("value_sha256"));
+    assert!(stdout.contains("value_file"));
+    assert!(!stdout.contains("value_sha256"));
     assert_eq!(
         fs::read_to_string(&value).expect("secret"),
         format!("{generated}\n")

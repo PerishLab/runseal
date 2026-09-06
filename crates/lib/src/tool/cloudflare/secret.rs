@@ -9,7 +9,6 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::{Context, Result};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 
 use crate::tool::Reply;
 
@@ -44,7 +43,6 @@ impl Reserved {
             );
         };
         let secret = held.expose();
-        let digest = format!("{:x}", Sha256::digest(secret.as_bytes()));
         let mut file = self.file.take().expect("reserved file is held");
         let written = file
             .write_all(secret.as_bytes())
@@ -54,7 +52,7 @@ impl Reserved {
             let _ = std::fs::remove_file(&self.path);
             return Err(error).with_context(|| failure(reply, &self.path, self.rolls));
         }
-        enrich(&mut reply.value, &self.path, &digest);
+        enrich(&mut reply.value, &self.path);
         Ok(())
     }
 }
@@ -67,7 +65,7 @@ impl Drop for Reserved {
     }
 }
 
-fn enrich(value: &mut Value, path: &Path, digest: &str) {
+fn enrich(value: &mut Value, path: &Path) {
     let Some(object) = value.as_object_mut() else {
         return;
     };
@@ -75,7 +73,6 @@ fn enrich(value: &mut Value, path: &Path, digest: &str) {
         "value_file".into(),
         Value::String(path.display().to_string()),
     );
-    object.insert("value_sha256".into(), Value::String(digest.to_string()));
 }
 
 fn failure(reply: &Reply, path: &Path, rolls: bool) -> String {
