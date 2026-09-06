@@ -7,6 +7,7 @@ use runseal::{
     inspect, resolve, run,
 };
 
+mod cookbook;
 #[cfg(feature = "managed-skill")]
 mod skill;
 
@@ -46,6 +47,11 @@ enum Control {
         profile: Option<String>,
         #[arg(required = true, help = "One or more profile paths")]
         uri: Vec<String>,
+    },
+    #[command(about = "Explain recovery for a Runseal refusal")]
+    Cookbook {
+        #[arg(help = "Recovery entry; omit to list the available entries")]
+        entry: Option<String>,
     },
     #[cfg(feature = "managed-skill")]
     #[command(about = "Manage Runseal agent skill installations")]
@@ -89,6 +95,10 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
         Control::Profile { name } => inspect(&Config::build(name, Vec::new(), cwd)?),
         Control::Resolve { profile, uri } => {
             resolve(&Config::build(profile, Vec::new(), cwd)?, &uri)
+        }
+        Control::Cookbook { entry } => {
+            print!("{}", cookbook::render(entry.as_deref())?);
+            Ok(())
         }
         #[cfg(feature = "managed-skill")]
         Control::Skill { deed } => {

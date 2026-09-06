@@ -50,6 +50,20 @@ fn help() {
 }
 
 #[test]
+fn cookbook() {
+    let output = bin()
+        .args(["cookbook", "--help"])
+        .output()
+        .expect("cookbook help should run");
+    assert!(output.status.success());
+    assert!(text(&output.stdout).contains("Explain recovery"));
+
+    let output = bin().arg("cookbook").output().expect("cookbook should run");
+    assert!(output.status.success());
+    assert!(text(&output.stdout).contains("no recovery entry"));
+}
+
+#[test]
 fn control() {
     let output = bin()
         .arg("cargo")

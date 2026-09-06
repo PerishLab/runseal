@@ -1,9 +1,0 @@
-[env.vars]
-RUNSEAL_EXAMPLE = "dev"
-
-[argv]
-cargo = ["--locked"]
-
-[[symlink]]
-source = "resource://example"
-target = "local://example"

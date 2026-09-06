@@ -1,6 +1,9 @@
 [workspace]
-members = ["app"]
-resolver = "2"
+members = ["crates/cli", "crates/lib"]
+resolver = "3"
 
 [workspace.package]
 version = "0.17.0"
+edition = "2024"
+license = "MIT"
+repository = "https://git.perish.top/PerishFire/runseal"

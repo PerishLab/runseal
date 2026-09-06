@@ -436,9 +436,9 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "plumb"
-version = "0.26.0"
+version = "0.37.26"
 source = "sparse+https://git.perish.top/api/packages/PerishLab/cargo/"
-checksum = "83f1bea214fd7bdcca2c8b400895a0a1a8b5d82ba7c0a10b03830481a234dd0b"
+checksum = "8bac085bae87999dfa40fc056fb1b471b86ec85384ec240afe530b9ef547bbf7"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -456,9 +456,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.26.0"
+version = "0.37.26"
 source = "sparse+https://git.perish.top/api/packages/PerishLab/cargo/"
-checksum = "e71b1946be1b0bfa48685f55d0bc82aab1270fd2e41904a7ff4da27a6502c057"
+checksum = "104abc197ef1ca44c91f986c3b34bec01c75ec24896dc5e895d8ba7c195fdc0a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -518,16 +518,25 @@ name = "runseal"
 version = "0.17.0"
 dependencies = [
  "anyhow",
- "clap",
  "path-absolutize",
- "plumb",
  "serde",
  "serde_json",
  "sha2",
- "tempfile",
  "toml",
  "ureq",
  "zeroize",
+]
+
+[[package]]
+name = "runseal-cli"
+version = "0.17.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "plumb",
+ "runseal",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
