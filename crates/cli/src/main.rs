@@ -11,7 +11,7 @@ mod cookbook;
 #[cfg(feature = "managed-skill")]
 mod skill;
 
-#[derive(Debug, Parser)]
+#[derive(Parser)]
 #[command(
     name = "runseal",
     version = version(),
@@ -34,7 +34,7 @@ struct Cli {
     command: Control,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Subcommand)]
 enum Control {
     #[command(about = "Inspect a resolved profile without applying it")]
     Profile {
