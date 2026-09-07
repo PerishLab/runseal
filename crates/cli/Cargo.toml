@@ -15,7 +15,7 @@ default = ["managed-skill"]
 managed-skill = ["dep:plumb"]
 
 [dependencies]
-runseal = { path = "../lib", version = "=0.17.0" }
+runseal = { path = "../lib", version = "=0.18.8" }
 plumb = { version = "=0.37.35", registry = "perish", features = ["skill"], optional = true }
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
