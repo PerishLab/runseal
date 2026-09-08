@@ -4,6 +4,46 @@ use serde_json::{Value, json};
 use super::Seat;
 
 impl Seat {
+    pub(super) fn runs(&self) -> Result<Value> {
+        let (owner, name) = super::pair(&self.repo()?)?;
+        let mut found = Vec::new();
+        let mut page = 1;
+        if self.line.limit == Some(0) {
+            bail!("@forgejo run list requires a positive --limit");
+        }
+        loop {
+            let value = self.send(
+                "GET",
+                &format!(
+                    "{}/repos/{owner}/{name}/actions/runs?page={page}&limit=50",
+                    self.base
+                ),
+                None,
+            )?;
+            let rows = value
+                .get("workflow_runs")
+                .and_then(Value::as_array)
+                .ok_or_else(|| anyhow::anyhow!("Forgejo run list has no workflow_runs"))?;
+            let total = value
+                .get("total_count")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| anyhow::anyhow!("Forgejo run list has no total_count"))?;
+            if rows.is_empty() && (found.len() as u64) < total {
+                bail!("Forgejo run pagination ended before total_count");
+            }
+            found.extend(rows.iter().cloned());
+            if self.line.limit.is_some_and(|limit| found.len() >= limit) {
+                found.truncate(self.line.limit.expect("limit is held"));
+                break;
+            }
+            if found.len() as u64 >= total {
+                break;
+            }
+            page += 1;
+        }
+        Ok(Value::Array(found))
+    }
+
     pub(super) fn standing(&self, id: &str) -> Result<Value> {
         let (owner, name) = super::pair(&self.repo()?)?;
         self.send(
