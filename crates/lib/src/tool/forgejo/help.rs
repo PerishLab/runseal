@@ -46,6 +46,7 @@ Resource verbs:
   admin token delete ACCOUNT NAME ID
   workflow dispatch FILE --ref REF [--inputs JSON]
   run show ID
+  run list
   job list RUN
   job log RUN JOB [--attempt N] [--watch] [--poll-ms N] [--timeout-ms N]
   task list RUN_NUMBER

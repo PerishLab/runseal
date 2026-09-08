@@ -120,6 +120,7 @@ impl Seat {
             Deed::Secret(_, _) => bail!("@forgejo expected a known secret verb"),
             Deed::Flow(id) => self.sent(id),
             Deed::Run(id) => self.running(id),
+            Deed::Runs => self.runs(),
             Deed::Job(run, job) => self.logged(run, job),
             Deed::Jobs(run) => self.jobs(run),
             Deed::Task(run) => self.tasks(run),
