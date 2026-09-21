@@ -527,7 +527,7 @@ dependencies = [
 
 [[package]]
 name = "runseal"
-version = "0.17.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "path-absolutize",
@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "runseal-cli"
-version = "0.17.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "clap",
