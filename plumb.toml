@@ -15,6 +15,10 @@ path = "skills/*"
 kind = "retired"
 note = "Runseal carries no skill source; its generations are consumed from Depot through the CLI's skill commands."
 
+[[layout.seat]]
+path = ".cargo"
+note = "Cargo registry configuration."
+
 [[layout.file]]
 name = [".gitattributes"]
 note = "Git attribute policy."
