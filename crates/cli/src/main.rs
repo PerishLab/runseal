@@ -62,11 +62,14 @@ enum Control {
 }
 
 fn main() -> Result<()> {
+    #[cfg(feature = "managed-skill")]
+    plumb::identity!("RUNSEAL").map_err(anyhow::Error::msg)?;
     let cwd = env::current_dir().context("failed to read current directory")?;
     let args = env::args().skip(1).collect::<Vec<_>>();
     match Route::parse(args)? {
         Route::Control(args) => control(args, &cwd),
         Route::Profile { name, command } => {
+            ready()?;
             let config = Config::build(name, command, &cwd)?;
             let outcome = run(&config)?;
             if let Some(code) = outcome.code {
@@ -91,6 +94,7 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
         }
         Err(error) => return Err(error.into()),
     };
+    ready()?;
     match cli.command {
         Control::Profile { name } => inspect(&Config::build(name, Vec::new(), cwd)?),
         Control::Resolve { profile, uri } => {
@@ -111,6 +115,18 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
     }
 }
 
+#[cfg(feature = "managed-skill")]
+fn version() -> &'static str {
+    plumb::version!("RUNSEAL")
+}
+
+#[cfg(not(feature = "managed-skill"))]
 fn version() -> &'static str {
     option_env!("RUNSEAL_BUILD_VERSION").unwrap_or(concat!("v", env!("CARGO_PKG_VERSION")))
+}
+
+fn ready() -> Result<()> {
+    #[cfg(feature = "managed-skill")]
+    plumb::identity::ready().map_err(anyhow::Error::msg)?;
+    Ok(())
 }

@@ -20,5 +20,15 @@ name = [".gitattributes"]
 note = "Git attribute policy."
 
 [[layout.file]]
-name = ["Cargo.toml", "Cargo.lock"]
-note = "Rust workspace anchors."
+name = ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"]
+note = "Rust workspace anchors and the toolchain wharf builds with."
+
+[release]
+product = "runseal"
+authority = "https://releases.runseal.perish.uk"
+binaries = ["runseal"]
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
