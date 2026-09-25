@@ -6,11 +6,6 @@ anchor = ["Cargo.toml"]
 note = "The Runseal CLI and reusable library Rust workspace members."
 
 [[layout.seat]]
-path = "charts/*"
-kind = "retired"
-note = "This product ships no Helm chart; the tombstone keeps the domain seat absent."
-
-[[layout.seat]]
 path = "skills/*"
 kind = "retired"
 note = "Runseal carries no skill source; its generations are consumed from Depot through the CLI's skill commands."
