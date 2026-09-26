@@ -6,11 +6,6 @@ anchor = ["Cargo.toml"]
 note = "The Runseal CLI and reusable library Rust workspace members."
 
 [[layout.seat]]
-path = "skills/*"
-kind = "retired"
-note = "Runseal carries no skill source; its generations are consumed from Depot through the CLI's skill commands."
-
-[[layout.seat]]
 path = ".cargo"
 note = "Cargo registry configuration."
 
@@ -31,6 +26,7 @@ targets = [
   "aarch64-apple-darwin",
   "x86_64-pc-windows-msvc",
 ]
+skill = true
 
 [release.cargo]
 registry = "perish"
