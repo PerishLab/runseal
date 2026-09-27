@@ -27,7 +27,7 @@ Execution model:
 A profile contains only env, argv, and symlink declarations. It carries no
 command, wrapper, task graph, or implicit orchestration.
 
-Repository: https://git.perish.top/PerishFire/runseal"
+Repository: https://github.com/PerishLab/runseal"
 )]
 struct Cli {
     #[command(subcommand)]

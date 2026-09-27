@@ -6,7 +6,6 @@ use serde_json::Value;
 use zeroize::Zeroize;
 
 pub mod cloudflare;
-pub mod forgejo;
 
 #[derive(PartialEq)]
 pub struct Reply {
@@ -81,7 +80,6 @@ impl Reply {
 pub fn call(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Result<Reply> {
     match name {
         "cloudflare" => cloudflare::call(argv, vars),
-        "forgejo" => forgejo::call(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }
@@ -89,7 +87,6 @@ pub fn call(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Res
 pub fn run(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
     match name {
         "cloudflare" => cloudflare::run(argv, vars),
-        "forgejo" => forgejo::run(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }

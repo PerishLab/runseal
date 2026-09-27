@@ -25,24 +25,11 @@ impl Seat {
         std::fs::create_dir_all(&cwd).expect("work should exist");
         std::fs::create_dir_all(home.join("profiles/perish/.local/secrets"))
             .expect("secrets should exist");
-        std::fs::write(
-            home.join("profiles/perish/.local/secrets/forgejo"),
-            "secret-token\n",
-        )
-        .expect("token should exist");
         Self {
             _temp: temp,
             home,
             cwd,
         }
-    }
-
-    pub fn write(&self, url: &str) {
-        let body = format!(
-            "[env.vars]\nFORGEJO_URL = \"{url}\"\nFORGEJO_TOKEN_FILE = \"local://secrets/forgejo\"\n"
-        );
-        std::fs::write(self.home.join("profiles/perish/runseal.toml"), body)
-            .expect("profile should be written");
     }
 
     pub fn run(&self, args: &[&str]) -> std::process::Output {

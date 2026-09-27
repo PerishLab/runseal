@@ -115,12 +115,12 @@ fn seat() {
     let resolved = invoke(
         &home,
         &cwd,
-        &["resolve", "--profile", "perish", "local://secrets/forgejo"],
+        &["resolve", "--profile", "perish", "local://secrets/token"],
     );
     assert!(resolved.status.success(), "{}", text(&resolved.stderr));
     assert!(ends(
         Path::new(text(&resolved.stdout).trim()),
-        "profiles/perish/.local/secrets/forgejo",
+        "profiles/perish/.local/secrets/token",
     ));
 }
 
