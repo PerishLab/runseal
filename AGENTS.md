@@ -15,7 +15,7 @@ operation must stay atomic. A perish.code-owned CLI that cannot be isolated is
 repaired at its own boundary; a capability that stops being atomic becomes a
 new product.
 
-Forgejo and Cloudflare operations expose typed provider resources without
+Cloudflare operations expose typed provider resources without
 exposing credentials, raw response secrets, desired-state bundles, or
 orchestration. One invocation owns one provider verb or one child process tree.
 
