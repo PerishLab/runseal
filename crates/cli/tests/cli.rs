@@ -47,20 +47,14 @@ fn help() {
     assert!(!stdout.contains(":<wrapper>"));
     assert!(!stdout.contains(".runseal/wrappers"));
     assert!(!stdout.contains("Deno"));
+    assert!(!stdout.contains("cookbook"));
 }
 
 #[test]
 fn cookbook() {
-    let output = bin()
-        .args(["cookbook", "--help"])
-        .output()
-        .expect("cookbook help should run");
-    assert!(output.status.success());
-    assert!(text(&output.stdout).contains("Explain recovery"));
-
-    let output = bin().arg("cookbook").output().expect("cookbook should run");
-    assert!(output.status.success());
-    assert!(text(&output.stdout).contains("no recovery entry"));
+    let output = bin().arg("cookbook").output().expect("Runseal should run");
+    assert!(!output.status.success());
+    assert!(text(&output.stderr).contains("unrecognized subcommand 'cookbook'"));
 }
 
 #[test]

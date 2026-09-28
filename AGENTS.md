@@ -20,4 +20,5 @@ exposing credentials, raw response secrets, desired-state bundles, or
 orchestration. One invocation owns one provider verb or one child process tree.
 
 The reusable library carries no Plumb dependency. The CLI owns the product's
-skill and cookbook surfaces while delegating depot mechanics to Plumb.
+managed Skill surface while delegating Depot mechanics to Plumb. Runseal has no
+Cookbook: its routine refusals state their own recovery.
