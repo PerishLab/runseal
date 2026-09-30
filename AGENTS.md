@@ -1,5 +1,10 @@
 # Agents
 
+Read the canonical [PerishLab delivery governance](https://github.com/PerishLab/.github/blob/main/GOVERNANCE.md)
+at work start and again before delivery or Issue closure. That document owns
+organization-wide Issue, pull-request and acceptance policy; this file keeps
+repository-specific constraints without copying that policy.
+
 Runseal establishes one profile around one command process tree. It owns
 isolation, not orchestration: a profile has exactly `env`, `argv`, and `symlink`
 and carries no command, default action, wrapper, task graph, hook, shell, or
