@@ -32,6 +32,7 @@ impl Rig {
     }
 }
 
+#[locus::trace(with = crate::observation::view())]
 pub fn run(deed: Deed) -> i32 {
     let rig = Rig::resolve();
     if rig.home.is_empty() {

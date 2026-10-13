@@ -10,6 +10,8 @@ use runseal::{
 #[cfg(feature = "managed-skill")]
 mod skill;
 
+mod observation;
+
 #[derive(Parser)]
 #[command(
     name = "runseal",
@@ -25,6 +27,12 @@ Execution model:
 
 A profile contains only env, argv, and symlink declarations. It carries no
 command, wrapper, task graph, or implicit orchestration.
+
+Optional Locus observation:
+  Set [locus] enabled = true in <Runseal data home>/config.toml.
+  endpoint defaults to LOCUS_API or http://127.0.0.1:43308.
+  Buffer: <Runseal data home>/state/locus. Missing configuration disables it.
+  Profile files remain env, argv, and symlink only.
 
 Repository: https://github.com/PerishLab/runseal"
 )]
@@ -60,21 +68,54 @@ fn main() -> Result<()> {
     plumb::identity!("RUNSEAL").map_err(anyhow::Error::msg)?;
     let cwd = env::current_dir().context("failed to read current directory")?;
     let args = env::args().skip(1).collect::<Vec<_>>();
-    match Route::parse(args)? {
-        Route::Control(args) => control(args, &cwd),
-        Route::Profile { name, command } => {
-            ready()?;
-            let config = Config::build(name, command, &cwd)?;
-            let outcome = run(&config)?;
-            if let Some(code) = outcome.code {
-                process::exit(code);
+    let command = match args.first().map(String::as_str) {
+        Some(value) if value.starts_with(':') => {
+            if args.get(1).is_some_and(|value| value.starts_with('@')) {
+                "tool"
+            } else {
+                "profile.run"
             }
-            Ok(())
         }
+        Some("profile") => "profile",
+        Some("resolve") => "resolve",
+        Some("skill") => "skill",
+        _ => "control",
+    };
+    let observation = observation::Run::start(&cwd, command);
+    let result = execute(args, &cwd);
+    if let Some(observation) = observation {
+        observation.finish(match &result {
+            Ok(code) => code.unwrap_or(0),
+            Err(_) => 1,
+        });
+    }
+    if let Some(code) = result? {
+        process::exit(code);
+    }
+    Ok(())
+}
+
+#[locus::trace(with = observation::view())]
+fn execute(args: Vec<String>, cwd: &std::path::Path) -> Result<Option<i32>> {
+    match Route::parse(args)? {
+        Route::Control(args) => control(args, cwd),
+        Route::Profile { name, command } => profile(name, command, cwd),
     }
 }
 
-fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
+#[locus::trace(with = observation::view())]
+fn profile(
+    name: Option<String>,
+    command: Vec<String>,
+    cwd: &std::path::Path,
+) -> Result<Option<i32>> {
+    ready()?;
+    let config = Config::build(name, command, cwd)?;
+    Ok(run(&config)?.code)
+}
+
+#[locus::trace(with = observation::view())]
+fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<Option<i32>> {
     let cli = match Cli::try_parse_from(std::iter::once("runseal".to_string()).chain(args)) {
         Ok(cli) => cli,
         Err(error)
@@ -84,23 +125,24 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<()> {
             ) =>
         {
             error.print()?;
-            return Ok(());
+            return Ok(None);
         }
         Err(error) => return Err(error.into()),
     };
     ready()?;
     match cli.command {
-        Control::Profile { name } => inspect(&Config::build(name, Vec::new(), cwd)?),
+        Control::Profile { name } => {
+            inspect(&Config::build(name, Vec::new(), cwd)?)?;
+            Ok(None)
+        }
         Control::Resolve { profile, uri } => {
-            resolve(&Config::build(profile, Vec::new(), cwd)?, &uri)
+            resolve(&Config::build(profile, Vec::new(), cwd)?, &uri)?;
+            Ok(None)
         }
         #[cfg(feature = "managed-skill")]
         Control::Skill { deed } => {
             let code = skill::run(deed);
-            if code != 0 {
-                process::exit(code);
-            }
-            Ok(())
+            Ok((code != 0).then_some(code))
         }
     }
 }
