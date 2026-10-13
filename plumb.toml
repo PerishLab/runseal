@@ -17,8 +17,10 @@ note = "Git attribute policy."
 name = ["Cargo.toml", "Cargo.lock"]
 note = "Rust workspace anchors."
 
+[identity]
+ns = "runseal"
+
 [release]
-product = "runseal"
 authority = "https://releases.runseal.perish.uk"
 binaries = ["runseal"]
 targets = [
