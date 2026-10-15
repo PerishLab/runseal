@@ -3,8 +3,9 @@ use std::{env, process};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, error::ErrorKind};
 use runseal::{
+    Execution,
     core::{config::Config, route::Route},
-    inspect, resolve, run,
+    inspect, resolve,
 };
 
 #[cfg(feature = "managed-skill")]
@@ -33,6 +34,11 @@ Optional Locus observation:
   endpoint defaults to LOCUS_API or http://127.0.0.1:43308.
   Buffer: <Runseal data home>/state/locus. Missing configuration disables it.
   Profile files remain env, argv, and symlink only.
+  External preparation emits one bounded, source-less prepared.v1 fact.
+  It classifies gh/concord/plumb, simple env assignments and public verbs;
+  only GODEBUG=http2client=0 is retained as an explicit assignment value.
+  Other input is classified without retaining arguments, paths or environment.
+  This records preparation, not child startup or the effective environment.
 
 Repository: https://github.com/PerishLab/runseal"
 )]
@@ -111,7 +117,11 @@ fn profile(
 ) -> Result<Option<i32>> {
     ready()?;
     let config = Config::build(name, command, cwd)?;
-    Ok(run(&config)?.code)
+    let execution = Execution::prepare(&config)?;
+    if let Some(argv) = execution.argv() {
+        observation::prepared(argv);
+    }
+    Ok(execution.run()?.code)
 }
 
 #[locus::trace(with = observation::view())]

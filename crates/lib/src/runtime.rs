@@ -15,20 +15,47 @@ pub struct Outcome {
     pub code: Option<i32>,
 }
 
+pub struct Execution<'a> {
+    config: &'a Config,
+    profile: Profile,
+    command: Command,
+}
+
 pub fn run(config: &Config) -> Result<Outcome> {
-    let profile = Profile::load(config)?;
-    let command = Command::resolve(&config.command, &profile)?;
-    injections::Lifecycle::with(&profile, |env| match &command {
-        Command::External(argv) => {
-            let code = runner::Runner::run(config, argv, env)?;
-            Ok(Outcome { code: Some(code) })
+    Execution::prepare(config)?.run()
+}
+
+impl<'a> Execution<'a> {
+    pub fn prepare(config: &'a Config) -> Result<Self> {
+        let profile = Profile::load(config)?;
+        let command = Command::resolve(&config.command, &profile)?;
+        Ok(Self {
+            config,
+            profile,
+            command,
+        })
+    }
+
+    pub fn argv(&self) -> Option<&[String]> {
+        match &self.command {
+            Command::External(argv) => Some(argv),
+            Command::Tool(_, _) => None,
         }
-        Command::Tool(name, argv) => {
-            let _ = env;
-            tool::run(name, argv, &profile.env.vars)?;
-            Ok(Outcome { code: Some(0) })
-        }
-    })
+    }
+
+    pub fn run(self) -> Result<Outcome> {
+        injections::Lifecycle::with(&self.profile, |env| match &self.command {
+            Command::External(argv) => {
+                let code = runner::Runner::run(self.config, argv, env)?;
+                Ok(Outcome { code: Some(code) })
+            }
+            Command::Tool(name, argv) => {
+                let _ = env;
+                tool::run(name, argv, &self.profile.env.vars)?;
+                Ok(Outcome { code: Some(0) })
+            }
+        })
+    }
 }
 
 pub fn inspect(config: &Config) -> Result<()> {
