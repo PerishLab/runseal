@@ -16,11 +16,10 @@ managed-skill = ["plumb/skill"]
 
 [dependencies]
 runseal = { path = "../lib", version = "=0.0.0" }
-plumb = { version = "0", registry = "perish", default-features = false }
+plumb = { version = "0", registry = "perish", default-features = false, features = ["observation"] }
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
 serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
 locus = { version = "0", registry = "perish" }
 
 [dev-dependencies]

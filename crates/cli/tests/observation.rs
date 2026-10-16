@@ -156,3 +156,85 @@ fn tool() {
     assert!(atoms.iter().any(|atom| atom["payload"]["code"] == 1));
     assert!(!serde_json::to_string(&atoms).unwrap().contains("@missing"));
 }
+
+const CASES: [&[&str]; 8] = [
+    &["profile"],
+    &["resolve", "invalid-private-uri"],
+    &["unknown-control"],
+    &[":"],
+    &[":", "sh", "-c", "printf held; exit 0"],
+    &[":", "sh", "-c", "printf held >&2; exit 17"],
+    &[":absent", "true"],
+    &[":", "@missing"],
+];
+
+const HELD: &str = "[env.vars]\nPRIVATE_MARKER = 'private-env-value'\n";
+const REFUSED: &str = "[env.vars]\n'private key' = 'private-env-value'\n";
+
+fn seat(profile: &str) -> tempfile::TempDir {
+    let seat = tempfile::tempdir().expect("seat");
+    std::fs::write(seat.path().join("runseal.toml"), profile).unwrap();
+    seat
+}
+
+#[test]
+fn fault() {
+    let held = seat(HELD);
+    let refused = seat(REFUSED);
+    configure(held.path(), ENABLED);
+    configure(refused.path(), ENABLED);
+    let mut codes = Vec::new();
+    for args in CASES {
+        codes.push(run(held.path(), args).status.code());
+    }
+    codes.push(run(refused.path(), &[":", "true"]).status.code());
+    for code in [Some(0), Some(1), Some(17)] {
+        assert!(codes.contains(&code));
+    }
+    let mut atoms = records(held.path());
+    atoms.extend(records(refused.path()));
+    let finishes: Vec<Value> = atoms
+        .into_iter()
+        .filter(|atom| atom["payload"]["event"] == "cli.finish")
+        .collect();
+    assert_eq!(finishes.len(), codes.len());
+    assert!(finishes.iter().any(|atom| atom["payload"]["code"] == 0));
+    assert!(
+        finishes
+            .iter()
+            .all(|atom| atom["context"].get("runseal.fault").is_none())
+    );
+    assert!(
+        !serde_json::to_string(&finishes)
+            .unwrap()
+            .contains("private")
+    );
+}
+
+#[test]
+fn parity() {
+    for args in CASES {
+        compare(HELD, args);
+    }
+    compare(REFUSED, &[":", "true"]);
+}
+
+fn compare(profile: &str, args: &[&str]) {
+    let home = seat(profile);
+    let quiet = run(home.path(), args);
+    assert!(!home.path().join("state/locus").exists());
+    configure(home.path(), ENABLED);
+    let observed = run(home.path(), args);
+    assert!(home.path().join("state/locus").exists());
+    assert_eq!(quiet.status.code(), observed.status.code(), "{args:?}");
+    assert_eq!(quiet.stdout, observed.stdout, "{args:?}");
+    assert_eq!(lines(&quiet.stderr), lines(&observed.stderr), "{args:?}");
+}
+
+fn lines(stderr: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .filter(|line| !line.starts_with("locus engine diagnostic"))
+        .map(str::to_string)
+        .collect()
+}

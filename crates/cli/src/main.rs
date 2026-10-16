@@ -87,7 +87,7 @@ fn main() -> Result<()> {
         Some("skill") => "skill",
         _ => "control",
     };
-    let observation = observation::Run::start(&cwd, command);
+    let observation = observation::start(&cwd, command);
     let result = execute(args, &cwd);
     if let Some(observation) = observation {
         observation.finish(match &result {
@@ -101,7 +101,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[locus::trace(with = observation::view())]
+#[locus::trace(with = plumb::observation::view())]
 fn execute(args: Vec<String>, cwd: &std::path::Path) -> Result<Option<i32>> {
     match Route::parse(args)? {
         Route::Control(args) => control(args, cwd),
@@ -109,7 +109,7 @@ fn execute(args: Vec<String>, cwd: &std::path::Path) -> Result<Option<i32>> {
     }
 }
 
-#[locus::trace(with = observation::view())]
+#[locus::trace(with = plumb::observation::view())]
 fn profile(
     name: Option<String>,
     command: Vec<String>,
@@ -124,7 +124,7 @@ fn profile(
     Ok(execution.run()?.code)
 }
 
-#[locus::trace(with = observation::view())]
+#[locus::trace(with = plumb::observation::view())]
 fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<Option<i32>> {
     let cli = match Cli::try_parse_from(std::iter::once("runseal".to_string()).chain(args)) {
         Ok(cli) => cli,
