@@ -72,13 +72,14 @@ impl Seat {
 
     #[cfg(unix)]
     pub fn programs() -> Self {
-        use std::os::unix::fs::PermissionsExt;
         let root = Self::new();
         std::fs::create_dir(root.path().join("bin")).unwrap();
         for name in ["gh", "concord", "plumb", "private"] {
             let path = root.path().join("bin").join(name);
-            std::fs::write(&path, "#!/bin/sh\nprintf '%s\\n' \"$@\" \"${GODEBUG-unset}\" \"${PRIVATE_MARKER-unset}\"\nprintf 'child-error\\n' >&2\nexit 23\n").unwrap();
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            plumb::testing::executable(
+                &path,
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" \"${GODEBUG-unset}\" \"${PRIVATE_MARKER-unset}\"\nprintf 'child-error\\n' >&2\nexit 23\n",
+            );
         }
         root
     }
