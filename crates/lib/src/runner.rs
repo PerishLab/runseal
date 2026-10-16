@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::{ffi::OsString, process::Command};
 
 use anyhow::{Context, Result, bail};
 
@@ -7,7 +7,12 @@ use crate::core::{config::Config, injections::Patch};
 pub(super) struct Runner;
 
 impl Runner {
-    pub(super) fn run(config: &Config, argv: &[String], env: &Patch) -> Result<i32> {
+    pub(super) fn run(
+        config: &Config,
+        argv: &[String],
+        env: &Patch,
+        handoff: &[(OsString, Option<OsString>)],
+    ) -> Result<i32> {
         if argv.is_empty() {
             bail!("profile mode requires a command");
         }
@@ -30,6 +35,12 @@ impl Runner {
         child.env("RUNSEAL_ROOT", &config.root);
         if let Some(path) = &config.path {
             child.env("RUNSEAL_PROFILE_PATH", path);
+        }
+        for (key, value) in handoff {
+            match value {
+                Some(value) => child.env(key, value),
+                None => child.env_remove(key),
+            };
         }
 
         let status = child

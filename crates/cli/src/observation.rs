@@ -1,6 +1,7 @@
 use locus::{Candidate, Context, Engine, Role};
 use plumb::observation::{Declaration, Run, view};
 use serde_json::json;
+use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
 mod command;
@@ -21,6 +22,18 @@ pub(crate) fn start(cwd: &Path, command: &str) -> Option<Run> {
         },
         command,
     )
+}
+
+pub(crate) fn parent(frame: Option<&Context>) -> Vec<(OsString, Option<OsString>)> {
+    let mut command = std::process::Command::new("runseal");
+    command.env_remove(locus::collector::PARENT);
+    if let Some(frame) = frame {
+        plumb::observation::parent(&mut command, frame);
+    }
+    command
+        .get_envs()
+        .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
+        .collect()
 }
 
 pub(crate) fn prepared(argv: &[String]) {

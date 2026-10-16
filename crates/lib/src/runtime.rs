@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+
 use anyhow::{Context, Result, bail};
 
 use crate::core::{
@@ -19,6 +21,7 @@ pub struct Execution<'a> {
     config: &'a Config,
     profile: Profile,
     command: Command,
+    handoff: Vec<(OsString, Option<OsString>)>,
 }
 
 pub fn run(config: &Config) -> Result<Outcome> {
@@ -33,7 +36,12 @@ impl<'a> Execution<'a> {
             config,
             profile,
             command,
+            handoff: Vec::new(),
         })
+    }
+
+    pub fn handoff(&mut self, entries: impl IntoIterator<Item = (OsString, Option<OsString>)>) {
+        self.handoff.extend(entries);
     }
 
     pub fn argv(&self) -> Option<&[String]> {
@@ -46,7 +54,7 @@ impl<'a> Execution<'a> {
     pub fn run(self) -> Result<Outcome> {
         injections::Lifecycle::with(&self.profile, |env| match &self.command {
             Command::External(argv) => {
-                let code = runner::Runner::run(self.config, argv, env)?;
+                let code = runner::Runner::run(self.config, argv, env, &self.handoff)?;
                 Ok(Outcome { code: Some(code) })
             }
             Command::Tool(name, argv) => {

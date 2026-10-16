@@ -238,3 +238,54 @@ fn lines(stderr: &[u8]) -> Vec<String> {
         .map(str::to_string)
         .collect()
 }
+
+const LINK: &str = "printf '%s' \"${LOCUS_PARENT-unset}\"; exit 17";
+
+fn spans(atoms: &[Value]) -> Vec<String> {
+    atoms
+        .iter()
+        .filter(|atom| atom["source"]["function"] == "profile" && atom["source"]["edge"] == "enter")
+        .map(|atom| atom["context"]["locus.span"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[test]
+#[cfg(unix)]
+fn parent() {
+    let home = tempfile::tempdir().expect("home");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_runseal"));
+    child
+        .current_dir(home.path())
+        .env("RUNSEAL_HOME", home.path())
+        .env("LOCUS_PARENT", "inherited")
+        .args([":", "sh", "-c", LINK]);
+    let quiet = child.output().expect("command");
+    assert_eq!(quiet.status.code(), Some(17));
+    assert_eq!(quiet.stdout, b"unset");
+    assert!(!home.path().join("state/locus").exists());
+    configure(home.path(), ENABLED);
+    let observed = child.output().expect("command");
+    assert_eq!(observed.status.code(), Some(17));
+    let written = String::from_utf8(observed.stdout).unwrap();
+    assert_eq!(spans(&records(home.path())), vec![written]);
+}
+
+#[test]
+#[cfg(unix)]
+fn nested() {
+    let home = tempfile::tempdir().expect("home");
+    configure(home.path(), ENABLED);
+    let inner = env!("CARGO_BIN_EXE_runseal");
+    let result = run(home.path(), &[":", inner, ":", "sh", "-c", LINK]);
+    assert_eq!(result.status.code(), Some(17));
+    let atoms = records(home.path());
+    let spans = spans(&atoms);
+    assert_eq!(spans.len(), 2);
+    let written = String::from_utf8(result.stdout).unwrap();
+    assert!(spans.contains(&written));
+    let outer = spans.iter().find(|span| **span != written).unwrap();
+    assert!(atoms.iter().any(|atom| {
+        atom["context"]["locus.parent"] == outer.as_str()
+            && atom["choices"][0]["role"] == "locus.parent"
+    }));
+}
