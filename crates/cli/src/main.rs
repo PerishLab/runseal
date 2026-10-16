@@ -109,7 +109,7 @@ fn execute(args: Vec<String>, cwd: &std::path::Path) -> Result<Option<i32>> {
     }
 }
 
-#[locus::trace(with = plumb::observation::view())]
+#[locus::trace(with = plumb::observation::view(), frame = frame)]
 fn profile(
     name: Option<String>,
     command: Vec<String>,
@@ -117,10 +117,11 @@ fn profile(
 ) -> Result<Option<i32>> {
     ready()?;
     let config = Config::build(name, command, cwd)?;
-    let execution = Execution::prepare(&config)?;
+    let mut execution = Execution::prepare(&config)?;
     if let Some(argv) = execution.argv() {
         observation::prepared(argv);
     }
+    execution.handoff(observation::parent(frame.as_ref()));
     Ok(execution.run()?.code)
 }
 
