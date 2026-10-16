@@ -445,6 +445,7 @@ dependencies = [
  "base64 0.22.1",
  "clap",
  "flate2",
+ "locus",
  "object",
  "pin-project-lite",
  "plumb-macro",
@@ -533,7 +534,6 @@ dependencies = [
  "locus",
  "plumb",
  "runseal",
- "serde",
  "serde_json",
  "tempfile",
 ]
