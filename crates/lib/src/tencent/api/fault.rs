@@ -62,6 +62,46 @@ impl Failure {
             | "AuthFailure.InvalidSecretId" => (Class::Authentication, "credentials were refused"),
             "RequestLimitExceeded" => (Class::Limit, "request limit was reached"),
             "UnsupportedOperation" => (Class::Unsupported, "operation is unsupported"),
+            "FailedOperation.PolicyFull" | "InvalidParameter.AttachmentFull" => (
+                Class::Limit,
+                "CAM policy or attachment capacity was reached",
+            ),
+            "FailedOperation.PolicyNameInUse" => {
+                (Class::Input, "CAM policy name is already in use")
+            }
+            "InvalidParameter.ActionError"
+            | "InvalidParameter.ActionMiss"
+            | "InvalidParameter.ActionNotExist"
+            | "InvalidParameter.ActionServiceNotExist"
+            | "InvalidParameter.ConditionContentError"
+            | "InvalidParameter.ConditionError"
+            | "InvalidParameter.ConditionTypeError"
+            | "InvalidParameter.DescriptionLengthOverlimit"
+            | "InvalidParameter.EffectError"
+            | "InvalidParameter.NotSupportProduct"
+            | "InvalidParameter.ParamError"
+            | "InvalidParameter.PolicyDocumentError"
+            | "InvalidParameter.PolicyDocumentLengthOverLimit"
+            | "InvalidParameter.PolicyNameError"
+            | "InvalidParameter.PrincipalError"
+            | "InvalidParameter.PrincipalQcsError"
+            | "InvalidParameter.PrincipalQcsNotExist"
+            | "InvalidParameter.PrincipalServiceNotExist"
+            | "InvalidParameter.ResourceContentError"
+            | "InvalidParameter.ResourceError"
+            | "InvalidParameter.ResourceProjectError"
+            | "InvalidParameter.ResourceQcsError"
+            | "InvalidParameter.ResourceRegionError"
+            | "InvalidParameter.ResourceServiceNotExist"
+            | "InvalidParameter.ResourceUinError"
+            | "InvalidParameter.StatementError"
+            | "InvalidParameter.UserNotExist"
+            | "InvalidParameter.VersionError"
+            | "ResourceNotFound.GroupNotExist"
+            | "ResourceNotFound.NotFound"
+            | "ResourceNotFound.UserNotExist" => {
+                (Class::Input, "CAM input or referenced resource was refused")
+            }
             _ => (Class::Provider, "operation was refused"),
         };
         let mut failure = Self::new(
@@ -98,8 +138,34 @@ impl Failure {
 
 impl fmt::Display for Failure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.detail)
+        formatter.write_str(&self.detail)?;
+        if let Some(code) = &self.code {
+            write!(formatter, "; code {code}")?;
+        }
+        if let Some(request) = &self.request {
+            write!(formatter, "; request {request}")?;
+        }
+        Ok(())
     }
 }
 
 impl std::error::Error for Failure {}
+
+#[test]
+fn diagnostic() {
+    for (code, class) in [
+        ("InvalidParameter.ActionNotExist", Class::Input),
+        ("FailedOperation.PolicyFull", Class::Limit),
+        ("FailedOperation.PolicyNameInUse", Class::Input),
+    ] {
+        let failure = Failure::provider(
+            &serde_json::json!({"Error":{"Code":code,"Message":"SECRET_FIXTURE"},"RequestId":"fixture-id"}),
+        );
+        assert_eq!(failure.class, class);
+        assert_eq!(failure.code.as_deref(), Some(code));
+        let output = failure.to_string();
+        assert!(output.contains(code));
+        assert!(output.contains("fixture-id"));
+        assert!(!output.contains("SECRET_FIXTURE"));
+    }
+}

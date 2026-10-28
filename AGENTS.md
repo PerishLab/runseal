@@ -85,3 +85,8 @@ missing, malformed, cross-product/region or nonprogressing page evidence refuses
 rather than becoming an empty collection. Typed failures distinguish input,
 custody, binding, authentication/expiry, permission, network, limits, response,
 unsupported and other provider refusals without exposing raw provider messages.
+
+CAM refusals retain a closed set of documented nonsecret error codes and a
+validated RequestId in typed failures and CLI errors. Unknown codes and all
+provider messages remain withheld; refusal alone does not justify replaying a
+write. Inspect the exact resource before changing a failed enrollment intent.

@@ -119,13 +119,13 @@ pub struct Shape {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Image {
-    #[serde(rename(deserialize = "ImageId"), alias = "BlueprintId")]
+    #[serde(rename(deserialize = "ImageId"))]
     pub id: String,
-    #[serde(rename(deserialize = "ImageName"), alias = "BlueprintName")]
+    #[serde(rename(deserialize = "ImageName"))]
     pub name: Option<String>,
-    #[serde(rename(deserialize = "ImageState"), alias = "BlueprintState")]
+    #[serde(rename(deserialize = "ImageState"))]
     pub state: Option<String>,
-    #[serde(rename(deserialize = "Platform"), alias = "PlatformType")]
+    #[serde(rename(deserialize = "Platform"))]
     pub platform: Option<String>,
     #[serde(rename(deserialize = "OsName"))]
     pub system: Option<String>,
@@ -149,4 +149,17 @@ pub struct Bundle {
     pub state: Option<String>,
     #[serde(rename(deserialize = "SupportPlatformType"))]
     pub platform: Option<String>,
+}
+
+impl Image {
+    pub(super) fn blueprint(value: &serde_json::Value) -> Result<Self, Failure> {
+        serde_json::from_value(serde_json::json!({
+            "ImageId":value.get("BlueprintId"),
+            "ImageName":value.get("BlueprintName"),
+            "ImageState":value.get("BlueprintState"),
+            "Platform":value.get("Platform"),
+            "OsName":value.get("OsName")
+        }))
+        .map_err(|_| Failure::new(Class::Response, "Tencent blueprint receipt is incomplete"))
+    }
 }
