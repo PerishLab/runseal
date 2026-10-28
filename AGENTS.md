@@ -64,3 +64,24 @@ tests do not establish real account permissions or authorization compatibility.
 The reusable library carries no Plumb dependency. The CLI owns the product's
 managed Skill surface while delegating Depot mechanics to Plumb. Runseal has no
 Cookbook: its routine refusals state their own recovery.
+
+`runseal::tencent::Client` opens one absolute private state reference with an
+explicit owning account. `identity` verifies the current caller and records the
+credential stamp and observation time; `read` consumes that binding and one
+closed `Query`. Its typed result carries product, service/version/action,
+requested region, caller identity, observation time, RequestId and one data page
+or catalog response. Cached identity time remains visible; a caller needing
+fresh evidence explicitly calls identity first. No call renews, enrolls or
+creates an identity implicitly. The existing tool namespace delegates here.
+
+`@tencent compute` exposes the same instances, regions, zones, shapes, images,
+blueprints and bundles queries. Each invocation requires the expected account
+and verified current credential binding, performs one named API, and returns
+one page. The operator owns pagination, budgets and infrastructure semantics.
+Region discovery uses the region service; compute calls require an explicit
+region. Image reads select CVM public images or Lighthouse pure OS blueprints.
+Bundle reads may name one blueprint for compatibility filtering. Unknown,
+missing, malformed, cross-product/region or nonprogressing page evidence refuses
+rather than becoming an empty collection. Typed failures distinguish input,
+custody, binding, authentication/expiry, permission, network, limits, response,
+unsupported and other provider refusals without exposing raw provider messages.

@@ -1,4 +1,5 @@
 use base64::{Engine, engine::general_purpose::STANDARD};
+use runseal::tencent::{Class, Client, Product, Query, Window};
 use runseal::{custody::Private, tool};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::PathBuf};
@@ -6,6 +7,51 @@ use std::{collections::BTreeMap, path::PathBuf};
 struct Fixture {
     _root: tempfile::TempDir,
     state: PathBuf,
+}
+
+#[test]
+fn reader() {
+    for (credential, identity, expected) in [
+        (Value::Null, Value::Null, Class::Authentication),
+        (
+            json!({"id":"AKID_FIXTURE","key":"SECRET_FIXTURE","expires":1}),
+            Value::Null,
+            Class::Expired,
+        ),
+        (
+            json!({"id":"AKID_FIXTURE","key":"SECRET_FIXTURE"}),
+            Value::Null,
+            Class::Binding,
+        ),
+        (
+            json!({"id":"AKID_FIXTURE","key":"SECRET_FIXTURE"}),
+            json!({"AccountId":"999","credentialStamp":"wrong"}),
+            Class::Binding,
+        ),
+        (
+            json!({"id":"AKID_FIXTURE","key":"SECRET_FIXTURE"}),
+            json!({"AccountId":"123","credentialStamp":"wrong"}),
+            Class::Binding,
+        ),
+    ] {
+        let fixture = Fixture::new();
+        fixture.write(&json!({"version":1,"credential":credential,"identity":identity}));
+        let client = Client::open(&fixture.state, "123").unwrap();
+        let query = Query::Instances {
+            product: Product::Cvm,
+            region: "ap-hongkong".into(),
+            window: Window {
+                offset: 0,
+                limit: 20,
+            },
+        };
+        let failure = client.read(&query).unwrap_err();
+        assert_eq!(failure.class, expected);
+        assert!(!format!("{failure:?} {failure}").contains("SECRET_FIXTURE"));
+        assert!(fixture.call(&["auth", "status"]).is_err());
+        drop(client);
+        assert!(fixture.call(&["auth", "status"]).is_ok());
+    }
 }
 
 impl Fixture {

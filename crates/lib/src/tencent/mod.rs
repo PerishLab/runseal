@@ -1,13 +1,20 @@
 mod api;
 mod auth;
 mod cam;
+mod compute;
 mod deed;
 mod dns;
 mod model;
 mod secret;
-mod sign;
+use api::sign;
 
-use super::Reply;
+pub use api::{Class, Failure};
+pub use compute::{
+    Bundle, Client, Data, Identity, Image, Instance, Page, Product, Query, Read, Region, Shape,
+    Window,
+};
+
+use crate::tool::Reply;
 use anyhow::{Result, bail};
 use clap::Parser;
 use deed::{Cam, Deed, Input, Key};
@@ -50,6 +57,13 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     if let Deed::Auth(deed) = &input.deed {
         return store.auth(deed);
     }
+    if let Deed::Compute(query) = &input.deed {
+        let account = input.account.as_deref()
+            .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
+            .ok_or_else(|| anyhow::anyhow!("Tencent compute reads require an explicit owning account; verify identity first"))?;
+        let reader = compute::Client::from(store, account)?;
+        return serde_json::to_value(reader.read(query)?).map_err(Into::into);
+    }
     let mut state = store.read()?;
     let account = input
         .account
@@ -89,6 +103,7 @@ fn identity(store: &Store, state: &mut State, expected: Option<&str>) -> Result<
     }
     let mut identity = api::metadata(&body.0);
     identity["credentialStamp"] = json!(stamp(state.credential()?));
+    identity["verifiedAt"] = json!(model::now());
     state.identity = Some(identity);
     store.save(state)?;
     Ok(state.receipt())

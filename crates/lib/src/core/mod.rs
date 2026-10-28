@@ -4,6 +4,5 @@ pub mod injections;
 pub(crate) mod key;
 pub mod profile;
 pub mod route;
-#[path = "../runtime.rs"]
 pub mod runtime;
 pub(crate) mod symbol;
