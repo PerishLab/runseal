@@ -108,7 +108,7 @@ fn catalogs() {
                 region: "ap-hongkong".into(),
                 window,
             },
-            json!({"TotalCount":1,"BlueprintSet":[{"BlueprintId":"lhbp-one","BlueprintName":"Linux","BlueprintState":"NORMAL"}]}),
+            json!({"TotalCount":1,"BlueprintSet":[{"BlueprintId":"lhbp-one","ImageId":"img-underlying","BlueprintName":"Linux","BlueprintState":"NORMAL","Platform":"UBUNTU","PlatformType":"LINUX_UNIX"}]}),
         ),
         (
             Query::Bundles {

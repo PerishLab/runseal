@@ -97,7 +97,16 @@ struct Receipt<'a>(&'a Value);
 
 impl Receipt<'_> {
     fn images(&self, field: &str, prefix: &str) -> Result<Vec<Image>, Failure> {
-        let items: Vec<Image> = self.list(field)?;
+        let items: Vec<Image> = if field == "BlueprintSet" {
+            self.0[field]
+                .as_array()
+                .ok_or_else(response)?
+                .iter()
+                .map(Image::blueprint)
+                .collect::<Result<_, _>>()?
+        } else {
+            self.list(field)?
+        };
         for item in &items {
             identifier(&item.id, prefix)?;
         }
