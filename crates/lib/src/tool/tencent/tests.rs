@@ -53,6 +53,30 @@ fn reference() {
 }
 
 #[test]
+fn published() {
+    let body =
+        r#"{"Limit": 1, "Filters": [{"Values": ["\u672a\u547d\u540d"], "Name": "instance-name"}]}"#;
+    assert_eq!(
+        sign::hash(body.as_bytes()),
+        "35e9c5b0e3ae67532d3c9f17ead6c90222632e5b1ff7f6e89887f1398934f064"
+    );
+    let mut credential = credential();
+    credential.id = "AKID********************************".into();
+    credential.key = "********************************".into();
+    let actual = sign::authorization(
+        &credential,
+        ("cvm.tencentcloudapi.com", "cvm", "DescribeInstances"),
+        body,
+        1551113065,
+    )
+    .unwrap();
+    assert_eq!(
+        actual,
+        "TC3-HMAC-SHA256 Credential=AKID********************************/2019-02-25/cvm/tc3_request, SignedHeaders=content-type;host;x-tc-action, Signature=10b1a37a7301a02ca19a647ad722d5e43b4b3cff309d421d85b46093f6ab6c4f"
+    );
+}
+
+#[test]
 fn wire() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
@@ -179,6 +203,38 @@ fn incomplete() {
         assert!(error.to_string().contains("may have completed"));
         worker.join().unwrap();
     }
+}
+
+#[test]
+fn oversized() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let worker = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let _ = request(&mut stream);
+        let body = format!(
+            "{{\"Response\":{{\"RequestId\":\"fixture\",\"Uin\":123,\"Name\":\"{}\"}}}}",
+            "X".repeat(2 * 1024 * 1024)
+        );
+        let _ = write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+    });
+    let credential = credential();
+    let error = Client::new(&credential)
+        .request(
+            (&url, "cam.tencentcloudapi.com"),
+            ("GetUser", "2019-01-16"),
+            &json!({}),
+        )
+        .err()
+        .expect("oversized response must be refused");
+    assert!(error.to_string().contains("response unreadable"));
+    assert!(error.to_string().len() < 200);
+    worker.join().unwrap();
 }
 
 fn request(stream: &mut std::net::TcpStream) -> String {
