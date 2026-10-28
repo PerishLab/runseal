@@ -1,5 +1,5 @@
 use super::{
-    api::{self, Client},
+    api::{self, Client, Operation},
     model::Credential,
     sign,
 };
@@ -100,7 +100,7 @@ fn wire() {
     let body = Client::new(&credential)
         .request(
             (&url, "cam.tencentcloudapi.com"),
-            ("GetUser", "2019-01-16"),
+            Operation::new("GetUser", "2019-01-16", Some("ap-guangzhou")),
             &json!({"Name":"fixture"}),
         )
         .unwrap();
@@ -127,7 +127,7 @@ fn refusal() {
     let credential = credential();
     let result = Client::new(&credential).request(
         (&url, "cam.tencentcloudapi.com"),
-        ("AddUser", "2019-01-16"),
+        Operation::new("AddUser", "2019-01-16", Some("ap-guangzhou")),
         &json!({}),
     );
     let error = result.err().expect("provider refusal");
@@ -153,7 +153,7 @@ fn ambiguous() {
     let error = Client::new(&credential)
         .request(
             (&url, "cam.tencentcloudapi.com"),
-            ("AddUser", "2019-01-16"),
+            Operation::new("AddUser", "2019-01-16", Some("ap-guangzhou")),
             &json!({}),
         )
         .err()
@@ -195,7 +195,7 @@ fn incomplete() {
         let error = Client::new(&credential)
             .request(
                 (&url, "cam.tencentcloudapi.com"),
-                ("AddUser", "2019-01-16"),
+                Operation::new("AddUser", "2019-01-16", Some("ap-guangzhou")),
                 &json!({}),
             )
             .err()
@@ -227,7 +227,7 @@ fn oversized() {
     let error = Client::new(&credential)
         .request(
             (&url, "cam.tencentcloudapi.com"),
-            ("GetUser", "2019-01-16"),
+            Operation::new("GetUser", "2019-01-16", Some("ap-guangzhou")),
             &json!({}),
         )
         .err()

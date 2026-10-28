@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
     name = "@tencent",
-    about = "One native Tencent account, CAM or DNSPod operation",
+    about = "One native Tencent account, CAM, DNSPod or compute read operation",
     after_help = "Profile references: TENCENTCLOUD_STATE_FILE selects an absolute private state file; TENCENTCLOUD_ACCOUNT_UIN declares the expected owning account. Profiles remain env, argv and symlink only.\n\nAuthorize with auth begin, complete the official Tencent Cloud CLI application's browser login, save the full return in a private file, then auth complete --response-file PATH. The return contains bearer tokens: never pass it as an argument or paste it into chat. Complete consumes that file after saving authorization. Verify identity before mutations and declare --account.\n\nRefresh renews the OAuth access token; renew separately acquires cloud credentials and clears the identity binding. Neither runs implicitly. Logout clears local custody only, without remote revocation. Key creation requires an explicit delegated user and reserves a new private --value-file before contacting CAM.\n\nAll private files require trusted ancestors and owner-only access (Unix 0600 files/0700 directories; Windows protected ACLs). Create the parent first. Responses omit credentials and raw provider error messages. An uncertain remote result is never retried automatically: inspect the exact resource before recovery. DNS values are ordinary command arguments; do not use this surface to publish secret-bearing record values. Mainland Tencent Cloud only."
 )]
 pub(super) struct Input {
@@ -23,6 +23,8 @@ pub(super) enum Deed {
     #[command(subcommand)]
     Auth(Auth),
     Identity,
+    #[command(subcommand)]
+    Compute(super::Query),
     #[command(subcommand)]
     Cam(Cam),
     #[command(subcommand)]

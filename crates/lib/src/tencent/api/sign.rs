@@ -3,9 +3,9 @@ use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
-use super::model::Credential;
+use super::super::model::Credential;
 
-pub(super) fn authorization(
+pub(in crate::tencent) fn authorization(
     credential: &Credential,
     target: (&str, &str, &str),
     body: &str,
@@ -56,6 +56,6 @@ fn mac(key: &[u8], message: &[u8]) -> Result<Vec<u8>> {
     Ok(mac.finalize().into_bytes().to_vec())
 }
 
-pub(super) fn hash(bytes: &[u8]) -> String {
+pub(in crate::tencent) fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }

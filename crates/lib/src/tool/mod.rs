@@ -6,7 +6,7 @@ use serde_json::Value;
 use zeroize::Zeroize;
 
 pub mod cloudflare;
-pub mod tencent;
+pub use crate::tencent;
 
 #[derive(PartialEq)]
 pub struct Reply {
