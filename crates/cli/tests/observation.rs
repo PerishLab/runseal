@@ -239,8 +239,10 @@ fn lines(stderr: &[u8]) -> Vec<String> {
         .collect()
 }
 
+#[cfg(unix)]
 const LINK: &str = "printf '%s' \"${LOCUS_PARENT-unset}\"; exit 17";
 
+#[cfg(unix)]
 fn spans(atoms: &[Value]) -> Vec<String> {
     atoms
         .iter()
