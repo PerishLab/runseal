@@ -49,6 +49,18 @@ Cloudflare operations expose typed provider resources without
 exposing credentials, raw response secrets, desired-state bundles, or
 orchestration. One invocation owns one provider verb or one child process tree.
 
+Tencent operations use the official Tencent Cloud CLI account authorization
+application through native HTTPS, without Python. Browser login, MFA and
+consent remain human actions. A private return file is consumed after durable
+local custody; credentials never enter command arguments or provider output.
+Refresh, credential renewal and identity verification are separate operations.
+Local logout does not promise remote revocation. Mutations bind a verified
+caller to an explicitly declared owning account; key issuance additionally
+requires an explicit delegated user and a reserved private destination.
+An uncertain provider result is never replayed automatically. The finite CAM
+and DNSPod surface exposes no raw action or endpoint override. Source protocol
+tests do not establish real account permissions or authorization compatibility.
+
 The reusable library carries no Plumb dependency. The CLI owns the product's
 managed Skill surface while delegating Depot mechanics to Plumb. Runseal has no
 Cookbook: its routine refusals state their own recovery.

@@ -164,6 +164,7 @@ fn resolve() {
 #[cfg(feature = "managed-skill")]
 #[test]
 fn identity() {
+    #[cfg(target_os = "linux")]
     let scratch = tempfile::tempdir().expect("scratch");
     let source = Path::new(env!("CARGO_BIN_EXE_runseal"));
     let bytes = std::fs::read(source).expect("executable");
