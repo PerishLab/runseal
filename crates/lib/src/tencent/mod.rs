@@ -114,26 +114,36 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     };
     let body =
         api::Client::new(state.credential()?).send(service, request.action, &request.body)?;
-    match &input.deed {
+    let result = match &input.deed {
         Deed::Cam(deed) => command::cam::receipt(deed, &body.0)?,
         _ => unreachable!(),
-    }
+    };
     if let (Deed::Cam(Cam::Key(Key::Create { user, .. })), Some(reserved)) = (&input.deed, reserved)
     {
-        return deliver(reserved, &body.0, *user);
+        return deliver(reserved, &body.0, *user, result);
     }
-    Ok(json!({"action": request.action, "result": api::metadata(&body.0)}))
+    Ok(json!({"action": request.action, "result": result}))
 }
 
-fn deliver(reserved: secret::Reserved, body: &Value, user: u64) -> Result<Value> {
-    let key = body.get("AccessKey").ok_or_else(|| anyhow::anyhow!("Tencent key creation response lacked the issued key; inspect the explicit target user before recovery"))?;
+fn deliver(reserved: secret::Reserved, body: &Value, user: u64, result: Value) -> Result<Value> {
+    let unavailable = || {
+        let mut fault = Failure::new(
+            Class::Response,
+            "Tencent key issuance receipt lacked private delivery material; a mutation may have completed; inspect the explicit target user before recovery",
+        );
+        fault.request = result["RequestId"].as_str().map(str::to_owned);
+        fault
+    };
+    let key = body.get("AccessKey").ok_or_else(unavailable)?;
     let mut issued = State::fresh();
     issued.credential = Some(Credential {
-        id: field(key, "AccessKeyId")?.into(),
-        key: field(key, "SecretAccessKey")?.into(),
+        id: field(key, "AccessKeyId").map_err(|_| unavailable())?.into(),
+        key: field(key, "SecretAccessKey")
+            .map_err(|_| unavailable())?
+            .into(),
         token: None,
         expires: None,
     });
-    let receipt = json!({"action": "CreateAccessKey", "targetUin": user, "result": api::metadata(key), "requestId": body.get("RequestId").and_then(Value::as_str)});
+    let receipt = json!({"action": "CreateAccessKey", "targetUin": user, "result": result["AccessKey"], "requestId": body.get("RequestId").and_then(Value::as_str)});
     reserved.commit(&issued, receipt)
 }

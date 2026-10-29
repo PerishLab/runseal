@@ -1,7 +1,7 @@
 mod fault;
 mod record;
 pub(super) mod sign;
-pub(super) use record::metadata;
+pub(super) use record::{Collection, Number, project, text};
 
 pub use fault::{Class, Error, Failure, Outcome};
 

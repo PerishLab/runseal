@@ -1,5 +1,5 @@
 use super::super::model::Credential;
-use super::{self as api, Client, Operation, sign};
+use super::{Client, Operation, sign};
 use serde_json::json;
 use std::{
     io::{Read, Write},
@@ -157,16 +157,6 @@ fn ambiguous() {
         .expect("unknown result");
     assert!(error.to_string().contains("uncertain"));
     worker.join().unwrap();
-}
-
-#[test]
-fn metadata() {
-    let value = super::metadata(
-        &json!({"Uin":123,"SecretKey":"SECRET","AccessKey":{"SecretAccessKey":"SECRET"},"AccessToken":"SECRET","RecordList":[{"RecordId":1,"SecretKey":"SECRET"}]}),
-    );
-    assert_eq!(value, json!({"Uin":123,"RecordList":[{"RecordId":1}]}));
-    assert!(!value.to_string().contains("SECRET"));
-    let _ = api::agent();
 }
 
 #[test]
