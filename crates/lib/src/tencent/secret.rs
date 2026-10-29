@@ -2,7 +2,6 @@ use anyhow::{Result, bail};
 use serde_json::Value;
 use std::{
     fs::File,
-    io::Write,
     path::{Path, PathBuf},
 };
 use zeroize::Zeroizing;
@@ -75,45 +74,27 @@ pub(super) fn read(path: &Path) -> Result<Zeroizing<Vec<u8>>> {
 }
 
 pub(super) struct Reserved {
-    file: Option<File>,
-    path: PathBuf,
+    file: crate::custody::Reserved,
 }
 
 impl Reserved {
     pub fn open(path: &Path) -> Result<Self> {
-        let file = Private::current().reserve(path).map_err(|_| {
+        let file = Private::current().output(path).map_err(|_| {
             anyhow::anyhow!("Tencent output must be a new private file under trusted ancestors")
         })?;
-        Ok(Self {
-            file: Some(file),
-            path: path.to_owned(),
-        })
+        Ok(Self { file })
     }
 
-    pub fn commit(mut self, state: &State, receipt: Value) -> Result<Value> {
+    pub fn commit(self, state: &State, receipt: Value) -> Result<Value> {
         let bytes = Zeroizing::new(
             serde_json::to_vec(state)
                 .map_err(|_| anyhow::anyhow!("Tencent secret encoding refused"))?,
         );
-        let file = self.file.as_mut().expect("reserved output is held");
-        if file
-            .write_all(&bytes)
-            .and_then(|_| file.sync_all())
-            .is_err()
-        {
+        if self.file.commit(&bytes).is_err() {
             bail!(
                 "Tencent key was issued but private delivery failed; use the explicit target user and issuance receipt to inspect keys before any recovery; receipt: {receipt}"
             );
         }
-        self.file.take();
         Ok(receipt)
-    }
-}
-
-impl Drop for Reserved {
-    fn drop(&mut self) {
-        if self.file.take().is_some() {
-            let _ = std::fs::remove_file(&self.path);
-        }
     }
 }

@@ -7,6 +7,7 @@ use super::support::{Seat, sequence, serve, text};
 use serde_json::{Value, json};
 
 mod control;
+mod custody;
 mod roll;
 
 struct Case {
