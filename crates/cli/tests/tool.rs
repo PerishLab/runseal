@@ -73,3 +73,35 @@ fn dns() {
     ]);
     assert!(!output.status.success());
 }
+
+#[test]
+fn cvm() {
+    let seat = Seat::new();
+    let output = seat.run(&[":", "@tencent", "cvm", "run", "--help"]);
+    assert!(output.status.success(), "{output:?}");
+    for argument in [
+        "--client-token",
+        "--dry-run",
+        "--group",
+        "--key",
+        "--disk-class",
+    ] {
+        assert!(text(&output.stdout).contains(argument));
+    }
+    let output = seat.run(&[":", "@tencent", "cvm", "key", "import", "--help"]);
+    assert!(output.status.success(), "{output:?}");
+    assert!(text(&output.stdout).contains("--public-file"));
+    let output = seat.run(&[
+        ":",
+        "@tencent",
+        "cvm",
+        "--region",
+        "ap-hongkong",
+        "status",
+        "--id",
+        "ins-fixture",
+        "--raw-body",
+        "{}",
+    ]);
+    assert!(!output.status.success());
+}

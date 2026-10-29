@@ -175,3 +175,61 @@ and credential custody. CLI authorization ceremonies live under command. Public
 compute Product/Window/Query remain plain data models; command owns clap parsing
 and explicit conversion. State v1 and existing public type paths remain stable. No Plumb
 or Locus dependency enters the reusable library.
+
+`runseal::tencent::cvm` and `Client::cvm` expose plain finite models shared by
+the native CVM command. Existing compute/Lighthouse queries retain their public
+paths and read contracts. Every CVM invocation requires explicit region, owner,
+private custody and a current verified credential binding, and sends one API.
+Request::validate performs local validation without opening custody or transport.
+
+Creation and inquiry specify one POSTPAID_BY_HOUR instance: explicit zone,
+project, VPC/subnet, image/flavor, system disk, security groups, imported key
+and public bandwidth. The supported disks are CLOUD_PREMIUM/CLOUD_SSD, 10 through
+4096 GiB; one through five unique groups and zero private-only or 1 through
+100 public Mbps are finite closure limits, not proof of actual stock or quota.
+There are no extra disks, arbitrary UserData, passwords, launch templates,
+roles or raw API gateway. Cloud security, monitor and automation services are
+explicitly disabled. LoginSettings contains KeyIds alone: KeepImageLogin is
+mutually exclusive, including its string-valued false form, and is omitted.
+
+RunInstances always includes a caller-supplied nonempty visible ASCII token
+of at most 64 bytes and explicit DryRun. Persist the exact token/input before
+sending; the SDK neither generates tokens nor promises a generic token lifetime.
+DryRun success is Checked, never Created. A normal creation requires exactly
+one returned InstanceId; accepted does not prove RUNNING, successful latest
+operation, SSH reachability or application readiness. All remain separate facts.
+
+InquiryPriceRunInstances does not receive DryRun or a token and performs no
+purchase. Preserve hourly instance and per-GB traffic rates, optional discounted
+rates and second/third pricing steps. Official step intervals are 0-96,
+96-360 and 360 onward hours; absent later steps do not invent prices. The API
+does not return a currency field: currency remains unknown, not an account
+billing-currency proof or an approved spending budget. DescribeAccountQuota
+returns checked postpaid zone counters; quota is not stock or purchase authority.
+
+Exact instance/key/status reads check IDs and count coverage. A checked empty
+result is an explicit unlisted observation, not an authoritative absence claim.
+Missing fields, foreign zones, duplicate attachments and partial operation
+facts refuse instead of becoming empty/success. Nullable addresses and latest
+operation facts retain unknowns. Latest operation's SUCCESS/OPERATING/FAILED
+and optional RequestId remain separate from instance state. Public facts retain
+VPC/subnet/project, disks and deletion flags, groups, keys, IPs, bandwidth,
+billing and termination protection; raw operation error messages are withheld.
+
+Key import accepts only bounded OpenSSH RSA public material, 2048 through 4096
+bits, with a positive odd exponent; names use at most 25 ASCII letters, digits
+or underscores and project IDs fit the official signed integer. CLI reads a
+bounded public file without printing its contents. It never generates a key,
+uploads a private key or manages operator private custody. Key reads preserve
+associated instance IDs; an accepted delete may still leave a referenced key.
+
+Rename and terminate address one exact ID, with no hidden preflight or wait.
+Terminate explicitly sets ReleaseAddress=false and ReleasePrepaidDataDisks=false;
+this does not promise safety for every externally attached disk or address.
+Consumers inspect current charge/attachments/ownership before destructive work.
+Stopping may still bill and releasing a normal public IP loses that address;
+these calls offer neither stop/free billing nor inventory recovery guarantees.
+Hardrig owns plans, bindings, durable intents/receipts, generation, polling,
+cost approval, SSH trust and recovery. Lost receipts never authorize replay,
+compensation, automatic refresh or forced clearing. Protocol/offline tests are
+not real Tencent account, stock, pricing, purchase or Windtun qualification.

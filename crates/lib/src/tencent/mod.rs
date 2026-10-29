@@ -2,6 +2,7 @@ mod api;
 mod client;
 mod command;
 mod compute;
+pub mod cvm;
 pub mod dns;
 mod identity;
 pub use identity::Identity;
@@ -56,6 +57,18 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     let store = Store::open(&path)?;
     if let Deed::Auth(deed) = &input.deed {
         return store.auth(deed);
+    }
+    if let Deed::Cvm(deed) = &input.deed {
+        let account = input
+            .account
+            .as_deref()
+            .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
+            .ok_or_else(|| {
+                anyhow::anyhow!("CVM requires an explicit owning account and verified caller")
+            })?;
+        let request = command::cvm::request(deed)?;
+        return serde_json::to_value(Client::from(store, account)?.cvm(&request)?)
+            .map_err(Into::into);
     }
     if let Deed::Network(request) = &input.deed {
         let account = input
