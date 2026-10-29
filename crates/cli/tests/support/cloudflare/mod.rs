@@ -230,6 +230,10 @@ fn check(owner: &str, case: Case) {
     let seen = handle.join().expect("server");
     let expected = format!("{} {} ", case.method, case.route);
     assert!(seen[0].starts_with(&expected), "{}", seen[0]);
+    if case.method == "DELETE" {
+        let (_, body) = seen[0].split_once("\r\n\r\n").expect("headers");
+        assert!(body.is_empty(), "token deletion must not send a body");
+    }
 }
 
 fn vars(url: &str) -> BTreeMap<String, String> {
