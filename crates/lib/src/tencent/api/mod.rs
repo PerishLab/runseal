@@ -185,6 +185,7 @@ pub(super) fn version(service: &str) -> Result<&'static str> {
         "cam" => Ok("2019-01-16"),
         "dnspod" => Ok("2021-03-23"),
         "sts" => Ok("2018-08-13"),
+        "vpc" => Ok("2017-03-12"),
         "cvm" => Ok("2017-03-12"),
         "lighthouse" => Ok("2020-03-24"),
         "region" => Ok("2022-06-27"),

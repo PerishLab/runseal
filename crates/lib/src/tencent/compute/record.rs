@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 impl Call {
-    pub(super) fn decode(&self, value: &Value) -> Result<Data, Failure> {
+    pub(in crate::tencent) fn decode(&self, value: &Value) -> Result<Data, Failure> {
         let receipt = Receipt(value);
         match self.kind {
             Kind::Regions => {

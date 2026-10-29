@@ -1,8 +1,8 @@
-use super::deed::{Dns, Fields, Record};
+use super::{Dns, Fields, Record};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
-pub(super) fn request(deed: &Dns) -> Result<(&'static str, Value, bool)> {
+pub(in crate::tencent) fn request(deed: &Dns) -> Result<(&'static str, Value, bool)> {
     let found = match deed {
         Dns::Domain { domain } => ("DescribeDomain", json!({"Domain": domain}), false),
         Dns::Record(Record::List { domain, offset }) => (

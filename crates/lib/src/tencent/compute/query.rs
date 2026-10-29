@@ -85,17 +85,17 @@ pub(super) enum Kind {
     Bundles(Window),
 }
 
-pub(super) struct Call {
+pub(in crate::tencent) struct Call {
     pub product: Product,
     pub service: &'static str,
     pub action: &'static str,
     pub region: Option<String>,
     pub body: Value,
-    pub kind: Kind,
+    pub(super) kind: Kind,
 }
 
 impl Query {
-    pub(super) fn call(&self) -> Result<Call, Failure> {
+    pub(in crate::tencent) fn call(&self) -> Result<Call, Failure> {
         let call = match self {
             Self::Regions { product } => Call {
                 product: *product,
@@ -182,7 +182,7 @@ fn bundle(window: Window, blueprint: Option<&str>) -> Result<Value, Failure> {
 }
 
 impl Call {
-    pub(super) fn request(&self) -> api::Request<'_> {
+    pub(in crate::tencent) fn request(&self) -> api::Request<'_> {
         api::Request {
             service: self.service,
             action: self.action,
