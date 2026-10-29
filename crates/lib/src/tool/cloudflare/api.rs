@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, error::Error, fmt, thread, time::Duration};
 use anyhow::{Context, Result};
 use serde_json::Value;
 
-use crate::http;
+use crate::http::{self, wire};
 
 pub struct Fault {
     detail: Box<Detail>,
@@ -71,18 +71,23 @@ pub(super) struct Page {
 pub(super) struct Client {
     base: String,
     headers: BTreeMap<String, String>,
+    transport: wire::Client,
 }
 
 impl Client {
     pub fn new(base: String, headers: BTreeMap<String, String>) -> Self {
-        Self { base, headers }
+        Self {
+            base,
+            headers,
+            transport: wire::Client::new(wire::Policy::default()),
+        }
     }
 
     pub fn send(&self, method: &str, route: &str, body: Option<&Value>) -> Result<Page> {
         let url = format!("{}{route}", self.base);
         let mut turn = 0u32;
         loop {
-            let response = self.request(method, &url, body)?.send()?;
+            let response = self.request(method, &url, body)?.using(&self.transport)?;
             let Some(delay) = delay(method, &response, turn) else {
                 return envelope(response).map_err(Into::into);
             };

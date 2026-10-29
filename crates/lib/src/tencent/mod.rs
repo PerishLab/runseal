@@ -95,7 +95,7 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
         .as_deref()
         .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str));
     if matches!(input.deed, Deed::Identity) {
-        return identity::verify(&store, &mut state, account);
+        return identity::verify(&store, &mut state, account, api::agent());
     }
     let (service, request) = match &input.deed {
         Deed::Cam(deed) => ("cam", command::cam::request(deed)?),

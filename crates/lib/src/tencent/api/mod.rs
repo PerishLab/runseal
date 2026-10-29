@@ -11,6 +11,7 @@ use std::time::Duration;
 use zeroize::{Zeroize, Zeroizing};
 
 use super::model::{Credential, now};
+use crate::http::wire;
 
 pub(super) struct Body(pub Value);
 
@@ -52,39 +53,35 @@ fn erase(value: &mut Value) {
     }
 }
 
-pub(super) fn agent() -> ureq::Agent {
-    ureq::Agent::config_builder()
-        .http_status_as_error(false)
-        .max_redirects(0)
-        .timeout_global(Some(Duration::from_secs(15)))
-        .timeout_connect(Some(Duration::from_secs(5)))
-        .build()
-        .into()
+pub(super) fn agent() -> wire::Client {
+    wire::Client::new(wire::Policy {
+        redirects: 0,
+        overall: Some(Duration::from_secs(15)),
+        connect: Some(Duration::from_secs(5)),
+        limit: 2 * 1024 * 1024,
+    })
 }
 
-pub(super) fn post(agent: &ureq::Agent, url: &str, body: &Value) -> Result<Body> {
+pub(super) fn post(agent: &wire::Client, url: &str, body: &Value) -> Result<Body> {
     let encoded = Zeroizing::new(
         serde_json::to_string(body).map_err(|_| anyhow::anyhow!("Tencent request refused"))?,
     );
-    let response = agent.post(url).header("Content-Type", "application/json").send(encoded.as_bytes()).map_err(|_| anyhow::anyhow!("Tencent transport result is uncertain; do not replay a mutation; inspect the exact resource before recovery"))?;
+    let response = agent.send(wire::Request {
+        method: "POST", url,
+        headers: &[("Content-Type", "application/json")],
+        body: Some(encoded.as_bytes()),
+    }).map_err(|_| anyhow::anyhow!("Tencent transport result is uncertain; do not replay a mutation; inspect the exact resource before recovery"))?;
     decode(response)
 }
 
-fn decode(mut response: ureq::http::Response<ureq::Body>) -> Result<Body> {
-    if response.status().as_u16() != 200 {
-        return Err(Failure::status(response.status().as_u16()).into());
+fn decode(response: wire::Response) -> Result<Body> {
+    if response.status != 200 {
+        return Err(Failure::status(response.status).into());
     }
-    let bytes = Zeroizing::new(
-        response
-            .body_mut()
-            .with_config()
-            .limit(2 * 1024 * 1024)
-            .read_to_vec()
-            .map_err(|_| {
-                anyhow::anyhow!("Tencent response unreadable; a mutation may have completed")
-            })?,
-    );
-    let value = serde_json::from_slice(&bytes).map_err(|_| {
+    let payload = response.collect().map_err(|_| {
+        anyhow::anyhow!("Tencent response unreadable; a mutation may have completed")
+    })?;
+    let value = serde_json::from_slice(&payload.body).map_err(|_| {
         anyhow::anyhow!("Tencent response malformed; a mutation may have completed")
     })?;
     Ok(Body(value))
@@ -92,15 +89,16 @@ fn decode(mut response: ureq::http::Response<ureq::Body>) -> Result<Body> {
 
 pub(super) struct Client<'a> {
     credential: &'a Credential,
-    agent: ureq::Agent,
+    agent: wire::Client,
 }
 
 impl<'a> Client<'a> {
     pub fn new(credential: &'a Credential) -> Self {
-        Self {
-            credential,
-            agent: agent(),
-        }
+        Self::using(credential, agent())
+    }
+
+    pub(super) fn using(credential: &'a Credential, agent: wire::Client) -> Self {
+        Self { credential, agent }
     }
 
     pub fn send(&self, service: &str, action: &str, params: &Value) -> Result<Body> {
@@ -144,22 +142,25 @@ impl<'a> Client<'a> {
             &body,
             timestamp,
         )?);
-        let mut request = self
-            .agent
-            .post(origin.0)
-            .header("Content-Type", "application/json; charset=utf-8")
-            .header("Authorization", authorization.as_str())
-            .header("Host", origin.1)
-            .header("X-TC-Action", operation.action)
-            .header("X-TC-Version", operation.version)
-            .header("X-TC-Timestamp", timestamp.to_string());
+        let timestamp = timestamp.to_string();
+        let mut headers = vec![
+            ("Content-Type", "application/json; charset=utf-8"),
+            ("Authorization", authorization.as_str()),
+            ("Host", origin.1),
+            ("X-TC-Action", operation.action),
+            ("X-TC-Version", operation.version),
+            ("X-TC-Timestamp", timestamp.as_str()),
+        ];
         if let Some(region) = operation.region {
-            request = request.header("X-TC-Region", region);
+            headers.push(("X-TC-Region", region));
         }
         if let Some(token) = &self.credential.token {
-            request = request.header("X-TC-Token", token);
+            headers.push(("X-TC-Token", token.as_str()));
         }
-        let response = request.send(body.as_bytes()).map_err(|_| Failure::new(Class::Network, "Tencent transport result is uncertain; do not replay a mutation; inspect the exact resource before recovery"))?;
+        let response = self.agent.send(wire::Request {
+            method: "POST", url: origin.0,
+            headers: &headers, body: Some(body.as_bytes()),
+        }).map_err(|_| Failure::new(Class::Network, "Tencent transport result is uncertain; do not replay a mutation; inspect the exact resource before recovery"))?;
         let mut decoded = decode(response)?;
         let value = decoded
             .0

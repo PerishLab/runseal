@@ -9,6 +9,7 @@ pub struct Client {
     store: Store,
     state: State,
     account: String,
+    agent: crate::http::wire::Client,
 }
 
 impl Client {
@@ -42,20 +43,27 @@ impl Client {
             store,
             state,
             account: account.into(),
+            agent: api::agent(),
         })
     }
 
     pub fn identity(&mut self) -> Result<Identity, Failure> {
         self.credential()?;
-        identity::verify(&self.store, &mut self.state, Some(&self.account))
-            .map_err(|error| Failure::capture(error, Class::Binding))?;
+        identity::verify(
+            &self.store,
+            &mut self.state,
+            Some(&self.account),
+            self.agent.clone(),
+        )
+        .map_err(|error| Failure::capture(error, Class::Binding))?;
         self.binding()
     }
 
     pub fn read(&self, query: &Query) -> Result<Read, Failure> {
         let call = query.call()?;
         let identity = self.binding()?;
-        let body = api::Client::new(self.credential()?)
+        let body = self
+            .api()?
             .invoke(call.request())
             .map_err(|error| Failure::capture(error, Class::Response))?;
         let request = model::field(&body.0, "RequestId")
@@ -78,6 +86,10 @@ impl Client {
             request,
             data,
         })
+    }
+
+    pub(in crate::tencent) fn api(&self) -> Result<api::Client<'_>, Failure> {
+        Ok(api::Client::using(self.credential()?, self.agent.clone()))
     }
 
     pub(in crate::tencent) fn credential(&self) -> Result<&model::Credential, Failure> {

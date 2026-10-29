@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, error::Error, fmt};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
+use zeroize::Zeroizing;
+pub(crate) mod wire;
 use serde_json::Value;
 
 pub struct Response {
@@ -41,10 +43,7 @@ impl<'a> Request<'a> {
     }
 
     pub fn send(self) -> Result<Response> {
-        if self.body.is_some() && matches!(self.verb, "GET" | "DELETE") {
-            bail!("HTTP {} requests do not support a JSON body", self.verb);
-        }
-        exchange(&self)
+        self.using(&wire::Client::new(wire::Policy::default()))
     }
 }
 
@@ -126,85 +125,44 @@ pub fn request(
     request.send()
 }
 
-fn exchange(request: &Request<'_>) -> Result<Response> {
-    let done = call(request)?;
-    let code = done.status().as_u16();
-    let headers = done
-        .headers()
-        .iter()
-        .filter_map(|(name, value)| {
-            value
-                .to_str()
-                .ok()
-                .map(|value| (name.as_str().to_ascii_lowercase(), value.to_string()))
+impl Request<'_> {
+    pub(crate) fn using(&self, client: &wire::Client) -> Result<Response> {
+        let encoded = self
+            .body
+            .map(serde_json::to_vec)
+            .transpose()
+            .context("unable to encode JSON")?
+            .map(Zeroizing::new);
+        let mut headers: Vec<_> = self
+            .headers
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+            .collect();
+        if matches!(self.verb, "POST" | "PATCH" | "PUT") {
+            headers.push(("Content-Type", "application/json"));
+        }
+        let payload = client
+            .send(wire::Request {
+                method: self.verb,
+                url: self.url,
+                headers: &headers,
+                body: encoded.as_ref().map(|value| value.as_slice()),
+            })?
+            .collect()?;
+        let text = String::from_utf8_lossy(&payload.body);
+        let body = if text.trim().is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_str(&text).unwrap_or_else(|_| Value::String(text.into_owned()))
+        };
+        Ok(Response {
+            status: payload.status,
+            headers: payload
+                .headers
+                .into_iter()
+                .map(|(name, value)| (name, value.to_string()))
+                .collect(),
+            body,
         })
-        .collect();
-    let text = done
-        .into_body()
-        .read_to_string()
-        .context("request response is unreadable")?;
-    if text.trim().is_empty() {
-        return Ok(Response {
-            status: code,
-            headers,
-            body: Value::Null,
-        });
     }
-    let value = match serde_json::from_str(&text) {
-        Ok(value) => value,
-        Err(_) => Value::String(text),
-    };
-    Ok(Response {
-        status: code,
-        headers,
-        body: value,
-    })
-}
-
-fn call(request: &Request<'_>) -> Result<ureq::http::Response<ureq::Body>> {
-    let held = agent();
-    match request.verb {
-        "GET" => done(mark(held.get(request.url), request).call()),
-        "DELETE" => done(mark(held.delete(request.url), request).call()),
-        "POST" => write(held.post(request.url), request),
-        "PATCH" => write(held.patch(request.url), request),
-        "PUT" => write(held.put(request.url), request),
-        other => bail!("unsupported HTTP method {other}"),
-    }
-}
-
-fn mark<B>(mut held: ureq::RequestBuilder<B>, request: &Request<'_>) -> ureq::RequestBuilder<B> {
-    for (name, value) in &request.headers {
-        held = held.header(name, value);
-    }
-    held
-}
-
-fn write(
-    held: ureq::RequestBuilder<ureq::typestate::WithBody>,
-    request: &Request<'_>,
-) -> Result<ureq::http::Response<ureq::Body>> {
-    let text = match request.body {
-        Some(body) => serde_json::to_string(body).context("unable to encode JSON")?,
-        None => String::new(),
-    };
-    done(
-        mark(held, request)
-            .header("Content-Type", "application/json")
-            .send(text),
-    )
-}
-
-fn done(
-    held: std::result::Result<ureq::http::Response<ureq::Body>, ureq::Error>,
-) -> Result<ureq::http::Response<ureq::Body>> {
-    held.context("request failed")
-}
-
-fn agent() -> ureq::Agent {
-    ureq::Agent::new_with_config(
-        ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .build(),
-    )
 }

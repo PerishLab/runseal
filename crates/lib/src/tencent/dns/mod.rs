@@ -22,8 +22,8 @@ impl super::Client {
         };
         let call = request.call().map_err(unsent)?;
         let identity = self.binding().map_err(unsent)?;
-        let credential = self.credential().map_err(unsent)?;
-        let body = super::api::Client::new(credential)
+        let client = self.api().map_err(unsent)?;
+        let body = client
             .invoke(call.request())
             .map_err(|error| Error::remote(Failure::capture(error, Class::Response)))?;
         let uncertain = |fault| Error {
