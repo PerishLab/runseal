@@ -2,8 +2,10 @@
 mod acl;
 #[cfg(windows)]
 mod descriptor;
+mod output;
 #[cfg(unix)]
 mod unix;
+pub(crate) use output::Reserved;
 #[cfg(windows)]
 mod windows;
 
@@ -57,9 +59,14 @@ impl Private {
     pub fn reserve(&self, path: &Path) -> io::Result<File> {
         self.ancestors(path)?;
         let file = native::Place(path).create(self.machine)?;
-        native::check(&file, self.machine, false)?;
-        file.sync_all()?;
-        native::Place(path).sync()?;
+        let ready = native::check(&file, self.machine, false)
+            .and_then(|()| file.sync_all())
+            .and_then(|()| native::Place(path).sync());
+        if let Err(error) = ready {
+            drop(file);
+            let _ = std::fs::remove_file(path);
+            return Err(error);
+        }
         Ok(file)
     }
 

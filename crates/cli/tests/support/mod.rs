@@ -19,12 +19,25 @@ pub struct Seat {
 
 impl Seat {
     pub fn new() -> Self {
-        let temp = TempDir::new().expect("temp dir should exist");
+        #[cfg(unix)]
+        let temp = tempfile::tempdir_in(std::fs::canonicalize("/tmp").expect("temporary root"))
+            .expect("temp dir should exist");
+        #[cfg(windows)]
+        let temp = tempfile::tempdir_in(std::env::var_os("ProgramData").expect("ProgramData"))
+            .expect("temp dir should exist");
         let home = temp.path().join("held");
         let cwd = temp.path().join("work");
         std::fs::create_dir_all(&cwd).expect("work should exist");
         std::fs::create_dir_all(home.join("profiles/perish/.local/secrets"))
             .expect("secrets should exist");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for path in [temp.path(), &home, &cwd] {
+                std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+                    .expect("private fixture");
+            }
+        }
         Self {
             _temp: temp,
             home,

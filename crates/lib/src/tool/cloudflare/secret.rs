@@ -1,19 +1,15 @@
-use std::{
-    fs::{File, OpenOptions},
-    io::Write,
-    path::{Path, PathBuf},
-};
-
-#[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use path_absolutize::Absolutize;
 use serde_json::Value;
+use zeroize::Zeroizing;
 
+use crate::custody::Private;
 use crate::tool::Reply;
 
 pub(super) struct Reserved {
-    file: Option<File>,
+    file: crate::custody::Reserved,
     path: PathBuf,
     rolls: bool,
 }
@@ -21,47 +17,28 @@ pub(super) struct Reserved {
 impl Reserved {
     pub fn open(path: &str, rolls: bool) -> Result<Self> {
         let path = PathBuf::from(path);
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        options.mode(0o600);
-        let file = options
-            .open(&path)
+        let absolute = path
+            .absolutize()
+            .with_context(|| format!("unable to resolve token value file {}", path.display()))?;
+        let file = Private::current()
+            .output(&absolute)
             .with_context(|| format!("unable to reserve token value file {}", path.display()))?;
-        Ok(Self {
-            file: Some(file),
-            path,
-            rolls,
-        })
+        Ok(Self { file, path, rolls })
     }
 
-    pub fn commit(mut self, reply: &mut Reply) -> Result<()> {
+    pub fn commit(self, reply: &mut Reply) -> Result<()> {
         let Some(held) = reply.secret() else {
             anyhow::bail!(
                 "cloudflare did not return a token secret; {}",
                 failure(reply, &self.path, self.rolls)
             );
         };
-        let secret = held.expose();
-        let mut file = self.file.take().expect("reserved file is held");
-        let written = file
-            .write_all(secret.as_bytes())
-            .and_then(|_| file.write_all(b"\n"))
-            .and_then(|_| file.sync_all());
-        if let Err(error) = written {
-            let _ = std::fs::remove_file(&self.path);
-            return Err(error).with_context(|| failure(reply, &self.path, self.rolls));
-        }
+        let bytes = Zeroizing::new(format!("{}\n", held.expose()));
+        self.file
+            .commit(bytes.as_bytes())
+            .with_context(|| failure(reply, &self.path, self.rolls))?;
         enrich(&mut reply.value, &self.path);
         Ok(())
-    }
-}
-
-impl Drop for Reserved {
-    fn drop(&mut self) {
-        if self.file.is_some() {
-            let _ = std::fs::remove_file(&self.path);
-        }
     }
 }
 
