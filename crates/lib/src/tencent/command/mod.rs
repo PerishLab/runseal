@@ -1,5 +1,7 @@
 pub(super) mod cam;
 pub(super) mod dns;
+mod request;
+pub(super) use request::{Mode, Request};
 
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
@@ -175,3 +177,15 @@ pub(super) struct Fields {
     #[arg(long, default_value = "600")]
     pub ttl: u32,
 }
+
+pub(super) fn receipt(valid: bool) -> anyhow::Result<()> {
+    if !valid {
+        anyhow::bail!(
+            "Tencent operation receipt incomplete; a mutation may have completed; inspect the exact resource before recovery"
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod checks;

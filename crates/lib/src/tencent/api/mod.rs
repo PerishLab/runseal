@@ -175,7 +175,6 @@ impl<'a> Client<'a> {
         {
             bail!("Tencent success receipt missing; a mutation may have completed");
         }
-        record::receipt(operation.action, value)?;
         Ok(Body(value.take()))
     }
 }
