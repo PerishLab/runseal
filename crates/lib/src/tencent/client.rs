@@ -1,4 +1,5 @@
-use super::compute::{Identity, Query, Read};
+use super::compute::{Query, Read};
+use super::identity::{self, Identity};
 use super::model::{self, State};
 use super::secret::Store;
 use super::{Class, Failure, api};
@@ -46,7 +47,7 @@ impl Client {
 
     pub fn identity(&mut self) -> Result<Identity, Failure> {
         self.credential()?;
-        super::identity(&self.store, &mut self.state, Some(&self.account))
+        identity::verify(&self.store, &mut self.state, Some(&self.account))
             .map_err(|error| Failure::capture(error, Class::Binding))?;
         self.binding()
     }
@@ -100,27 +101,6 @@ impl Client {
     }
 
     pub(in crate::tencent) fn binding(&self) -> Result<Identity, Failure> {
-        let credential = self.credential()?;
-        super::authorize(&self.state, Some(&self.account)).map_err(|_| binding())?;
-        let held = self.state.identity.as_ref().ok_or_else(binding)?;
-        Ok(Identity {
-            account: self.account.clone(),
-            principal: model::field(held, "PrincipalId")
-                .map_err(|_| binding())?
-                .into(),
-            kind: model::field(held, "Type").map_err(|_| binding())?.into(),
-            stamp: model::stamp(credential),
-            observed: held["verifiedAt"].as_u64().ok_or_else(binding)?,
-            request: model::field(held, "RequestId")
-                .map_err(|_| binding())?
-                .into(),
-        })
+        identity::bound(&self.state, &self.account, self.credential()?)
     }
-}
-
-fn binding() -> Failure {
-    Failure::new(
-        Class::Binding,
-        "Verify Tencent caller identity against the explicit owning account and current credentials before compute reads",
-    )
 }

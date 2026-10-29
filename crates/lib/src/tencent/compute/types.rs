@@ -1,17 +1,7 @@
-use super::super::{Class, Failure};
+use super::super::{Class, Failure, Identity};
 use super::query::Product;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
-
-#[derive(Clone, Debug, Serialize)]
-pub struct Identity {
-    pub account: String,
-    pub principal: String,
-    pub kind: String,
-    pub stamp: String,
-    pub observed: u64,
-    pub request: String,
-}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Read {

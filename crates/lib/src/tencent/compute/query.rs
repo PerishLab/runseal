@@ -1,9 +1,8 @@
 use super::super::{Class, Failure, api};
-use clap::{Args, Subcommand, ValueEnum};
 use serde::Serialize;
 use serde_json::{Value, json};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Product {
     Cvm,
@@ -19,58 +18,41 @@ impl Product {
     }
 }
 
-#[derive(Clone, Copy, Debug, Args)]
+#[derive(Clone, Copy, Debug)]
 pub struct Window {
-    #[arg(long, default_value_t = 0)]
     pub offset: u32,
-    #[arg(long, default_value_t = 20)]
     pub limit: u32,
 }
 
-#[derive(Clone, Debug, Subcommand)]
+#[derive(Clone, Debug)]
 pub enum Query {
     Regions {
-        #[arg(long)]
         product: Product,
     },
     Zones {
-        #[arg(long)]
         product: Product,
-        #[arg(long)]
         region: String,
     },
     Instances {
-        #[arg(long)]
         product: Product,
-        #[arg(long)]
         region: String,
-        #[command(flatten)]
         window: Window,
     },
     Shapes {
-        #[arg(long)]
         region: String,
-        #[arg(long)]
         zone: Option<String>,
     },
     Images {
-        #[arg(long)]
         region: String,
-        #[command(flatten)]
         window: Window,
     },
     Blueprints {
-        #[arg(long)]
         region: String,
-        #[command(flatten)]
         window: Window,
     },
     Bundles {
-        #[arg(long)]
         region: String,
-        #[arg(long)]
         blueprint: Option<String>,
-        #[command(flatten)]
         window: Window,
     },
 }

@@ -9,7 +9,7 @@ use zeroize::Zeroizing;
 use super::model::State;
 use crate::custody::Private;
 
-pub(super) struct Store {
+pub(in crate::tencent) struct Store {
     pub path: PathBuf,
     _lock: File,
 }
@@ -66,14 +66,14 @@ impl Store {
     }
 }
 
-pub(super) fn read(path: &Path) -> Result<Zeroizing<Vec<u8>>> {
+pub(in crate::tencent) fn read(path: &Path) -> Result<Zeroizing<Vec<u8>>> {
     Private::current()
         .read(path, 256 * 1024)
         .map(Zeroizing::new)
         .map_err(|_| anyhow::anyhow!("Tencent private input custody refused"))
 }
 
-pub(super) struct Reserved {
+pub(in crate::tencent) struct Reserved {
     file: crate::custody::Reserved,
 }
 

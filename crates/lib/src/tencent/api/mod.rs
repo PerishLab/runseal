@@ -191,3 +191,6 @@ pub(super) fn version(service: &str) -> Result<&'static str> {
         _ => bail!("Tencent service refused"),
     }
 }
+
+#[cfg(test)]
+mod tests;
