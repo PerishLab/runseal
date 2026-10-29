@@ -1,65 +1,137 @@
-use super::{Dns, Fields, Record, Request};
+use crate::tencent::dns::{self, Operation, Request};
 use anyhow::{Result, bail};
+use clap::{Args, Subcommand, ValueEnum};
 use serde_json::{Value, json};
 
-pub(in crate::tencent) fn request(deed: &Dns) -> Result<Request> {
-    let found = match deed {
-        Dns::Domain { domain } => Request::read("DescribeDomain", json!({"Domain": domain})),
-        Dns::Record(Record::List { domain, offset }) => Request::read(
-            "DescribeRecordList",
-            json!({"Domain": domain, "Offset": offset, "Limit": 100}),
-        ),
-        Dns::Record(Record::Create(record)) => Request::write("CreateRecord", fields(record)?),
-        Dns::Record(Record::Modify { id, record }) => {
-            let mut value = fields(record)?;
-            value["RecordId"] = positive(*id)?;
-            Request::write("ModifyRecord", value)
-        }
-        Dns::Record(Record::Delete { domain, id }) => Request::write(
-            "DeleteRecord",
-            json!({"Domain": domain, "RecordId": positive(*id)?}),
-        ),
-    };
-    let domain = found
-        .body
-        .get("Domain")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    if domain.len() > 253
-        || !domain.contains('.')
-        || !domain
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-')
-    {
-        bail!("Tencent domain refused; supply an explicit ASCII zone name");
-    }
-    Ok(found)
+#[derive(Subcommand)]
+pub(in crate::tencent) enum Dns {
+    Domain(Selection),
+    #[command(subcommand)]
+    Record(Record),
 }
 
-fn fields(record: &Fields) -> Result<Value> {
-    let name = (1..=253).contains(&record.name.len());
-    let value = (1..=4096).contains(&record.value.len());
-    if !name || !value || record.ttl == 0 {
-        bail!("Tencent DNS record refused");
-    }
-    match record.kind.as_str() {
-        "A" => {
-            let _: std::net::Ipv4Addr = record
-                .value
-                .parse()
-                .map_err(|_| anyhow::anyhow!("Tencent IPv4 record refused"))?;
+#[derive(Args)]
+#[group(required = true, multiple = false)]
+pub(in crate::tencent) struct Selection {
+    #[arg(long)]
+    domain: Option<String>,
+    #[arg(long = "domain-id")]
+    number: Option<u64>,
+}
+
+#[derive(Subcommand)]
+pub(in crate::tencent) enum Record {
+    Get {
+        #[command(flatten)]
+        zone: Selection,
+        #[arg(long)]
+        id: u64,
+    },
+    List {
+        #[command(flatten)]
+        zone: Selection,
+        #[arg(long, default_value_t = 0)]
+        offset: u32,
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+    },
+    Create(Fields),
+    Modify {
+        #[arg(long)]
+        id: u64,
+        #[command(flatten)]
+        record: Fields,
+    },
+    Delete {
+        #[command(flatten)]
+        zone: Selection,
+        #[arg(long)]
+        id: u64,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+#[value(rename_all = "UPPER")]
+pub(in crate::tencent) enum Kind {
+    A,
+    Aaaa,
+    Cname,
+    Txt,
+}
+
+#[derive(Args)]
+pub(in crate::tencent) struct Fields {
+    #[command(flatten)]
+    zone: Selection,
+    #[arg(long)]
+    name: String,
+    #[arg(long)]
+    kind: Kind,
+    #[arg(long)]
+    value: String,
+    #[arg(long, default_value = "默认")]
+    line: String,
+    #[arg(long, default_value_t = 600)]
+    ttl: u32,
+}
+
+impl Selection {
+    fn model(&self) -> Result<dns::Zone> {
+        match (&self.domain, self.number) {
+            (Some(domain), None) => Ok(dns::Zone::Name(domain.clone())),
+            (None, Some(id)) => Ok(dns::Zone::Id(id)),
+            _ => bail!("select exactly one domain name or DomainId"),
         }
-        "AAAA" => {
-            let _: std::net::Ipv6Addr = record
-                .value
-                .parse()
-                .map_err(|_| anyhow::anyhow!("Tencent IPv6 record refused"))?;
-        }
-        _ => (),
     }
-    Ok(
-        json!({"Domain": record.domain, "SubDomain": record.name, "RecordType": record.kind, "RecordLine": record.line, "Value": record.value, "TTL": record.ttl}),
-    )
+}
+
+impl Fields {
+    fn model(&self) -> dns::Fields {
+        let kind = match self.kind {
+            Kind::A => dns::Kind::A,
+            Kind::Aaaa => dns::Kind::Aaaa,
+            Kind::Cname => dns::Kind::Cname,
+            Kind::Txt => dns::Kind::Txt,
+        };
+        dns::Fields {
+            name: self.name.clone(),
+            kind,
+            value: self.value.clone(),
+            line: self.line.clone(),
+            ttl: self.ttl,
+        }
+    }
+}
+
+pub(in crate::tencent) fn request(deed: &Dns) -> Result<Request> {
+    let (zone, operation) = match deed {
+        Dns::Domain(zone) => (zone, Operation::Domain),
+        Dns::Record(Record::Get { zone, id }) => (zone, Operation::Get { id: *id }),
+        Dns::Record(Record::List {
+            zone,
+            offset,
+            limit,
+        }) => (
+            zone,
+            Operation::List {
+                offset: *offset,
+                limit: *limit,
+            },
+        ),
+        Dns::Record(Record::Create(fields)) => (&fields.zone, Operation::Create(fields.model())),
+        Dns::Record(Record::Modify { id, record }) => (
+            &record.zone,
+            Operation::Modify {
+                id: *id,
+                fields: record.model(),
+            },
+        ),
+        Dns::Record(Record::Delete { zone, id }) => (zone, Operation::Delete { id: *id }),
+    };
+    Ok(Request {
+        zone: zone.model()?,
+        operation,
+    })
 }
 
 pub(super) fn positive(value: u64) -> Result<Value> {
@@ -67,16 +139,4 @@ pub(super) fn positive(value: u64) -> Result<Value> {
         bail!("Tencent resource identifier must be positive");
     }
     Ok(json!(value))
-}
-
-pub(in crate::tencent) fn receipt(deed: &Dns, value: &Value) -> Result<()> {
-    let valid = match deed {
-        Dns::Domain { .. } => value.get("DomainInfo").is_some_and(Value::is_object),
-        Dns::Record(Record::List { .. }) => value.get("RecordList").is_some_and(Value::is_array),
-        Dns::Record(Record::Create(_) | Record::Modify { .. }) => {
-            value.get("RecordId").is_some_and(Value::is_u64)
-        }
-        Dns::Record(Record::Delete { .. }) => true,
-    };
-    super::receipt(valid)
 }

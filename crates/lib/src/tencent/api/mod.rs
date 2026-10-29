@@ -3,7 +3,7 @@ mod record;
 pub(super) mod sign;
 pub(super) use record::metadata;
 
-pub use fault::{Class, Failure};
+pub use fault::{Class, Error, Failure, Outcome};
 
 use anyhow::{Result, bail};
 use serde_json::Value;

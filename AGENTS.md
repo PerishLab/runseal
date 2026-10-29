@@ -131,3 +131,46 @@ never authorize automatic replay. The consumer owns Binding, LastManaged,
 intent/receipt durability, operation ordering, budgets, final exact reads and
 recovery. A successful protocol fixture does not prove cloud permissions,
 quota, current pricing, resource creation, final convergence or clean deletion.
+
+`runseal::tencent::dns` exposes plain public Request/Operation/Zone/Fields and
+result types, independently of CLI grammar. `Client::dns` uses the existing
+private custody and verified caller binding for every read or write. Native
+DNS commands retain domain/record list/create/modify/delete and their flags;
+record get adds exact DescribeRecord. A command selects exactly one --domain
+or --domain-id, never both. Domain qualification is one explicit DescribeDomain
+operation; the SDK does not perform a hidden lookup before a record request.
+All DNSPod calls use the fixed global endpoint/version without X-TC-Region.
+
+CLI DNS output cuts over to the typed receipt instead of the earlier
+{action,result} projection. All DNS reads now require an explicit owning
+account and verified current credential binding, as compute/network already
+do; run identity explicitly first. No private state migration, automatic
+renewal or compatibility fallback follows. The public write kinds remain A,
+AAAA, CNAME and TXT. Observations also retain other bounded record kinds and
+system/default NS entries so a zone page cannot silently drop foreign records.
+Public record values and metadata must never carry credentials.
+
+A complete DNS locator has account, nonzero DomainId and RecordId. A named
+list or mutation acknowledgement that lacks DomainId retains an explicitly
+partial Reference; complete refuses it. Qualify the domain, then select its
+ID for complete record references. Exact reads verify the returned record and
+domain IDs. Qualified domain facts retain optional Tencent Uin separately from
+DNSPod UserId; missing Uin is unknown. Caller identity and a complete locator
+are not themselves a domain-ownership proof; consumers qualify owner/scope
+before binding or mutating shared domains.
+
+Lists set ErrorOnEmpty=no and return one checked page with offset/limit/total/
+next; limits are 1 through 3000. Count mismatch, duplicates, missing facts and
+nonprogress refuse. A known empty index page is not proof of record absence:
+DNSPod documents transient create indexing delay, with requery after about
+30 seconds. Exact DescribeRecord is a separate operation. Identifier/permission
+refusals remain errors with finite safe codes; RecordIdInvalid alone does not
+prove absence. No selected mutation claims CAS, ClientToken, distributed locking,
+whole-zone reconciliation or automatic replay. Accepted mutation receipts need
+subsequent qualified observations before a consumer can claim convergence.
+
+Error/Outcome now live at the common Tencent API boundary; existing public
+network aliases retain the same data contract. Private authorization/state
+source files are grouped in the custody seat through explicit module paths,
+without changing their logical interfaces or private state schema. No Plumb
+or Locus dependency enters the reusable library.
