@@ -74,24 +74,17 @@ pub(in crate::tencent) fn request(deed: &Cam) -> Result<Request> {
     Ok(found)
 }
 
-pub(in crate::tencent) fn receipt(deed: &Cam, value: &Value) -> Result<()> {
-    let valid = match deed {
-        Cam::User(_) => value
-            .get("Uin")
-            .is_some_and(|held| held.is_u64() || held.is_string()),
-        Cam::Policy(Policy::List { .. }) => value
-            .get("List")
-            .is_some_and(|held| held.is_array() || held.is_null()),
-        Cam::Policy(Policy::Get { .. }) => {
-            value.get("PolicyDocument").is_some_and(Value::is_string)
-        }
-        Cam::Policy(Policy::Create { .. }) => value.get("PolicyId").is_some_and(Value::is_u64),
-        Cam::Key(Key::List { .. }) => value
-            .get("AccessKeys")
-            .is_some_and(|held| held.is_array() || held.is_null()),
-        Cam::Key(Key::Create { .. }) => value.get("AccessKey").is_some_and(Value::is_object),
+pub(in crate::tencent) fn receipt(deed: &Cam, value: &Value) -> Result<Value> {
+    use super::super::api::project;
+    use super::model;
+    match deed {
+        Cam::User(_) => project::<model::User>(value),
+        Cam::Policy(Policy::List { .. }) => project::<model::Policies>(value),
+        Cam::Policy(Policy::Get { .. }) => project::<model::Document>(value),
+        Cam::Policy(Policy::Create { .. }) => project::<model::Created>(value),
+        Cam::Key(Key::List { .. }) => project::<model::Keys>(value),
+        Cam::Key(Key::Create { .. }) => project::<model::Issued>(value),
         Cam::Policy(Policy::Attach(_) | Policy::Detach(_))
-        | Cam::Key(Key::Disable(_) | Key::Delete(_)) => true,
-    };
-    super::receipt(valid)
+        | Cam::Key(Key::Disable(_) | Key::Delete(_)) => project::<model::Ack>(value),
+    }
 }

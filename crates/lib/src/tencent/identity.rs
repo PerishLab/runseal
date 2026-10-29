@@ -5,7 +5,7 @@ use self::model::{Credential, State, field, stamp};
 use self::secret::Store;
 use super::{Class, Failure, api};
 use anyhow::{Result, bail};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 #[derive(Clone, Debug, Serialize)]
@@ -16,6 +16,20 @@ pub struct Identity {
     pub stamp: String,
     pub observed: u64,
     pub request: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Caller {
+    #[serde(rename = "AccountId", deserialize_with = "api::text")]
+    account: String,
+    #[serde(rename = "PrincipalId", deserialize_with = "api::text")]
+    principal: String,
+    #[serde(rename = "Type", deserialize_with = "api::text")]
+    kind: String,
+    #[serde(rename = "Arn", skip_serializing_if = "Option::is_none")]
+    arn: Option<String>,
+    #[serde(rename = "UserId", skip_serializing_if = "Option::is_none")]
+    user: Option<String>,
 }
 
 pub(super) fn verify(
@@ -35,7 +49,7 @@ pub(super) fn verify(
     {
         bail!("Tencent caller account does not match the explicit declaration");
     }
-    let mut identity = api::metadata(&body.0);
+    let mut identity = api::project::<Caller>(&body.0)?;
     identity["credentialStamp"] = json!(stamp(state.credential()?));
     identity["verifiedAt"] = json!(model::now());
     state.identity = Some(identity);
@@ -94,6 +108,20 @@ fn binding() -> Failure {
 mod tests {
     use super::{Credential, State, bound, stamp};
     use serde_json::json;
+
+    #[test]
+    fn projection() {
+        let value = json!({"RequestId":"fixture-id","AccountId":"123","PrincipalId":"456","Type":"CAMUser","SecretId":"PRIVATE_MARKER","AccessKeys":[]});
+        let output = super::api::project::<super::Caller>(&value).unwrap();
+        assert_eq!(
+            output,
+            json!({"RequestId":"fixture-id","AccountId":"123","PrincipalId":"456","Type":"CAMUser"})
+        );
+        let mut incomplete = value;
+        incomplete.as_object_mut().unwrap().remove("PrincipalId");
+        let error = super::api::project::<super::Caller>(&incomplete).unwrap_err();
+        assert!(!format!("{error:?}").contains("PRIVATE_MARKER"));
+    }
 
     #[test]
     fn legacy() {
