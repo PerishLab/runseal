@@ -1,14 +1,17 @@
 mod api;
+#[path = "secret/auth.rs"]
 mod auth;
 mod client;
 mod command;
 mod compute;
+pub mod dns;
+#[path = "secret/model.rs"]
 mod model;
 pub mod network;
 mod secret;
 use api::sign;
 
-pub use api::{Class, Failure};
+pub use api::{Class, Error, Failure, Outcome};
 pub use client::Client;
 pub use compute::{
     Bundle, Data, Identity, Image, Instance, Page, Product, Query, Read, Region, Shape, Window,
@@ -70,6 +73,18 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
         let client = Client::from(store, account)?;
         return serde_json::to_value(client.network(request)?).map_err(Into::into);
     }
+    if let Deed::Dns(deed) = &input.deed {
+        let account = input
+            .account
+            .as_deref()
+            .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
+            .ok_or_else(|| {
+                anyhow::anyhow!("DNSPod requires an explicit owning account and verified caller")
+            })?;
+        let request = command::dns::request(deed)?;
+        return serde_json::to_value(Client::from(store, account)?.dns(&request)?)
+            .map_err(Into::into);
+    }
     if let Deed::Compute(query) = &input.deed {
         let account = input.account.as_deref()
             .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
@@ -87,7 +102,6 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     }
     let (service, request) = match &input.deed {
         Deed::Cam(deed) => ("cam", command::cam::request(deed)?),
-        Deed::Dns(deed) => ("dnspod", command::dns::request(deed)?),
         _ => unreachable!(),
     };
     if request.mode == Mode::Write {
@@ -105,7 +119,6 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
         api::Client::new(state.credential()?).send(service, request.action, &request.body)?;
     match &input.deed {
         Deed::Cam(deed) => command::cam::receipt(deed, &body.0)?,
-        Deed::Dns(deed) => command::dns::receipt(deed, &body.0)?,
         _ => unreachable!(),
     }
     if let (Deed::Cam(Cam::Key(Key::Create { user, .. })), Some(reserved)) = (&input.deed, reserved)

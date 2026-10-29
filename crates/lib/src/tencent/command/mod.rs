@@ -1,5 +1,6 @@
 pub(super) mod cam;
 pub(super) mod dns;
+pub(super) use dns::Dns;
 mod request;
 pub(super) use request::{Mode, Request};
 
@@ -127,55 +128,6 @@ pub(super) struct Handle {
     pub user: u64,
     #[arg(long)]
     pub id: String,
-}
-
-#[derive(Subcommand)]
-pub(super) enum Dns {
-    Domain {
-        #[arg(long)]
-        domain: String,
-    },
-    #[command(subcommand)]
-    Record(Record),
-}
-
-#[derive(Subcommand)]
-pub(super) enum Record {
-    List {
-        #[arg(long)]
-        domain: String,
-        #[arg(long, default_value = "0")]
-        offset: u32,
-    },
-    Create(Fields),
-    Modify {
-        #[arg(long)]
-        id: u64,
-        #[command(flatten)]
-        record: Fields,
-    },
-    Delete {
-        #[arg(long)]
-        domain: String,
-        #[arg(long)]
-        id: u64,
-    },
-}
-
-#[derive(Args)]
-pub(super) struct Fields {
-    #[arg(long)]
-    pub domain: String,
-    #[arg(long)]
-    pub name: String,
-    #[arg(long, value_parser = ["A", "AAAA", "CNAME", "TXT"])]
-    pub kind: String,
-    #[arg(long)]
-    pub value: String,
-    #[arg(long, default_value = "默认")]
-    pub line: String,
-    #[arg(long, default_value = "600")]
-    pub ttl: u32,
 }
 
 pub(super) fn receipt(valid: bool) -> anyhow::Result<()> {

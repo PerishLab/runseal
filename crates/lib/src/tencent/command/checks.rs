@@ -39,33 +39,6 @@ fn receipts() {
             Mode::Write,
             json!({"AccessKey": {}}),
         ),
-        (
-            &["dns", "domain", "--domain", "example.com"],
-            Mode::Read,
-            json!({"DomainInfo": {}}),
-        ),
-        (
-            &["dns", "record", "list", "--domain", "example.com"],
-            Mode::Read,
-            json!({"RecordList": []}),
-        ),
-        (
-            &[
-                "dns",
-                "record",
-                "create",
-                "--domain",
-                "example.com",
-                "--name",
-                "fixture",
-                "--kind",
-                "A",
-                "--value",
-                "192.0.2.1",
-            ],
-            Mode::Write,
-            json!({"RecordId": 1}),
-        ),
     ];
     for (words, mode, value) in cases {
         let input = parse(
@@ -82,13 +55,6 @@ fn receipts() {
                 (
                     super::cam::request(deed).unwrap(),
                     super::cam::receipt(deed, &bad),
-                )
-            }
-            Deed::Dns(deed) => {
-                super::dns::receipt(deed, value).unwrap();
-                (
-                    super::dns::request(deed).unwrap(),
-                    super::dns::receipt(deed, &bad),
                 )
             }
             _ => unreachable!(),

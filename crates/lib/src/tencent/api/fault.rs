@@ -50,6 +50,21 @@ impl Failure {
     pub(super) fn provider(value: &Value) -> Self {
         let code = value["Error"]["Code"].as_str().unwrap_or_default();
         let (class, reason) = match code {
+            "InvalidParameter.DomainIdInvalid"
+            | "InvalidParameter.DomainInvalid"
+            | "InvalidParameter.DomainIsAliaser"
+            | "InvalidParameter.RecordIdInvalid"
+            | "InvalidParameterValue.DomainNotExists" => (
+                Class::Input,
+                "DNS scope or record identifier was refused; this alone is not proof of absence",
+            ),
+            "OperationDenied.DomainOwnerAllowedOnly"
+            | "OperationDenied.NoPermissionToOperateDomain"
+            | "OperationDenied.NotAdmin"
+            | "OperationDenied.NotAgent"
+            | "OperationDenied.NotManagedUser" => {
+                (Class::Permission, "DNS domain permission was refused")
+            }
             "UnsupportedOperation.VersionMismatch" => (
                 Class::Binding,
                 "security group policy version changed; read the complete policy set before preparing a new intent",
@@ -171,5 +186,56 @@ fn diagnostic() {
         assert!(output.contains(code));
         assert!(output.contains("fixture-id"));
         assert!(!output.contains("SECRET_FIXTURE"));
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Outcome {
+    Unsent,
+    Rejected,
+    Unknown,
+    Accepted,
+    Observed,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Error {
+    pub fault: Failure,
+    pub outcome: Outcome,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{}; outcome {:?}; no automatic replay",
+            self.fault, self.outcome
+        )
+    }
+}
+impl std::error::Error for Error {}
+
+impl Error {
+    pub(in crate::tencent) fn remote(fault: Failure) -> Self {
+        let refused = fault.code.is_some()
+            && matches!(
+                fault.class,
+                Class::Permission
+                    | Class::Expired
+                    | Class::Authentication
+                    | Class::Input
+                    | Class::Limit
+                    | Class::Unsupported
+                    | Class::Binding
+            );
+        Self {
+            fault,
+            outcome: if refused {
+                Outcome::Rejected
+            } else {
+                Outcome::Unknown
+            },
+        }
     }
 }

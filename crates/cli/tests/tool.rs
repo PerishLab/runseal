@@ -38,3 +38,38 @@ fn tencent() {
     let output = seat.run(&[":", "@tencent", "compute", "--action", "RunInstances"]);
     assert!(!output.status.success());
 }
+
+#[test]
+fn dns() {
+    let seat = Seat::new();
+    let output = seat.run(&[":", "@tencent", "dns", "record", "get", "--help"]);
+    assert!(output.status.success(), "{output:?}");
+    for argument in ["--domain", "--domain-id", "--id"] {
+        assert!(text(&output.stdout).contains(argument));
+    }
+    let output = seat.run(&[
+        ":",
+        "@tencent",
+        "dns",
+        "domain",
+        "--domain",
+        "example.org",
+        "--domain-id",
+        "42",
+    ]);
+    assert!(!output.status.success());
+    let output = seat.run(&[
+        ":",
+        "@tencent",
+        "dns",
+        "record",
+        "get",
+        "--domain-id",
+        "42",
+        "--id",
+        "9",
+        "--raw-body",
+        "{}",
+    ]);
+    assert!(!output.status.success());
+}
