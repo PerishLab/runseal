@@ -18,9 +18,17 @@ pub struct Identity {
     pub request: String,
 }
 
-pub(super) fn verify(store: &Store, state: &mut State, expected: Option<&str>) -> Result<Value> {
-    let body =
-        api::Client::new(state.credential()?).send("sts", "GetCallerIdentity", &json!({}))?;
+pub(super) fn verify(
+    store: &Store,
+    state: &mut State,
+    expected: Option<&str>,
+    agent: crate::http::wire::Client,
+) -> Result<Value> {
+    let body = api::Client::using(state.credential()?, agent).send(
+        "sts",
+        "GetCallerIdentity",
+        &json!({}),
+    )?;
     let account = field(&body.0, "AccountId")?;
     if !account.bytes().all(|byte| byte.is_ascii_digit())
         || expected.is_some_and(|value| value != account)

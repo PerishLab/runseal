@@ -26,12 +26,12 @@ impl super::Client {
         };
         let call = request.call().map_err(unsent)?;
         let identity = self.binding().map_err(unsent)?;
-        let credential = self.credential().map_err(unsent)?;
+        let client = self.api().map_err(unsent)?;
         let uncertain = |fault| Error {
             fault,
             outcome: Outcome::Unknown,
         };
-        let body = super::api::Client::new(credential)
+        let body = client
             .invoke(call.request(&request.region))
             .map_err(|error| {
                 let fault = Failure::capture(error, Class::Response);
