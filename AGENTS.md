@@ -170,7 +170,8 @@ whole-zone reconciliation or automatic replay. Accepted mutation receipts need
 subsequent qualified observations before a consumer can claim convergence.
 
 Error/Outcome now live at the common Tencent API boundary; existing public
-network aliases retain the same data contract. Private authorization/state
-source files are grouped in the custody seat through explicit module paths,
-without changing their logical interfaces or private state schema. No Plumb
+network aliases retain the same data contract. The common identity capability owns caller verification, bindings, private State
+and credential custody. CLI authorization ceremonies live under command. Public
+compute Product/Window/Query remain plain data models; command owns clap parsing
+and explicit conversion. State v1 and existing public type paths remain stable. No Plumb
 or Locus dependency enters the reusable library.

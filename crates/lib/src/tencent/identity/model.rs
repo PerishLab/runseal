@@ -5,7 +5,7 @@ use zeroize::Zeroize;
 
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct State {
+pub(in crate::tencent) struct State {
     pub version: u32,
     pub intent: Option<Intent>,
     pub oauth: Option<Grant>,
@@ -15,7 +15,7 @@ pub(super) struct State {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct Intent {
+pub(in crate::tencent) struct Intent {
     pub state: String,
     pub deadline: u64,
     pub consumed: bool,
@@ -23,7 +23,7 @@ pub(super) struct Intent {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct Grant {
+pub(in crate::tencent) struct Grant {
     pub subject: String,
     pub access: String,
     pub refresh: String,
@@ -40,7 +40,7 @@ impl Drop for Grant {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct Credential {
+pub(in crate::tencent) struct Credential {
     pub id: String,
     pub key: String,
     pub token: Option<String>,
@@ -85,21 +85,21 @@ impl State {
     }
 }
 
-pub(super) fn now() -> u64 {
+pub(in crate::tencent) fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
 }
 
-pub(super) fn text(value: &str) -> Result<&str> {
+pub(in crate::tencent) fn text(value: &str) -> Result<&str> {
     if value.is_empty() || value.len() > 16384 || value.chars().any(char::is_control) {
         bail!("Tencent data refused");
     }
     Ok(value)
 }
 
-pub(super) fn field<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
+pub(in crate::tencent) fn field<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     text(
         value
             .get(key)
@@ -108,7 +108,7 @@ pub(super) fn field<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     )
 }
 
-pub(super) fn stamp(credential: &Credential) -> String {
+pub(in crate::tencent) fn stamp(credential: &Credential) -> String {
     use sha2::{Digest, Sha256};
     let text = zeroize::Zeroizing::new(format!(
         "{}\n{}",

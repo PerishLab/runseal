@@ -1,10 +1,10 @@
-use super::{
+use super::super::{
     api,
-    command::Auth,
+    api::sign,
     model::{Credential, Grant, Intent, State, field, now},
     secret::{self, Store},
-    sign,
 };
+use super::Auth;
 use anyhow::{Result, bail};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
@@ -13,7 +13,7 @@ use zeroize::{Zeroize, Zeroizing};
 const BRIDGE: &str = "https://cli.cloud.tencent.com";
 
 impl Store {
-    pub(super) fn auth(&self, deed: &Auth) -> Result<Value> {
+    pub(in crate::tencent) fn auth(&self, deed: &Auth) -> Result<Value> {
         if matches!(deed, Auth::Begin) {
             return self.begin();
         }

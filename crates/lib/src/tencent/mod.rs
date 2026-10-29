@@ -1,27 +1,24 @@
 mod api;
-#[path = "secret/auth.rs"]
-mod auth;
 mod client;
 mod command;
 mod compute;
 pub mod dns;
-#[path = "secret/model.rs"]
-mod model;
+mod identity;
+pub use identity::Identity;
+use identity::{model, secret};
 pub mod network;
-mod secret;
-use api::sign;
 
 pub use api::{Class, Error, Failure, Outcome};
 pub use client::Client;
 pub use compute::{
-    Bundle, Data, Identity, Image, Instance, Page, Product, Query, Read, Region, Shape, Window,
+    Bundle, Data, Image, Instance, Page, Product, Query, Read, Region, Shape, Window,
 };
 
 use crate::tool::Reply;
 use anyhow::{Result, bail};
 use clap::Parser;
 use command::{Cam, Deed, Input, Key, Mode};
-use model::{Credential, State, field, stamp};
+use model::{Credential, State, field};
 use secret::Store;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -90,7 +87,7 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
             .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
             .ok_or_else(|| anyhow::anyhow!("Tencent compute reads require an explicit owning account; verify identity first"))?;
         let reader = Client::from(store, account)?;
-        return serde_json::to_value(reader.read(query)?).map_err(Into::into);
+        return serde_json::to_value(reader.read(&query.clone().into())?).map_err(Into::into);
     }
     let mut state = store.read()?;
     let account = input
@@ -98,14 +95,14 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
         .as_deref()
         .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str));
     if matches!(input.deed, Deed::Identity) {
-        return identity(&store, &mut state, account);
+        return identity::verify(&store, &mut state, account);
     }
     let (service, request) = match &input.deed {
         Deed::Cam(deed) => ("cam", command::cam::request(deed)?),
         _ => unreachable!(),
     };
     if request.mode == Mode::Write {
-        authorize(&state, account)?;
+        identity::authorize(&state, account)?;
     }
     let reserved = if let Deed::Cam(Cam::Key(Key::Create { user, output })) = &input.deed {
         if Some(user.to_string()).as_deref() == account {
@@ -128,42 +125,6 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     Ok(json!({"action": request.action, "result": api::metadata(&body.0)}))
 }
 
-fn identity(store: &Store, state: &mut State, expected: Option<&str>) -> Result<Value> {
-    let body =
-        api::Client::new(state.credential()?).send("sts", "GetCallerIdentity", &json!({}))?;
-    let account = field(&body.0, "AccountId")?;
-    if !account.bytes().all(|byte| byte.is_ascii_digit())
-        || expected.is_some_and(|value| value != account)
-    {
-        bail!("Tencent caller account does not match the explicit declaration");
-    }
-    let mut identity = api::metadata(&body.0);
-    identity["credentialStamp"] = json!(stamp(state.credential()?));
-    identity["verifiedAt"] = json!(model::now());
-    state.identity = Some(identity);
-    store.save(state)?;
-    Ok(state.receipt())
-}
-
-fn authorize(state: &State, expected: Option<&str>) -> Result<()> {
-    let expected = expected.ok_or_else(|| {
-        anyhow::anyhow!("Tencent mutations require --account or profile TENCENTCLOUD_ACCOUNT_UIN")
-    })?;
-    let identity = state
-        .identity
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("verify Tencent caller identity before a mutation"))?;
-    if identity.get("AccountId").and_then(Value::as_str) != Some(expected)
-        || identity.get("credentialStamp").and_then(Value::as_str)
-            != Some(stamp(state.credential()?).as_str())
-    {
-        bail!(
-            "Tencent caller binding refused; verify the current identity against the explicit account declaration"
-        );
-    }
-    Ok(())
-}
-
 fn deliver(reserved: secret::Reserved, body: &Value, user: u64) -> Result<Value> {
     let key = body.get("AccessKey").ok_or_else(|| anyhow::anyhow!("Tencent key creation response lacked the issued key; inspect the explicit target user before recovery"))?;
     let mut issued = State::fresh();
@@ -176,6 +137,3 @@ fn deliver(reserved: secret::Reserved, body: &Value, user: u64) -> Result<Value>
     let receipt = json!({"action": "CreateAccessKey", "targetUin": user, "result": api::metadata(key), "requestId": body.get("RequestId").and_then(Value::as_str)});
     reserved.commit(&issued, receipt)
 }
-
-#[cfg(test)]
-mod tests;

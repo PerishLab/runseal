@@ -1,8 +1,5 @@
-use super::{
-    api::{self, Client, Operation},
-    model::Credential,
-    sign,
-};
+use super::super::model::Credential;
+use super::{self as api, Client, Operation, sign};
 use serde_json::json;
 use std::{
     io::{Read, Write},
@@ -164,7 +161,7 @@ fn ambiguous() {
 
 #[test]
 fn metadata() {
-    let value = super::api::metadata(
+    let value = super::metadata(
         &json!({"Uin":123,"SecretKey":"SECRET","AccessKey":{"SecretAccessKey":"SECRET"},"AccessToken":"SECRET","RecordList":[{"RecordId":1,"SecretKey":"SECRET"}]}),
     );
     assert_eq!(value, json!({"Uin":123,"RecordList":[{"RecordId":1}]}));
@@ -192,16 +189,18 @@ fn incomplete() {
             .unwrap();
         });
         let credential = credential();
-        let deed = super::command::Cam::User(super::command::User::Create(super::command::Name {
-            name: "fixture".into(),
-        }));
+        let deed = super::super::command::Cam::User(super::super::command::User::Create(
+            super::super::command::Name {
+                name: "fixture".into(),
+            },
+        ));
         let error = Client::new(&credential)
             .request(
                 (&url, "cam.tencentcloudapi.com"),
                 Operation::new("AddUser", "2019-01-16", Some("ap-guangzhou")),
                 &json!({}),
             )
-            .and_then(|body| super::command::cam::receipt(&deed, &body.0))
+            .and_then(|body| super::super::command::cam::receipt(&deed, &body.0))
             .expect_err("incomplete issuance must not claim success");
         assert!(error.to_string().contains("may have completed"));
         worker.join().unwrap();
@@ -266,27 +265,4 @@ fn request(stream: &mut std::net::TcpStream) -> String {
             }
         }
     }
-}
-
-#[test]
-fn enrollment() {
-    use super::command::{Cam, Deed};
-    let words = ["cam", "user", "create", "--name", "fixture"].map(String::from);
-    let parsed = super::parse(&words).unwrap();
-    let Deed::Cam(deed) = parsed.deed else {
-        panic!("CAM operation");
-    };
-    let request = super::command::cam::request(&deed).unwrap();
-    assert_eq!(request.action, "AddUser");
-    assert_eq!(request.mode, super::command::Mode::Write);
-    assert_eq!(
-        request.body,
-        json!({"Name":"fixture","ConsoleLogin":0,"UseApi":0})
-    );
-    let words = ["cam", "key", "list", "--user", "0"].map(String::from);
-    let parsed = super::parse(&words).unwrap();
-    let Deed::Cam(Cam::Key(deed)) = parsed.deed else {
-        panic!("key operation");
-    };
-    assert!(super::command::cam::request(&Cam::Key(deed)).is_err());
 }

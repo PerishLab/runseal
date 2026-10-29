@@ -1,4 +1,6 @@
+mod auth;
 pub(super) mod cam;
+mod compute;
 pub(super) mod dns;
 pub(super) use dns::Dns;
 mod request;
@@ -31,7 +33,7 @@ pub(super) enum Deed {
     Identity,
     Network(super::network::Request),
     #[command(subcommand)]
-    Compute(super::Query),
+    Compute(compute::Query),
     #[command(subcommand)]
     Cam(Cam),
     #[command(subcommand)]

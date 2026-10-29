@@ -7,4 +7,4 @@ mod tests;
 mod types;
 
 pub use query::{Product, Query, Window};
-pub use types::{Bundle, Data, Identity, Image, Instance, Page, Read, Region, Shape};
+pub use types::{Bundle, Data, Image, Instance, Page, Read, Region, Shape};
