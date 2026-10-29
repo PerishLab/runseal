@@ -41,6 +41,9 @@ impl<'a> Request<'a> {
     }
 
     pub fn send(self) -> Result<Response> {
+        if self.body.is_some() && matches!(self.verb, "GET" | "DELETE") {
+            bail!("HTTP {} requests do not support a JSON body", self.verb);
+        }
         exchange(&self)
     }
 }

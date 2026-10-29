@@ -35,11 +35,7 @@ pub(super) fn act(seat: &Seat, client: &Client, token: &Token) -> Result<Reply> 
             )?,
             id,
         ),
-        Action::Drop(id) => client.send(
-            "DELETE",
-            &format!("{stem}/{}", segment(id)),
-            Some(&json!({})),
-        )?,
+        Action::Drop(id) => client.send("DELETE", &format!("{stem}/{}", segment(id)), None)?,
         Action::Verify => client
             .send("GET", &format!("{stem}/verify"), None)
             .map_err(|error| crossed(error, token.owner))?,
