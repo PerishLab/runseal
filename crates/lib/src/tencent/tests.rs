@@ -192,14 +192,17 @@ fn incomplete() {
             .unwrap();
         });
         let credential = credential();
+        let deed = super::command::Cam::User(super::command::User::Create(super::command::Name {
+            name: "fixture".into(),
+        }));
         let error = Client::new(&credential)
             .request(
                 (&url, "cam.tencentcloudapi.com"),
                 Operation::new("AddUser", "2019-01-16", Some("ap-guangzhou")),
                 &json!({}),
             )
-            .err()
-            .expect("incomplete issuance must not claim success");
+            .and_then(|body| super::command::cam::receipt(&deed, &body.0))
+            .expect_err("incomplete issuance must not claim success");
         assert!(error.to_string().contains("may have completed"));
         worker.join().unwrap();
     }
@@ -273,10 +276,13 @@ fn enrollment() {
     let Deed::Cam(deed) = parsed.deed else {
         panic!("CAM operation");
     };
-    let (action, value, mutation) = super::command::cam::request(&deed).unwrap();
-    assert_eq!(action, "AddUser");
-    assert!(mutation);
-    assert_eq!(value, json!({"Name":"fixture","ConsoleLogin":0,"UseApi":0}));
+    let request = super::command::cam::request(&deed).unwrap();
+    assert_eq!(request.action, "AddUser");
+    assert_eq!(request.mode, super::command::Mode::Write);
+    assert_eq!(
+        request.body,
+        json!({"Name":"fixture","ConsoleLogin":0,"UseApi":0})
+    );
     let words = ["cam", "key", "list", "--user", "0"].map(String::from);
     let parsed = super::parse(&words).unwrap();
     let Deed::Cam(Cam::Key(deed)) = parsed.deed else {

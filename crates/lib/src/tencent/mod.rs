@@ -17,7 +17,7 @@ pub use compute::{
 use crate::tool::Reply;
 use anyhow::{Result, bail};
 use clap::Parser;
-use command::{Cam, Deed, Input, Key};
+use command::{Cam, Deed, Input, Key, Mode};
 use model::{Credential, State, field, stamp};
 use secret::Store;
 use serde_json::{Value, json};
@@ -90,19 +90,29 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
         Deed::Dns(deed) => ("dnspod", command::dns::request(deed)?),
         _ => unreachable!(),
     };
-    if request.2 {
+    if request.mode == Mode::Write {
         authorize(&state, account)?;
     }
-    if let Deed::Cam(Cam::Key(Key::Create { user, output })) = &input.deed {
+    let reserved = if let Deed::Cam(Cam::Key(Key::Create { user, output })) = &input.deed {
         if Some(user.to_string()).as_deref() == account {
             bail!("Tencent root key issuance is outside this delegated-identity operation");
         }
-        let reserved = secret::Reserved::open(output)?;
-        let body = api::Client::new(state.credential()?).send(service, request.0, &request.1)?;
+        Some(secret::Reserved::open(output)?)
+    } else {
+        None
+    };
+    let body =
+        api::Client::new(state.credential()?).send(service, request.action, &request.body)?;
+    match &input.deed {
+        Deed::Cam(deed) => command::cam::receipt(deed, &body.0)?,
+        Deed::Dns(deed) => command::dns::receipt(deed, &body.0)?,
+        _ => unreachable!(),
+    }
+    if let (Deed::Cam(Cam::Key(Key::Create { user, .. })), Some(reserved)) = (&input.deed, reserved)
+    {
         return deliver(reserved, &body.0, *user);
     }
-    let body = api::Client::new(state.credential()?).send(service, request.0, &request.1)?;
-    Ok(json!({"action": request.0, "result": api::metadata(&body.0)}))
+    Ok(json!({"action": request.action, "result": api::metadata(&body.0)}))
 }
 
 fn identity(store: &Store, state: &mut State, expected: Option<&str>) -> Result<Value> {
