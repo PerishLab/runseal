@@ -81,59 +81,53 @@ pub fn show(value: &Value) {
 }
 
 fn line(value: &Value) -> String {
-    if let Some(login) = value.get("login").and_then(Value::as_str) {
-        return login.to_string();
+    if let Some(name) = value.get("name").and_then(Value::as_str) {
+        return match value.get("status").and_then(Value::as_str) {
+            Some(status) => format!("\t{status}\t{name}"),
+            None => name.to_string(),
+        };
     }
-    if let Some(title) = value.get("title").and_then(Value::as_str) {
-        let number = value
-            .get("number")
-            .map(|held| held.to_string())
-            .unwrap_or_default();
-        let state = value.get("state").and_then(Value::as_str).unwrap_or("");
-        return format!("{number}\t{state}\t{title}");
+    match value.get("id") {
+        Some(id) => format!("{id}\t\t"),
+        None => value.to_string(),
     }
-    if let Some(name) = value.get("name").and_then(Value::as_str)
-        && let Some(status) = value.get("status").and_then(Value::as_str)
-    {
-        let handle = value
-            .get("run_number")
-            .or_else(|| value.get("index"))
-            .map(|held| held.to_string())
-            .unwrap_or_default();
-        return format!("{handle}\t{status}\t{name}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{dump, line};
+    use serde_json::json;
+
+    #[test]
+    fn records() {
+        for (value, expected) in [
+            (
+                json!({"id":"token-id","name":"observer","status":"active"}),
+                "\tactive\tobserver",
+            ),
+            (json!({"id":"bucket-id","name":"assets"}), "assets"),
+            (json!({"id":"token-id"}), "\"token-id\"\t\t"),
+        ] {
+            assert_eq!(line(&value), expected);
+        }
     }
-    if let Some(name) = value
-        .get("name")
-        .or_else(|| value.get("full_name"))
-        .or_else(|| value.get("rule_name"))
-        .or_else(|| value.get("branch_name"))
-        .and_then(Value::as_str)
-    {
-        return name.to_string();
+
+    #[test]
+    fn opaque() {
+        for value in [
+            json!({"login":"fixture"}),
+            json!({"number":1,"title":"fixture","state":"open"}),
+            json!({"full_name":"fixture","branch_name":"main","rule_name":"fixture"}),
+            json!({"state":"open","statuses":[],"user":{"login":"fixture"},"body":"fixture"}),
+        ] {
+            assert_eq!(line(&value), value.to_string());
+            let output: serde_json::Value =
+                serde_json::from_str(&dump("fixture", &value).unwrap()).unwrap();
+            assert_eq!(output, json!({"version":1,"fixture":value}));
+        }
+        assert_eq!(
+            line(&json!({"name":"observer","status":"active","run_number":9,"index":8})),
+            "\tactive\tobserver"
+        );
     }
-    if let Some(state) = value.get("state").and_then(Value::as_str)
-        && value.get("statuses").is_some()
-    {
-        return state.to_string();
-    }
-    let id = value
-        .get("id")
-        .or_else(|| value.get("number"))
-        .map(|held| held.to_string())
-        .unwrap_or_default();
-    let login = value
-        .pointer("/user/login")
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    let body = value
-        .get("body")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .lines()
-        .next()
-        .unwrap_or("");
-    if id.is_empty() && login.is_empty() && body.is_empty() {
-        return value.to_string();
-    }
-    format!("{id}\t{login}\t{body}")
 }
