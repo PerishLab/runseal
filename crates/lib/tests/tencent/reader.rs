@@ -65,6 +65,16 @@ fn reader() {
         assert_eq!(failure.outcome, runseal::tencent::Outcome::Unsent);
         assert!(!format!("{failure:?} {failure}").contains("SECRET_FIXTURE"));
         assert!(fixture.call(&["auth", "status"]).is_err());
+        let query = runseal::tencent::cvm::Request {
+            region: "ap-hongkong".into(),
+            operation: runseal::tencent::cvm::Operation::Get {
+                id: "ins-fixture".into(),
+            },
+        };
+        let failure = client.cvm(&query).unwrap_err();
+        assert_eq!(failure.fault.class, expected);
+        assert_eq!(failure.outcome, runseal::tencent::Outcome::Unsent);
+        assert!(!format!("{failure:?} {failure}").contains("SECRET_FIXTURE"));
         drop(client);
         assert!(fixture.call(&["auth", "status"]).is_ok());
     }

@@ -21,6 +21,7 @@ base64 = "0.22"
 getrandom = "0.3"
 hmac = "0.12"
 sha2 = "0.10"
+ssh-key = { version = "0.6", default-features = false, features = ["std"] }
 time = "0.3"
 url = "2"
 

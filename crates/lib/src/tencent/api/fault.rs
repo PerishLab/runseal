@@ -50,6 +50,34 @@ impl Failure {
     pub(super) fn provider(value: &Value) -> Self {
         let code = value["Error"]["Code"].as_str().unwrap_or_default();
         let (class, reason) = match code {
+            "LimitExceeded.CvmInstanceQuota"
+            | "LimitExceeded.InstanceQuota"
+            | "LimitExceeded.VpcSubnetNum"
+            | "ResourceInsufficient.AvailabilityZoneSoldOut"
+            | "ResourceInsufficient.CloudDiskSoldOut"
+            | "ResourceInsufficient.SpecifiedInstanceType"
+            | "ResourcesSoldOut.SpecifiedInstanceType"
+            | "ResourcesSoldOut.EipInsufficient" => {
+                (Class::Limit, "CVM quota or stock refused the request")
+            }
+            "UnsupportedOperation.InstancesProtected"
+            | "UnsupportedOperation.InstanceChargeType"
+            | "UnsupportedOperation.InstanceStateTerminated"
+            | "UnsupportedOperation.InstanceStateTerminating" => {
+                (Class::Unsupported, "CVM lifecycle operation refused")
+            }
+            "OperationDenied.InstanceOperationInProgress" | "MutexOperation.TaskRunning" => (
+                Class::Binding,
+                "CVM operation already in progress; inspect before recovery",
+            ),
+            "InvalidParameterValue.InstanceIdMalformed"
+            | "InvalidParameterValue.VpcIdSubnetIdNotMatch"
+            | "InvalidParameterValue.VpcIdMalformed"
+            | "InvalidParameterValue.VpcIdNotExist"
+            | "ResourceNotFound.KeyPairNotFound" => (
+                Class::Input,
+                "CVM scope refused; this alone is not an absence proof",
+            ),
             "InvalidParameter.DomainIdInvalid"
             | "InvalidParameter.DomainInvalid"
             | "InvalidParameter.DomainIsAliaser"

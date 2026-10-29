@@ -1,6 +1,7 @@
 mod auth;
 pub(super) mod cam;
 mod compute;
+pub(super) mod cvm;
 pub(super) mod dns;
 mod model;
 pub(super) use dns::Dns;
@@ -33,6 +34,7 @@ pub(super) enum Deed {
     Auth(Auth),
     Identity,
     Network(super::network::Request),
+    Cvm(cvm::Request),
     #[command(subcommand)]
     Compute(compute::Query),
     #[command(subcommand)]
