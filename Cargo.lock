@@ -463,6 +463,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ipnet"
+version = "2.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -596,9 +602,9 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "plumb"
-version = "0.111.0"
+version = "0.112.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "584a556dfd00d1dca0adbbbfe86becbbd5540326f620f359b0ec30c9031c1660"
+checksum = "162e4675a03086513da468c3e7fe033efbfb7ec609b4b6172c4c5697975366dc"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -608,6 +614,7 @@ dependencies = [
  "object",
  "pin-project-lite",
  "plumb-macro",
+ "radicula-lock",
  "semver",
  "serde",
  "serde_json",
@@ -624,9 +631,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.111.0"
+version = "0.112.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "8860b9beb1c40d8c8856d565eb310025a99bb41345b9bcf1b728c89408694aa2"
+checksum = "1bd61483c287d1bc5a4f79c33e4a305805878af033fd74bf95b517b24434f0b4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -674,6 +681,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
+name = "radicula-lock"
+version = "0.3.0"
+source = "sparse+https://cargo.perish.uk/"
+checksum = "0288f623cccd8c056682bf501432100e78e5fe5e8cbef6bc8a76231dd52b873d"
+
+[[package]]
 name = "ring"
 version = "0.17.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -696,6 +709,7 @@ dependencies = [
  "clap",
  "getrandom 0.3.4",
  "hmac",
+ "ipnet",
  "libc",
  "path-absolutize",
  "serde",

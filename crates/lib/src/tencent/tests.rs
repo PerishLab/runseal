@@ -267,13 +267,13 @@ fn request(stream: &mut std::net::TcpStream) -> String {
 
 #[test]
 fn enrollment() {
-    use super::deed::{Cam, Deed};
+    use super::command::{Cam, Deed};
     let words = ["cam", "user", "create", "--name", "fixture"].map(String::from);
     let parsed = super::parse(&words).unwrap();
     let Deed::Cam(deed) = parsed.deed else {
         panic!("CAM operation");
     };
-    let (action, value, mutation) = super::cam::request(&deed).unwrap();
+    let (action, value, mutation) = super::command::cam::request(&deed).unwrap();
     assert_eq!(action, "AddUser");
     assert!(mutation);
     assert_eq!(value, json!({"Name":"fixture","ConsoleLogin":0,"UseApi":0}));
@@ -282,5 +282,5 @@ fn enrollment() {
     let Deed::Cam(Cam::Key(deed)) = parsed.deed else {
         panic!("key operation");
     };
-    assert!(super::cam::request(&Cam::Key(deed)).is_err());
+    assert!(super::command::cam::request(&Cam::Key(deed)).is_err());
 }

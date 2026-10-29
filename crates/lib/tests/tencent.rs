@@ -48,6 +48,21 @@ fn reader() {
         let failure = client.read(&query).unwrap_err();
         assert_eq!(failure.class, expected);
         assert!(!format!("{failure:?} {failure}").contains("SECRET_FIXTURE"));
+        let operation = runseal::tencent::network::Request {
+            region: "ap-hongkong".into(),
+            operation: runseal::tencent::network::Operation::Vpc(
+                runseal::tencent::network::Vpc::Get(runseal::tencent::network::Id {
+                    id: "vpc-fixture".into(),
+                }),
+            ),
+        };
+        let failure = client.network(&operation).unwrap_err();
+        assert_eq!(failure.fault.class, expected);
+        assert!(matches!(
+            failure.outcome,
+            runseal::tencent::network::Outcome::Unsent
+        ));
+        assert!(!format!("{failure:?} {failure}").contains("SECRET_FIXTURE"));
         assert!(fixture.call(&["auth", "status"]).is_err());
         drop(client);
         assert!(fixture.call(&["auth", "status"]).is_ok());

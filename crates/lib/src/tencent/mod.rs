@@ -1,23 +1,23 @@
 mod api;
 mod auth;
-mod cam;
+mod client;
+mod command;
 mod compute;
-mod deed;
-mod dns;
 mod model;
+pub mod network;
 mod secret;
 use api::sign;
 
 pub use api::{Class, Failure};
+pub use client::Client;
 pub use compute::{
-    Bundle, Client, Data, Identity, Image, Instance, Page, Product, Query, Read, Region, Shape,
-    Window,
+    Bundle, Data, Identity, Image, Instance, Page, Product, Query, Read, Region, Shape, Window,
 };
 
 use crate::tool::Reply;
 use anyhow::{Result, bail};
 use clap::Parser;
-use deed::{Cam, Deed, Input, Key};
+use command::{Cam, Deed, Input, Key};
 use model::{Credential, State, field, stamp};
 use secret::Store;
 use serde_json::{Value, json};
@@ -57,11 +57,24 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     if let Deed::Auth(deed) = &input.deed {
         return store.auth(deed);
     }
+    if let Deed::Network(request) = &input.deed {
+        let account = input
+            .account
+            .as_deref()
+            .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Tencent network requires an explicit owning account and verified caller"
+                )
+            })?;
+        let client = Client::from(store, account)?;
+        return serde_json::to_value(client.network(request)?).map_err(Into::into);
+    }
     if let Deed::Compute(query) = &input.deed {
         let account = input.account.as_deref()
             .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
             .ok_or_else(|| anyhow::anyhow!("Tencent compute reads require an explicit owning account; verify identity first"))?;
-        let reader = compute::Client::from(store, account)?;
+        let reader = Client::from(store, account)?;
         return serde_json::to_value(reader.read(query)?).map_err(Into::into);
     }
     let mut state = store.read()?;
@@ -73,8 +86,8 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
         return identity(&store, &mut state, account);
     }
     let (service, request) = match &input.deed {
-        Deed::Cam(deed) => ("cam", cam::request(deed)?),
-        Deed::Dns(deed) => ("dnspod", dns::request(deed)?),
+        Deed::Cam(deed) => ("cam", command::cam::request(deed)?),
+        Deed::Dns(deed) => ("dnspod", command::dns::request(deed)?),
         _ => unreachable!(),
     };
     if request.2 {

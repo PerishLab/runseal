@@ -3,6 +3,22 @@ use serde_json::Value;
 
 pub(super) fn receipt(action: &str, value: &Value) -> Result<()> {
     let valid = match action {
+        "CreateVpc" => value.get("Vpc").is_some_and(Value::is_object),
+        "CreateSubnet" => value.get("Subnet").is_some_and(Value::is_object),
+        "CreateSecurityGroup" => value.get("SecurityGroup").is_some_and(Value::is_object),
+        "DescribeVpcs" => value.get("VpcSet").is_some_and(Value::is_array),
+        "DescribeSubnets" => value.get("SubnetSet").is_some_and(Value::is_array),
+        "DescribeSecurityGroups" => value.get("SecurityGroupSet").is_some_and(Value::is_array),
+        "DescribeSecurityGroupPolicies" => value
+            .get("SecurityGroupPolicySet")
+            .is_some_and(Value::is_object),
+        "ModifyVpcAttribute"
+        | "ModifySubnetAttribute"
+        | "ModifySecurityGroupAttribute"
+        | "ModifySecurityGroupPolicies"
+        | "DeleteVpc"
+        | "DeleteSubnet"
+        | "DeleteSecurityGroup" => true,
         "GetCallerIdentity" => value.get("AccountId").is_some_and(Value::is_string),
         "GetUser" | "AddUser" => value
             .get("Uin")

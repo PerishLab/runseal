@@ -1,12 +1,9 @@
-use super::{
-    deed::{Cam, Key, Policy, User},
-    dns::positive,
-    secret,
-};
+use super::super::secret;
+use super::{Cam, Key, Policy, User, dns::positive};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
-pub(super) fn request(deed: &Cam) -> Result<(&'static str, Value, bool)> {
+pub(in crate::tencent) fn request(deed: &Cam) -> Result<(&'static str, Value, bool)> {
     let found = match deed {
         Cam::User(User::Get(name)) => ("GetUser", json!({"Name": name.name}), false),
         Cam::User(User::Create(name)) => (

@@ -1,6 +1,6 @@
 use super::{
     api,
-    deed::Auth,
+    command::Auth,
     model::{Credential, Grant, Intent, State, field, now},
     secret::{self, Store},
     sign,

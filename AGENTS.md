@@ -90,3 +90,44 @@ CAM refusals retain a closed set of documented nonsecret error codes and a
 validated RequestId in typed failures and CLI errors. Unknown codes and all
 provider messages remain withheld; refusal alone does not justify replaying a
 write. Inspect the exact resource before changing a failed enrollment intent.
+
+The finite `runseal::tencent::network` namespace supplies typed VPC, Subnet and
+SecurityGroup operations through the same `Client` and custody. `Client::network`
+and `@tencent network --region REGION` share their request construction and
+result decoding. The library still carries no Plumb dependency. The private
+command module groups existing CLI CAM/DNS grammar; the common client is no
+longer housed under the compute capability. Existing public compute types and
+methods retain their contracts.
+
+Network operations select one create, exact-ID get, one-page list, supported
+metadata update or delete. Security groups additionally read the complete
+policy set or reset both ordered ingress and egress with a nonzero observed
+version. Reset calls ModifySecurityGroupPolicies with SortPolicys=true;
+ReplaceSecurityGroupPolicies is the distinct indexed-rule API and is outside
+this closure. Version zero refuses because it clears all policies and ignores
+the supplied arrays. The SDK never invents a ClientToken for network creation,
+performs an implicit read-before-write, loops pages, waits or compensates.
+
+A rule is a typed TCP/UDP/ICMP/ALL IPv4 selector and ACCEPT/DROP action, with
+optional public description. The CLI spells each repeated ingress/egress rule
+as protocol;ports;cidr;action with optional ;description; use a quoted single
+argument, '-' for omitted ICMP/ALL ports, and 'all' for all TCP/UDP ports.
+A reset always submits both arrays; an omitted direction means an empty owned
+set. Active address/service templates, referenced groups, IPv6 and other
+protocols refuse the complete policy observation. Empty template metadata is
+not an active selector. Descriptions and rule order survive typed decoding.
+No arbitrary API/body/endpoint, shared rule-writer model or expression syntax
+is exposed.
+
+A network receipt carries verified credential binding, requested region,
+service/action/version, safe RequestId, observation time and finite data.
+Create and other mutation acknowledgements are accepted, not proof of final
+resource state. Exact reads reject a different native ID; empty pages, missing
+coverage, duplicate IDs and nonprogressing pagination remain distinguishable.
+Known current-caller preflight failures are unsent, allowlisted provider
+refusals are rejected, and transport/malformed/incomplete/unknown write results
+remain unknown. CAS conflict preserves its documented safe code. These statuses
+never authorize automatic replay. The consumer owns Binding, LastManaged,
+intent/receipt durability, operation ordering, budgets, final exact reads and
+recovery. A successful protocol fixture does not prove cloud permissions,
+quota, current pricing, resource creation, final convergence or clean deletion.

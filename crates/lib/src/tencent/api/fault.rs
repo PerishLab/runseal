@@ -50,6 +50,10 @@ impl Failure {
     pub(super) fn provider(value: &Value) -> Self {
         let code = value["Error"]["Code"].as_str().unwrap_or_default();
         let (class, reason) = match code {
+            "UnsupportedOperation.VersionMismatch" => (
+                Class::Binding,
+                "security group policy version changed; read the complete policy set before preparing a new intent",
+            ),
             "UnauthorizedOperation" | "AuthFailure.UnauthorizedOperation" => {
                 (Class::Permission, "required permission was refused")
             }
