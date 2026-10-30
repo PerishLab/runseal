@@ -132,6 +132,22 @@ intent/receipt durability, operation ordering, budgets, final exact reads and
 recovery. A successful protocol fixture does not prove cloud permissions,
 quota, current pricing, resource creation, final convergence or clean deletion.
 
+Network additionally reads one exact VPC resource dashboard, subnet resource
+dashboard or security-group association statistic. Native verbs are vpc survey,
+subnet survey and group associations. These invoke only their respective
+Describe APIs; no pre-read, loop or deletion follows. Request::validate checks
+finite input locally without custody or transport. Survey entries check exact
+IDs and preserve parent scope, optional counts and per-product statistics.
+Missing/null counts and arrays remain unknown; unknown product labels are
+withheld and mark coverage incomplete. Unexpected fields also make coverage
+incomplete. Group aggregate counters and instance statistics stay independent;
+the SDK never infers a sum or treats TotalCount as including SG references.
+Complete means coverage of the known response schema, not a distributed
+idle lock or deletion permit. An empty survey remains unlisted; ResourceNotFound
+is a safe diagnostic code, not an independent absence proof. Consumer ownership,
+attachment policy, qualified negative observations and durable recovery remain
+outside these atomic reads.
+
 `runseal::tencent::dns` exposes plain public Request/Operation/Zone/Fields and
 result types, independently of CLI grammar. `Client::dns` uses the existing
 private custody and verified caller binding for every read or write. Native

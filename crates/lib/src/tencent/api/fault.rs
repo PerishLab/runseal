@@ -50,6 +50,10 @@ impl Failure {
     pub(super) fn provider(value: &Value) -> Self {
         let code = value["Error"]["Code"].as_str().unwrap_or_default();
         let (class, reason) = match code {
+            "ResourceNotFound" => (
+                Class::Input,
+                "referenced resource was not found; qualify exact owner/scope before interpreting absence",
+            ),
             "LimitExceeded.CvmInstanceQuota"
             | "LimitExceeded.InstanceQuota"
             | "LimitExceeded.VpcSubnetNum"
@@ -201,6 +205,7 @@ impl std::error::Error for Failure {}
 #[test]
 fn diagnostic() {
     for (code, class) in [
+        ("ResourceNotFound", Class::Input),
         ("InvalidParameter.ActionNotExist", Class::Input),
         ("FailedOperation.PolicyFull", Class::Limit),
         ("FailedOperation.PolicyNameInUse", Class::Input),
