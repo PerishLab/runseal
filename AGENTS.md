@@ -14,11 +14,11 @@ The colon is the only profile-mode signal. An unmarked unknown token belongs to
 Runseal's control plane and must quick-fail. Profile argv is data-plane rewriting
 and never changes Runseal's own arguments.
 
-An external CLI remains external when the profile triad can isolate it. Native
-`@tool` capabilities own typed provider protocols where that product boundary
-is explicitly chosen; every operation must stay atomic. Feishu is such a native
-capability, with the official lark-cli as its complete capability comparison
-target and staged subsets as its delivery scope. A perish.code-owned CLI that cannot be isolated is
+An external CLI remains external when the profile triad can isolate it. `@tool`
+is reserved for a third-party dependency that cannot be isolated, with Feishu
+explicitly established as a native capability by Issue #99. Its complete
+capability target is official lark-cli, delivered in staged subsets. Every
+operation must stay atomic. A perish.code-owned CLI that cannot be isolated is
 repaired at its own boundary; a capability that stops being atomic becomes a
 new product.
 
