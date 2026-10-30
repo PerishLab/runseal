@@ -61,6 +61,15 @@ An uncertain provider result is never replayed automatically. The finite CAM
 and DNSPod surface exposes no raw action or endpoint override. Source protocol
 tests do not establish real account permissions or authorization compatibility.
 
+Private custody keeps secure opening, ancestor/owner/permission checks and state
+updates in Runseal. File mutual exclusion delegates to Radicula. The public
+`Private::lock` keeps its `File` return and legacy busy/error compatibility for
+existing consumers such as Hardrig; it is a narrow owned-file RAII adapter.
+Tencent SDK sessions instead retain Radicula's owned-file Permit for the entire
+Store lifetime, including early failure and unwinding. A session is not reduced
+to one read/write closure, and no cloud operation follows automatically from
+admission or release.
+
 The reusable library carries no Plumb dependency. The CLI owns the product's
 managed Skill surface while delegating Depot mechanics to Plumb. Runseal has no
 Cookbook: its routine refusals state their own recovery.

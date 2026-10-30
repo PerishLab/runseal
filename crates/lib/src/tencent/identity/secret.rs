@@ -1,9 +1,6 @@
 use anyhow::{Result, bail};
 use serde_json::Value;
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
 use super::model::State;
@@ -11,7 +8,7 @@ use crate::custody::Private;
 
 pub(in crate::tencent) struct Store {
     pub path: PathBuf,
-    _lock: File,
+    _lock: radicula_lock::file::Permit,
 }
 
 impl Store {
@@ -25,7 +22,7 @@ impl Store {
             )
         })?;
         let lock = Private::current()
-            .lock(&path.with_extension("lock"))
+            .hold(&path.with_extension("lock"))
             .map_err(|_| anyhow::anyhow!("Tencent state is unsafe or already in use"))?;
         Ok(Self {
             path: path.to_owned(),

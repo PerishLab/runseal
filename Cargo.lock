@@ -950,9 +950,9 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "radicula-lock"
-version = "0.5.0"
+version = "0.7.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "d861d5769d8ac741a61091dc16f6ccfd830ca5be6e21c67f86ba253bf9aebbc0"
+checksum = "b047e05098eb6062d29f26ad1f8ed0ef5e9f080d7788b7783802f81aa9e8f7d5"
 
 [[package]]
 name = "rand"
@@ -1040,6 +1040,7 @@ dependencies = [
  "ipnet",
  "libc",
  "path-absolutize",
+ "radicula-lock",
  "serde",
  "serde_json",
  "sha2",
