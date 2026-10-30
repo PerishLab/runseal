@@ -1,5 +1,7 @@
 #[path = "support/cloudflare/mod.rs"]
 mod cloudflare;
+#[path = "support/feishu.rs"]
+mod feishu;
 mod support;
 
 use support::{Seat, text};
