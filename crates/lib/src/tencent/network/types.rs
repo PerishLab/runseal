@@ -20,6 +20,9 @@ pub struct Receipt {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Data {
+    Survey {
+        entry: Option<super::Survey>,
+    },
     Created {
         entry: Entry,
     },

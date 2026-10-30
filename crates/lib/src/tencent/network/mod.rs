@@ -3,10 +3,12 @@ mod policy;
 mod query;
 mod record;
 mod request;
+mod survey;
 mod types;
 
 pub use policy::{Action, Protocol, Rule, Rules};
 pub use query::{Group, Id, Operation, Page, Request, Subnet, Vpc};
+pub use survey::{Count, Survey};
 pub use types::{Data, Entry, Error, Outcome, Receipt};
 
 use super::{Class, Failure};
@@ -73,9 +75,20 @@ impl super::Client {
 }
 
 #[cfg(test)]
+#[path = "checks/native.rs"]
 mod checks;
 #[cfg(test)]
+#[path = "checks/mod.rs"]
 mod tests;
 
 #[cfg(test)]
+#[path = "checks/wire.rs"]
 mod wire;
+
+#[cfg(test)]
+#[path = "checks/survey.rs"]
+mod surveys;
+
+#[cfg(test)]
+#[path = "checks/transport.rs"]
+mod transport;

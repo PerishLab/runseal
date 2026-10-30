@@ -7,7 +7,7 @@ use std::{
     thread,
 };
 
-fn receive(stream: &TcpStream) -> String {
+pub(super) fn receive(stream: &TcpStream) -> String {
     let mut reader = BufReader::new(stream);
     let mut header = String::new();
     let mut length = 0;
@@ -28,7 +28,7 @@ fn receive(stream: &TcpStream) -> String {
     header
 }
 
-fn credential() -> Credential {
+pub(super) fn credential() -> Credential {
     Credential {
         id: "AKID_FIXTURE".into(),
         key: "SECRET_FIXTURE".into(),

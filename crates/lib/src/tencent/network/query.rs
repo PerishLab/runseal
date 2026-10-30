@@ -22,6 +22,7 @@ pub enum Operation {
 #[derive(Clone, Debug, Subcommand)]
 pub enum Vpc {
     Get(Id),
+    Survey(Id),
     List(Page),
     Create {
         #[arg(long)]
@@ -41,6 +42,7 @@ pub enum Vpc {
 #[derive(Clone, Debug, Subcommand)]
 pub enum Subnet {
     Get(Id),
+    Survey(Id),
     List(Page),
     Create {
         #[arg(long)]
@@ -64,6 +66,7 @@ pub enum Subnet {
 #[derive(Clone, Debug, Subcommand)]
 pub enum Group {
     Get(Id),
+    Associations(Id),
     List(Page),
     Create {
         #[arg(long)]

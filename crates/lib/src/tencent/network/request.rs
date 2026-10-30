@@ -15,9 +15,14 @@ pub(super) enum Kind {
     Policies,
     Ack,
     List(Page, &'static str),
+    Survey(super::survey::Probe),
 }
 
 impl Request {
+    pub fn validate(&self) -> Result<(), Failure> {
+        self.call().map(|_| ())
+    }
+
     pub(super) fn call(&self) -> Result<Call, Failure> {
         Names::region(&self.region)?;
         match &self.operation {
@@ -46,6 +51,7 @@ impl Call {
 impl Vpc {
     fn call(&self) -> Result<Call, Failure> {
         match self {
+            Self::Survey(id) => super::survey::Probe::Vpc.call(&id.id),
             Self::Get(id) => get("DescribeVpcs", "VpcIds", &id.id, "vpc-"),
             Self::List(page) => page.call("DescribeVpcs", "VpcSet"),
             Self::Create { name, cidr } => {
@@ -74,6 +80,7 @@ impl Vpc {
 impl Subnet {
     fn call(&self, region: &str) -> Result<Call, Failure> {
         match self {
+            Self::Survey(id) => super::survey::Probe::Subnet.call(&id.id),
             Self::Get(id) => get("DescribeSubnets", "SubnetIds", &id.id, "subnet-"),
             Self::List(page) => page.call("DescribeSubnets", "SubnetSet"),
             Self::Create {
@@ -112,6 +119,7 @@ impl Subnet {
 impl Group {
     fn call(&self) -> Result<Call, Failure> {
         match self {
+            Self::Associations(id) => super::survey::Probe::Group.call(&id.id),
             Self::Get(id) => get("DescribeSecurityGroups", "SecurityGroupIds", &id.id, "sg-"),
             Self::List(page) => page.call("DescribeSecurityGroups", "SecurityGroupSet"),
             Self::Create {
