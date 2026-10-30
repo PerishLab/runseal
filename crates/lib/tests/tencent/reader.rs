@@ -79,3 +79,40 @@ fn reader() {
         assert!(fixture.call(&["auth", "status"]).is_ok());
     }
 }
+
+#[test]
+fn unwind() {
+    let fixture = Fixture::new();
+    fixture.write(&json!({"version":1,"credential":null,"identity":null}));
+    let lock = fixture.state.with_extension("lock");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let client = Client::open(&fixture.state, "123").unwrap();
+        assert!(runseal::custody::Private::current().lock(&lock).is_err());
+        drop(client);
+        let client = Client::open(&fixture.state, "123").unwrap();
+        assert!(runseal::custody::Private::current().lock(&lock).is_err());
+        let _keep = client;
+        panic!("session unwinds");
+    }));
+    assert!(result.is_err());
+    let held = runseal::custody::Private::current().lock(&lock).unwrap();
+    drop(held);
+    Client::open(&fixture.state, "123").unwrap();
+}
+
+#[test]
+fn failure() {
+    let fixture = Fixture::new();
+    fixture.write(&json!({"version":2,"credential":null,"identity":null}));
+    assert!(Client::open(&fixture.state, "123").is_err());
+    let held = runseal::custody::Private::current()
+        .lock(&fixture.state.with_extension("lock"))
+        .unwrap();
+    drop(held);
+    assert!(Client::open(&fixture.state, "123").is_err());
+    assert!(
+        runseal::custody::Private::current()
+            .lock(&fixture.state.with_extension("lock"))
+            .is_ok()
+    );
+}

@@ -95,6 +95,19 @@ impl Private {
     }
 
     pub fn lock(&self, path: &Path) -> io::Result<File> {
+        let file = self.open(path)?;
+        radicula_lock::attempt(&file, radicula_lock::Mode::Exclusive).map_err(io::Error::other)?;
+        Ok(file)
+    }
+
+    pub(crate) fn hold(&self, path: &Path) -> io::Result<radicula_lock::file::Permit> {
+        let file = self.open(path)?;
+        radicula_lock::Factory::file(file, radicula_lock::Policy::EXCLUSIVE)
+            .and_then(|gate| gate.acquire(radicula_lock::Wait::immediate()))
+            .map_err(io::Error::other)
+    }
+
+    fn open(&self, path: &Path) -> io::Result<File> {
         self.ancestors(path)?;
         let file = match native::Place(path).create(self.machine) {
             Ok(file) => file,
@@ -104,7 +117,6 @@ impl Private {
             Err(error) => return Err(error),
         };
         native::check(&file, self.machine, false)?;
-        file.try_lock().map_err(io::Error::other)?;
         Ok(file)
     }
 
