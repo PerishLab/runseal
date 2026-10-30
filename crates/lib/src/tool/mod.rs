@@ -6,6 +6,7 @@ use serde_json::Value;
 use zeroize::Zeroize;
 
 pub mod cloudflare;
+pub mod feishu;
 pub use crate::tencent;
 
 #[derive(PartialEq)]
@@ -82,6 +83,7 @@ pub fn call(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Res
     match name {
         "cloudflare" => cloudflare::call(argv, vars),
         "tencent" => tencent::call(argv, vars),
+        "feishu" => crate::feishu::call(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }
@@ -90,6 +92,7 @@ pub fn run(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Resu
     match name {
         "cloudflare" => cloudflare::run(argv, vars),
         "tencent" => tencent::run(argv, vars),
+        "feishu" => crate::feishu::run(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }

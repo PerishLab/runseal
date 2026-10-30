@@ -14,9 +14,11 @@ The colon is the only profile-mode signal. An unmarked unknown token belongs to
 Runseal's control plane and must quick-fail. Profile argv is data-plane rewriting
 and never changes Runseal's own arguments.
 
-An external CLI remains external when the profile triad can isolate it. `@tool`
-is reserved for a third-party dependency that cannot be isolated and every
-operation must stay atomic. A perish.code-owned CLI that cannot be isolated is
+An external CLI remains external when the profile triad can isolate it. Native
+`@tool` capabilities own typed provider protocols where that product boundary
+is explicitly chosen; every operation must stay atomic. Feishu is such a native
+capability, with the official lark-cli as its complete capability comparison
+target and staged subsets as its delivery scope. A perish.code-owned CLI that cannot be isolated is
 repaired at its own boundary; a capability that stops being atomic becomes a
 new product.
 
@@ -65,10 +67,43 @@ Private custody keeps secure opening, ancestor/owner/permission checks and state
 updates in Runseal. File mutual exclusion delegates to Radicula. The public
 `Private::lock` keeps its `File` return and legacy busy/error compatibility for
 existing consumers such as Hardrig; it is a narrow owned-file RAII adapter.
-Tencent SDK sessions instead retain Radicula's owned-file Permit for the entire
+Tencent and Feishu SDK sessions instead retain Radicula's owned-file Permit for the entire
 Store lifetime, including early failure and unwinding. A session is not reduced
 to one read/write closure, and no cloud operation follows automatically from
 admission or release.
+
+Feishu stage one uses an existing custom application's bot identity on fixed
+mainland Feishu HTTPS endpoints. Private credential import, explicit Bearer
+client_credentials issuance and current-token bot verification are separate
+operations. No command automatically renews, retries, logs in, changes scopes
+or falls back to another endpoint or authentication method. State is bound to
+an explicit expected App ID; bot info does not prove a tenant, natural person,
+resource ownership or permission.
+
+`runseal::feishu::Client` exposes the same closed operations as `@feishu`.
+Message get reads one exact message with open_id sender identifiers. Plain-text
+reply sends one native reply with an explicit caller UUID and no hidden
+pre-read. Its receipt is accepted, not proof of delivery or reading. Local
+failures are unsent, documented provider refusals rejected, and ambiguous
+transport/server/malformed/incomplete write results unknown. Errors never emit
+provider prose or raw credentials. The caller owns durable intents, exact
+target/content/UUID persistence, sender policy, pagination, event deduplication
+and recovery. Platform UUID dedup lasts one hour; it is no durable exactly-once
+contract. Do not replay unknown writes.
+
+The comparison baseline for stage one is larksuite/cli v1.0.98 at
+ac81f5056ab88f37d581d25916f3dab85abfca76. Its API catalog and shortcut families,
+configuration/auth/profile/identity, schema/discovery/output, event and extension
+surfaces remain the full comparison target. Stage one maps app credentials and
+bot verification, exact message reading and the text subset of messages-reply.
+It deliberately exposes exact reads rather than messages-mget's automatic
+sender, reaction, thread and resource enrichment. The CLI grammar and JSON
+receipt/error envelope are Runseal's, with no byte-compatible upstream claim.
+User OAuth, DPoP, Lark brand, nontext replies, all other business domains and
+compound shortcuts remain unimplemented. Raw/compound upstream capabilities
+require explicit future correspondence with the typed/atomic product boundary,
+not an implicit arbitrary gateway. Issue #99 retains the complete inventory and
+mapping evidence. These are staged gaps, not a reduction of the long-term goal.
 
 The reusable library carries no Plumb dependency. The CLI owns the product's
 managed Skill surface while delegating Depot mechanics to Plumb. Runseal has no
