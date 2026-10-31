@@ -99,8 +99,31 @@ bot verification, exact message reading and the text subset of messages-reply.
 It deliberately exposes exact reads rather than messages-mget's automatic
 sender, reaction, thread and resource enrichment. The CLI grammar and JSON
 receipt/error envelope are Runseal's, with no byte-compatible upstream claim.
-User OAuth, DPoP, Lark brand, nontext replies, all other business domains and
-compound shortcuts remain unimplemented. Raw/compound upstream capabilities
+Issue #105 adds Bearer device authorization, explicit single exchange/refresh,
+user_info verification, local user logout, plain-text send and exact-chat
+single-page list. User identity requires an explicit expected open_id in
+addition to the App ID; profile names never authenticate people.
+An explicit --as overrides the declared profile FEISHU_ACTOR; absent both, bot
+remains the default. Status names the selected actor and expected person. Bot and user
+credentials/bindings remain separate. Requested scopes are explicit and must
+include offline_access; no automatic grant expansion or browser action occurs.
+OAuth token-changing dispatch reserves an uncertain local state before network
+access. Only documented pending/slow-down responses permit the next explicitly
+scheduled exchange; unknown exchange/refresh results require observation and
+explicit local discard/reauthorization if unrecoverable. Local logout does not
+revoke remote credentials. State upgrades to version two when user authorization
+begins; older binaries refuse it instead of silently dropping user custody.
+
+Message sends require an explicit chat or open_id target and caller UUID;
+user write acknowledgements must match the verified person, bot writes the
+verified application/bot. Lists read one explicit chat and preserve cursor and
+has-more evidence, rejecting foreign chats, duplicate IDs and nonprogressing
+pages. They never resolve peers, enrich or paginate implicitly. Consumers own
+verification workflows and durable dispatch/result records, including finding
+an exact bot response to an exact user query.
+
+DPoP, Lark brand, nontext messages, all other business domains and compound
+shortcuts remain unimplemented. Raw/compound upstream capabilities
 require explicit future correspondence with the typed/atomic product boundary,
 not an implicit arbitrary gateway. Issue #99 retains the complete inventory and
 mapping evidence. These are staged gaps, not a reduction of the long-term goal.

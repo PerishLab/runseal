@@ -7,10 +7,11 @@ mod model;
 mod store;
 mod wire;
 
+pub use auth::{Challenge, Session};
 pub use client::Client;
-pub use fault::{Class, Error, Outcome};
-pub use message::{Content, Message, Operation, Reply, Sender};
-pub use model::{Identity, Receipt, Status};
+pub use fault::{Class, Error, Outcome, Poll};
+pub use message::{Content, Message, Messages, Operation, Page, Reply, Send, Sender, Target};
+pub use model::{Actor, Identity, Receipt, Status};
 
 use crate::tool::Reply as Output;
 use anyhow::Result;

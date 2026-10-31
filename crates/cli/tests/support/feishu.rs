@@ -6,6 +6,9 @@ fn help() {
     for command in [
         vec![":", "@feishu", "--help"],
         vec![":", "@feishu", "auth", "renew", "--help"],
+        vec![":", "@feishu", "--as", "user", "auth", "begin", "--help"],
+        vec![":", "@feishu", "im", "messages", "send", "--help"],
+        vec![":", "@feishu", "im", "messages", "list", "--help"],
         vec![":", "@feishu", "im", "messages", "reply", "--help"],
     ] {
         let output = seat.run(&command);

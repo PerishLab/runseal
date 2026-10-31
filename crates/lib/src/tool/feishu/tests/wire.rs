@@ -95,3 +95,38 @@ fn success() {
     let held = decode(payload(200, json!({"code":0,"data":{}}))).unwrap();
     assert_eq!(held.body.0["code"], 0);
 }
+
+#[test]
+fn oauth() {
+    for (name, poll) in [
+        ("authorization_pending", super::super::Poll::Pending),
+        ("slow_down", super::super::Poll::Slow),
+    ] {
+        let error = authorization(payload(
+            400,
+            json!({"error":name,"error_description":"SECRET_FIXTURE"}),
+        ))
+        .err()
+        .unwrap();
+        assert_eq!(error.poll, Some(poll));
+        assert_eq!(error.outcome, super::super::Outcome::Rejected);
+        assert!(!format!("{error:?}").contains("SECRET"));
+    }
+    for status in [200, 400, 500] {
+        let error = authorization(payload(
+            status,
+            json!({"error":"UNKNOWN_SECRET","error_description":"SECRET_FIXTURE"}),
+        ))
+        .err()
+        .unwrap();
+        assert_eq!(error.outcome, super::super::Outcome::Unknown);
+        assert!(error.poll.is_none());
+        assert!(!format!("{error:?}").contains("SECRET"));
+    }
+    assert!(authorization(payload(200, json!({"access_token":"SECRET_FIXTURE"}))).is_ok());
+    let error = authorization(payload(500, json!({"error":"authorization_pending"})))
+        .err()
+        .unwrap();
+    assert!(error.poll.is_none());
+    assert_eq!(error.outcome, super::super::Outcome::Unknown);
+}

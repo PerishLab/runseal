@@ -1,3 +1,8 @@
+mod page;
+mod send;
+pub use page::{Messages, Page};
+pub use send::{Send, Target};
+
 use super::{
     Error,
     fault::{input, response},
@@ -10,6 +15,7 @@ use serde_json::{Value, json};
 pub enum Operation {
     Get { message: String },
     Reply(Reply),
+    Send(Send),
 }
 
 #[derive(Clone, Debug)]
@@ -86,6 +92,7 @@ impl Operation {
                 })
             }
             Self::Reply(reply) => reply.call(),
+            Self::Send(send) => send.call(),
         }
     }
 
@@ -98,7 +105,7 @@ impl Operation {
                 }
                 &items[0]
             }
-            Self::Reply(_) => &value["data"],
+            Self::Reply(_) | Self::Send(_) => &value["data"],
         };
         let message: Message = serde_json::from_value(record.clone()).map_err(|_| response())?;
         message.validate()?;
@@ -107,6 +114,7 @@ impl Operation {
             Self::Reply(reply) if message.parent.as_deref() != Some(&reply.message) => {
                 Err(response())
             }
+            Self::Send(send) if !send.matches(&message) => Err(response()),
             _ => Ok(message),
         }
     }
@@ -132,7 +140,7 @@ impl Reply {
 }
 
 impl Message {
-    fn validate(&self) -> Result<(), Error> {
+    pub(super) fn validate(&self) -> Result<(), Error> {
         identifier(&self.id, "om_").map_err(|_| response())?;
         identifier(&self.chat, "oc_").map_err(|_| response())?;
         visible(&self.kind, 64).map_err(|_| response())?;
@@ -155,6 +163,9 @@ impl Sender {
     }
 
     pub(super) fn matches(&self, identity: &super::Identity) -> bool {
+        if let Some(user) = &identity.user {
+            return self.kind == "user" && self.scheme == "open_id" && &self.id == user;
+        }
         self.kind == "app"
             && match self.scheme.as_str() {
                 "app_id" => self.id == identity.app,
@@ -165,5 +176,9 @@ impl Sender {
 }
 
 #[cfg(test)]
-#[path = "tests/message.rs"]
+#[path = "../tests/message.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../tests/page.rs"]
+mod pages;

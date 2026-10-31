@@ -1,3 +1,12 @@
+mod device;
+mod grant;
+mod session;
+
+pub(super) use device::begin;
+pub(super) use grant::{exchange, identity as person, renew as refresh};
+pub use session::{Challenge, Session};
+pub(super) use session::{User, scopes};
+
 use super::{
     Error, Identity,
     fault::response,
@@ -67,11 +76,16 @@ pub(super) fn identity(agent: &http::Client, state: &State) -> Result<Identity, 
     Ok(Identity {
         app: state.app.clone(),
         bot: bot.into(),
+        user: None,
         observed: now(),
         stamp: stamp(token),
     })
 }
 
 #[cfg(test)]
-#[path = "tests/auth.rs"]
+#[path = "../tests/auth.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../tests/user.rs"]
+mod user;

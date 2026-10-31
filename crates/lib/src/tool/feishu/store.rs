@@ -35,11 +35,14 @@ impl Store {
                 .map_err(|_| custody())?,
         );
         let state: State = serde_json::from_slice(&bytes).map_err(|_| custody())?;
-        if state.version != 1 || state.app != app {
+        if !matches!(state.version, 1 | 2) || state.app != app {
             return Err(Error::new(
                 Class::Binding,
                 "Feishu private state does not match the expected app/version",
             ));
+        }
+        if state.version == 1 && state.user.is_some() {
+            return Err(custody());
         }
         visible(&state.secret, 256)?;
         Ok(state)
@@ -66,6 +69,7 @@ impl Store {
             secret: held.secret.clone(),
             credential: None,
             identity: None,
+            user: None,
         };
         let bytes = encode(&state)?;
         Private::current()

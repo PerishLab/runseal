@@ -4,20 +4,34 @@ use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::Zeroize;
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, clap::ValueEnum)]
+#[serde(rename_all = "lowercase")]
+pub enum Actor {
+    Bot,
+    User,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Identity {
     pub app: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub bot: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
     pub observed: i64,
     pub stamp: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Status {
+    pub actor: Actor,
+    pub expected: Option<String>,
     pub app: String,
     pub expires: Option<i64>,
     pub valid: bool,
     pub identity: Option<Identity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<super::auth::Session>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -52,6 +66,8 @@ pub(super) struct State {
     pub secret: String,
     pub credential: Option<Credential>,
     pub identity: Option<Identity>,
+    #[serde(default)]
+    pub user: Option<super::auth::User>,
 }
 
 impl Drop for State {
@@ -95,17 +111,20 @@ impl State {
         self.identity
             .as_ref()
             .filter(|id| id.app == self.app && id.stamp == stamp(token) && id.observed > 0)
-            .filter(|id| identifier(&id.bot, "ou_").is_ok())
+            .filter(|id| id.user.is_none() && identifier(&id.bot, "ou_").is_ok())
             .cloned()
             .ok_or_else(|| Error::new(Class::Binding, "Feishu identity not verified for current app/token; explicitly run auth identity"))
     }
 
     pub fn status(&self) -> Status {
         Status {
+            actor: Actor::Bot,
+            expected: None,
             app: self.app.clone(),
             expires: self.credential.as_ref().map(|held| held.expires),
             valid: self.token().is_ok(),
             identity: self.bound().ok(),
+            user: self.user.as_ref().map(|user| user.status(&self.app)),
         }
     }
 }

@@ -70,6 +70,7 @@ fn sender() {
     let mut identity = crate::feishu::Identity {
         app: "cli_fixture".into(),
         bot: "ou_bot".into(),
+        user: None,
         observed: 100,
         stamp: "fixture".into(),
     };

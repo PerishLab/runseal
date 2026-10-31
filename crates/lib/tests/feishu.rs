@@ -152,3 +152,6 @@ fn custody() {
     symlink(&fixture.state, &link).unwrap();
     assert!(Client::open(&link, "cli_fixture").is_err());
 }
+
+#[path = "feishu/user.rs"]
+mod user;
