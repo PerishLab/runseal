@@ -37,7 +37,11 @@ pub(crate) fn begin(
             body: Some(form.as_bytes()),
         },
     )?;
-    decode(&result.body.0, started, scopes)
+    decode(&result.body.0, started, scopes).map_err(|mut error| {
+        error.status = Some(200);
+        error.request = result.request.clone();
+        error
+    })
 }
 
 pub(super) fn decode(
@@ -50,16 +54,7 @@ pub(super) fn decode(
     let code = value["user_code"].as_str().ok_or_else(response)?;
     visible(code, 128).map_err(|_| response())?;
     let verification = value["verification_uri"].as_str().ok_or_else(response)?;
-    let uri = url::Url::parse(verification).map_err(|_| response())?;
-    if uri.scheme() != "https" || uri.host_str() != Some("accounts.feishu.cn") {
-        return Err(response());
-    }
-    if !uri.username().is_empty() || uri.password().is_some() || uri.port().is_some() {
-        return Err(response());
-    }
-    if uri.query().is_some() || uri.fragment().is_some() || verification.len() > 1024 {
-        return Err(response());
-    }
+    check(verification, secret)?;
     let ttl = value["expires_in"]
         .as_i64()
         .filter(|n| (30..=3600).contains(n))
@@ -79,4 +74,29 @@ pub(super) fn decode(
         next: started + interval,
         scopes,
     })
+}
+
+fn check(verification: &str, secret: &str) -> Result<(), Error> {
+    let uri = url::Url::parse(verification).map_err(|_| response())?;
+    if uri.scheme() != "https" || uri.host_str() != Some("accounts.feishu.cn") {
+        return Err(response());
+    }
+    if !uri.username().is_empty() || uri.password().is_some() || uri.port().is_some() {
+        return Err(response());
+    }
+    if uri.fragment().is_some() || verification.len() > 2048 {
+        return Err(response());
+    }
+    if uri.query().is_some() {
+        let pairs: Vec<_> = uri.query_pairs().collect();
+        if pairs.len() != 1 {
+            return Err(response());
+        }
+        let (key, value) = &pairs[0];
+        if key != "flow_id" || value == secret {
+            return Err(response());
+        }
+        visible(value, 1024).map_err(|_| response())?;
+    }
+    Ok(())
 }
