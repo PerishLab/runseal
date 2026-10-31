@@ -20,6 +20,9 @@ pub struct Receipt {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Data {
+    Interfaces {
+        page: Page<super::Interface>,
+    },
     Survey {
         entry: Option<super::Survey>,
     },
@@ -73,6 +76,11 @@ impl Entry {
 
 impl Data {
     pub(super) fn regional(&self, region: &str) -> Result<(), Failure> {
+        if let Self::Interfaces { page } = self {
+            for entry in &page.items {
+                super::interfaces::regional(entry, region)?;
+            }
+        }
         let entries = match self {
             Self::Created { entry } => std::slice::from_ref(entry),
             Self::Entries { page } => page.items.as_slice(),

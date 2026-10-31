@@ -11,6 +11,12 @@ pub struct Request {
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum Operation {
+    Interfaces {
+        #[arg(long)]
+        instance: String,
+        #[command(flatten)]
+        page: Page,
+    },
     #[command(subcommand)]
     Vpc(Vpc),
     #[command(subcommand)]

@@ -9,6 +9,7 @@ pub(super) struct Call {
 }
 
 pub(super) enum Kind {
+    Interfaces(Page),
     Vpc,
     Subnet,
     Group,
@@ -26,6 +27,7 @@ impl Request {
     pub(super) fn call(&self) -> Result<Call, Failure> {
         Names::region(&self.region)?;
         match &self.operation {
+            Operation::Interfaces { instance, page } => super::interfaces::call(instance, *page),
             Operation::Vpc(operation) => operation.call(),
             Operation::Subnet(operation) => operation.call(&self.region),
             Operation::Group(operation) => operation.call(),
