@@ -90,6 +90,9 @@ pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<V
         Deed::Auth {
             deed: Auth::Exchange,
         } => value(client.exchange()?),
+        Deed::Auth {
+            deed: Auth::Recover,
+        } => value(client.recover()?),
         Deed::Auth { deed: Auth::Logout } => value(client.logout()?),
         Deed::Auth { deed: Auth::Renew } => value(client.renew()?),
         Deed::Auth {

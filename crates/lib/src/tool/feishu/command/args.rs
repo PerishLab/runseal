@@ -45,7 +45,9 @@ pub(crate) struct Input {
 
 #[derive(Subcommand)]
 pub(super) enum Deed {
-    #[command(about = "Explicit local custody, token issuance and bot identity verification")]
+    #[command(
+        about = "Explicit app custody, user authorization, actor-specific renewal and identity verification"
+    )]
     Auth {
         #[command(subcommand)]
         deed: Auth,
@@ -66,7 +68,10 @@ pub(super) enum Auth {
         #[arg(long = "credentials-file")]
         credentials: PathBuf,
     },
-    #[command(about = "Read nonsecret local state; no network call or implicit refresh")]
+    #[command(
+        about = "Read nonsecret local state, selected actor and retained-return status; no network or implicit refresh",
+        long_about = "Read nonsecret local state without network access or implicit refresh. For a retained token return, response.token/refresh are byte lengths, bearer is a type check, lifetime/lease are observed duration metadata and scopes is a count. No token values or raw provider prose are returned. If retained=true, auth recover can revalidate the same return locally after compatibility repair; never repeat an uncertain exchange/renew."
+    )]
     Status,
     #[command(
         about = "Begin one explicit user device authorization request; browser consent remains human; scopes are exactly caller supplied, include offline_access for refresh"
@@ -79,14 +84,18 @@ pub(super) enum Auth {
         about = "Exchange the pending device code once, respecting saved polling interval; no automatic polling or retries"
     )]
     Exchange,
+    #[command(
+        about = "Recover a retained token return locally; no network request or replay. Inspect auth status retained first; unavailable or invalid returns remain refused"
+    )]
+    Recover,
     #[command(about = "Discard only local user authorization; no remote revocation promise")]
     Logout,
     #[command(
-        about = "Issue a Bearer tenant token with one client_credentials request; clears identity binding"
+        about = "Explicit bot client_credentials issuance or user refresh_token renewal; one request, clears the selected actor identity binding; no retry"
     )]
     Renew,
     #[command(
-        about = "Verify app-local bot identity with one API call; binds the current token, not a person or resource permission"
+        about = "Verify selected actor with bot info or user_info; one request binds app/current token and expected user for user mode; does not prove resource permission"
     )]
     Identity,
 }

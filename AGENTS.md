@@ -114,6 +114,16 @@ explicit local discard/reauthorization if unrecoverable. Local logout does not
 revoke remote credentials. State upgrades to version two when user authorization
 begins; older binaries refuse it instead of silently dropping user custody.
 
+Token returns received as successful OAuth JSON are retained in private custody
+before credential-field validation, with their original request start time and
+safe request ID. A retained return advances state to version three; older
+binaries refuse it. Status exposes only bounded shape/length/count metadata;
+raw tokens and provider prose never leave custody. Explicit local auth recover
+revalidates that same return without network access or extending its lifetime,
+then requires separate identity verification. Missing or unreadable returns
+remain unknown and unrecoverable locally; no exchange/refresh replay follows.
+CLI help and finite diagnostic fields own routine operation/recovery guidance.
+
 Message sends require an explicit chat or open_id target and caller UUID;
 user write acknowledgements must match the verified person, bot writes the
 verified application/bot. Lists read one explicit chat and preserve cursor and

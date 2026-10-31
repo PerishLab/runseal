@@ -32,9 +32,50 @@ pub enum Poll {
     Slow,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub enum Field {
+    #[serde(rename = "token_type")]
+    Kind,
+    #[serde(rename = "access_token")]
+    Token,
+    #[serde(rename = "expires_in")]
+    Lifetime,
+    #[serde(rename = "refresh_token")]
+    Refresh,
+    #[serde(rename = "refresh_token_expires_in")]
+    Lease,
+    #[serde(rename = "scope")]
+    Scope,
+    #[serde(rename = "response_size")]
+    Size,
+    #[serde(rename = "response_json")]
+    Json,
+    #[serde(rename = "response_body")]
+    Body,
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Kind => "token_type",
+            Self::Token => "access_token",
+            Self::Lifetime => "expires_in",
+            Self::Refresh => "refresh_token",
+            Self::Lease => "refresh_token_expires_in",
+            Self::Scope => "scope",
+            Self::Size => "response_size",
+            Self::Json => "response_json",
+            Self::Body => "response_body",
+        };
+        out.write_str(name)
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Error {
     pub class: Class,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<Field>,
     pub outcome: Outcome,
     pub code: Option<i64>,
     pub status: Option<u16>,
@@ -48,6 +89,7 @@ impl Error {
     pub(super) fn new(class: Class, detail: &'static str) -> Self {
         Self {
             class,
+            field: None,
             outcome: Outcome::Unsent,
             code: None,
             status: None,
@@ -63,6 +105,14 @@ impl Error {
             "Feishu result unknown; inspect the exact resource before recovery; no automatic replay",
         );
         error.outcome = Outcome::Unknown;
+        error
+    }
+
+    pub(super) fn token(field: Field) -> Self {
+        let mut error = Self::unknown(Class::Response);
+        error.detail = "Feishu token return could not be validated; inspect auth status. A retained return can be revalidated locally after compatibility repair; never repeat token dispatch";
+        error.field = Some(field);
+        error.status = Some(200);
         error
     }
 
@@ -90,6 +140,12 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(out, "{}; outcome {:?}", self.detail, self.outcome)?;
+        if let Some(field) = self.field {
+            write!(
+                out,
+                "; invalid field {field}; inspect auth status; a retained return can be revalidated with auth recover after compatibility repair; never replay token dispatch"
+            )?;
+        }
         if let Some(code) = self.code {
             write!(out, "; code {code}")?;
         }

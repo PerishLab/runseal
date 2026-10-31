@@ -111,3 +111,61 @@ fn profile() {
     assert_eq!(output.value["actor"], "bot");
     assert_eq!(output.value["identity"]["bot"], "ou_bot");
 }
+
+#[test]
+fn recovery() {
+    let fixture = Fixture::new();
+    let mut value = state();
+    value["version"] = json!(3);
+    value["user"]["uncertain"] = json!(true);
+    value["user"]["returned"] = json!({"kind":"Exchange","started":100,"request":"SAFE-REQUEST",
+        "body":json!({"token_type":"Bearer","access_token":"RETURNED_SECRET","expires_in":7200,
+            "refresh_token":"REFRESH_SECRET","refresh_token_expires_in":604800,"scope":"offline_access"}).to_string()});
+    fixture.write(value);
+    let mut client = Client::user(&fixture.state, "cli_fixture", "ou_user").unwrap();
+    assert!(client.status().user.unwrap().retained);
+    let status = client.recover().unwrap();
+    assert_eq!(status.expires, Some(7300));
+    assert!(!status.valid);
+    assert!(status.identity.is_none());
+    let user = status.user.unwrap();
+    assert!(!user.retained && !user.uncertain);
+    assert_eq!(user.renewable, Some(604900));
+    drop(client);
+    let bot = Client::open(&fixture.state, "cli_fixture").unwrap();
+    assert!(bot.status().valid);
+    assert_eq!(bot.status().identity.unwrap().bot, "ou_bot");
+    drop(bot);
+    let output = fixture.call(&["--as", "user", "--user", "ou_user", "auth", "recover"]);
+    assert!(output.is_err());
+}
+
+#[test]
+fn preservation() {
+    for version in [2, 3] {
+        let fixture = Fixture::new();
+        let mut value = state();
+        value["version"] = json!(version);
+        value["user"]["uncertain"] = json!(true);
+        value["user"]["returned"] = json!({"kind":"Exchange","started":100,"request":null,
+            "body":json!({"token_type":"DPoP","access_token":"SECRET_FIXTURE","expires_in":7200}).to_string()});
+        fixture.write(value);
+        let opened = Client::user(&fixture.state, "cli_fixture", "ou_user");
+        if version == 2 {
+            assert!(opened.is_err());
+            continue;
+        }
+        let mut client = opened.unwrap();
+        let error = client.recover().unwrap_err();
+        assert_eq!(error.field, Some(runseal::feishu::Field::Kind));
+        assert!(!format!("{error:?} {error}").contains("SECRET"));
+        let status = client.status();
+        assert!(status.user.unwrap().retained);
+        assert!(
+            !serde_json::to_string(&client.status())
+                .unwrap()
+                .contains("SECRET")
+        );
+        assert_eq!(client.exchange().unwrap_err().outcome, Outcome::Unsent);
+    }
+}

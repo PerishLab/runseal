@@ -35,13 +35,21 @@ impl Store {
                 .map_err(|_| custody())?,
         );
         let state: State = serde_json::from_slice(&bytes).map_err(|_| custody())?;
-        if !matches!(state.version, 1 | 2) || state.app != app {
+        if !matches!(state.version, 1..=3) || state.app != app {
             return Err(Error::new(
                 Class::Binding,
                 "Feishu private state does not match the expected app/version",
             ));
         }
         if state.version == 1 && state.user.is_some() {
+            return Err(custody());
+        }
+        if state.version < 3
+            && state
+                .user
+                .as_ref()
+                .is_some_and(|user| user.returned.is_some())
+        {
             return Err(custody());
         }
         visible(&state.secret, 256)?;

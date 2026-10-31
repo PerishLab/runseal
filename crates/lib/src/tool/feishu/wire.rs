@@ -45,11 +45,16 @@ pub(super) fn invoke(agent: &wire::Client, request: wire::Request<'_>) -> Result
 }
 
 pub(super) fn oauth(agent: &wire::Client, request: wire::Request<'_>) -> Result<Record, Error> {
-    let payload = agent
+    let received = agent
         .send(request)
-        .map_err(|_| Error::unknown(Class::Network))?
-        .collect()
-        .map_err(|_| response())?;
+        .map_err(|_| Error::unknown(Class::Network))?;
+    let status = received.status;
+    let payload = received.collect().map_err(|_| {
+        let mut error = response();
+        error.status = Some(status);
+        error.field = Some(super::fault::Field::Body);
+        error
+    })?;
     authorization(payload)
 }
 
@@ -61,7 +66,13 @@ fn authorization(payload: wire::Payload) -> Result<Record, Error> {
         error.request = request;
         return Err(error);
     }
-    let body = Body(serde_json::from_slice(&payload.body).map_err(|_| response())?);
+    let body = Body(serde_json::from_slice(&payload.body).map_err(|_| {
+        let mut error = response();
+        error.status = Some(payload.status);
+        error.request = request.clone();
+        error.field = Some(super::fault::Field::Json);
+        error
+    })?);
     if payload.status == 200
         && body.0.get("error").is_none()
         && body
