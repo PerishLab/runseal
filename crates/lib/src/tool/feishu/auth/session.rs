@@ -18,6 +18,8 @@ pub struct Session {
     pub challenge: Option<Challenge>,
     pub next: Option<i64>,
     pub uncertain: bool,
+    pub retained: bool,
+    pub response: Option<super::receipt::Shape>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -58,6 +60,8 @@ impl Drop for Grant {
 
 #[derive(Deserialize, Serialize)]
 pub(crate) struct User {
+    #[serde(default)]
+    pub returned: Option<super::receipt::Return>,
     pub expected: String,
     pub grant: Option<Grant>,
     pub identity: Option<Identity>,
@@ -69,6 +73,7 @@ impl User {
     pub fn new(expected: &str) -> Self {
         Self {
             expected: expected.into(),
+            returned: None,
             grant: None,
             identity: None,
             device: None,
@@ -117,6 +122,8 @@ impl User {
             challenge: self.device.as_ref().map(|d| d.challenge.clone()),
             next: self.device.as_ref().map(|d| d.next),
             uncertain: self.uncertain,
+            retained: self.returned.is_some(),
+            response: self.returned.as_ref().and_then(|r| r.shape()),
         }
     }
 
@@ -135,7 +142,7 @@ impl User {
 pub(super) fn uncertain() -> Error {
     Error::new(
         Class::Binding,
-        "Feishu authorization result uncertain; do not replay exchange/refresh; observe local status, then explicitly discard local user session and reauthorize if unrecoverable",
+        "Feishu authorization result uncertain; inspect auth status. If retained=true, run auth recover locally; otherwise preserve evidence and explicitly reauthorize if unrecoverable. Never replay exchange/refresh",
     )
 }
 

@@ -1,9 +1,13 @@
 mod device;
 mod grant;
+mod receipt;
 mod session;
 
 pub(super) use device::begin;
+pub(super) use grant::decode as interpret;
 pub(super) use grant::{exchange, identity as person, renew as refresh};
+pub use receipt::Shape;
+pub(super) use receipt::{Kind, Return};
 pub use session::{Challenge, Session};
 pub(super) use session::{User, scopes};
 

@@ -130,3 +130,14 @@ fn oauth() {
     assert!(error.poll.is_none());
     assert_eq!(error.outcome, super::super::Outcome::Unknown);
 }
+
+#[test]
+fn diagnosis() {
+    let mut held = payload(200, json!({}));
+    held.body = Zeroizing::new(b"SECRET_FIXTURE".to_vec());
+    let error = authorization(held).err().unwrap();
+    assert_eq!(error.status, Some(200));
+    assert_eq!(error.field, Some(super::super::Field::Json));
+    assert_eq!(error.request.as_deref(), Some("20261030FIXTURE"));
+    assert!(!format!("{error:?} {error}").contains("SECRET"));
+}

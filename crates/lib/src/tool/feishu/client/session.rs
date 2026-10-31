@@ -38,7 +38,7 @@ impl Client {
         if user.uncertain {
             return Err(Error::new(
                 Class::Binding,
-                "Feishu exchange uncertain; inspect status, then discard local session and reauthorize if unrecoverable",
+                "Feishu token dispatch uncertain; inspect auth status; use auth recover if retained, otherwise explicitly reauthorize if unrecoverable; do not replay",
             ));
         }
         let device = user
@@ -60,20 +60,12 @@ impl Client {
         user.uncertain = true;
         self.store.save(&self.state)?;
         match auth::exchange(&self.agent, &self.state) {
-            Ok(grant) => {
-                let user = self.person()?;
-                user.grant = Some(grant);
-                user.device = None;
-                user.identity = None;
-                user.uncertain = false;
-            }
+            Ok(returned) => self.retain(returned),
             Err(error) => {
                 self.pending(&error)?;
-                return Err(error);
+                Err(error)
             }
         }
-        self.store.save(&self.state)?;
-        Ok(self.status())
     }
 
     fn pending(&mut self, error: &Error) -> Result<(), Error> {
@@ -110,7 +102,7 @@ impl Client {
         if user.uncertain {
             return Err(Error::new(
                 Class::Binding,
-                "Feishu refresh uncertain; do not replay; discard local user session and reauthorize if unrecoverable",
+                "Feishu token dispatch uncertain; inspect auth status; use auth recover if retained, otherwise explicitly reauthorize if unrecoverable; do not replay",
             ));
         }
         let grant = user.grant.as_ref().ok_or_else(super::super::fault::input)?;
@@ -122,13 +114,8 @@ impl Client {
         }
         user.uncertain = true;
         self.store.save(&self.state)?;
-        let grant = auth::refresh(&self.agent, &self.state)?;
-        let user = self.person()?;
-        user.grant = Some(grant);
-        user.identity = None;
-        user.uncertain = false;
-        self.store.save(&self.state)?;
-        Ok(self.status())
+        let returned = auth::refresh(&self.agent, &self.state)?;
+        self.retain(returned)
     }
 
     pub(super) fn person(&mut self) -> Result<&mut auth::User, Error> {

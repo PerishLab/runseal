@@ -1,3 +1,4 @@
+mod recovery;
 mod session;
 
 use super::{

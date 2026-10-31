@@ -7,9 +7,9 @@ mod model;
 mod store;
 mod wire;
 
-pub use auth::{Challenge, Session};
+pub use auth::{Challenge, Session, Shape};
 pub use client::Client;
-pub use fault::{Class, Error, Outcome, Poll};
+pub use fault::{Class, Error, Field, Outcome, Poll};
 pub use message::{Content, Message, Messages, Operation, Page, Reply, Send, Sender, Target};
 pub use model::{Actor, Identity, Receipt, Status};
 

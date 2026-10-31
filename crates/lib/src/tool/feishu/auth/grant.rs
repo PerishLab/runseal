@@ -1,17 +1,18 @@
 use super::{
     super::{
         Class, Error, Identity,
-        fault::response,
+        fault::{Field, response},
         model::{Credential, State, identifier, now, stamp, visible},
         wire,
     },
+    receipt::{Kind, Return},
     session::{Grant, scopes},
 };
 use crate::http::wire as http;
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-pub(crate) fn exchange(agent: &http::Client, state: &State) -> Result<Grant, Error> {
+pub(crate) fn exchange(agent: &http::Client, state: &State) -> Result<Return, Error> {
     let user = state.user.as_ref().ok_or_else(response)?;
     let device = user.device.as_ref().ok_or_else(response)?;
     let form = Zeroizing::new(
@@ -32,10 +33,10 @@ pub(crate) fn exchange(agent: &http::Client, state: &State) -> Result<Grant, Err
             body: Some(form.as_bytes()),
         },
     )?;
-    decode(&record.body.0, started, None)
+    Return::take(record, started, Kind::Exchange)
 }
 
-pub(crate) fn renew(agent: &http::Client, state: &State) -> Result<Grant, Error> {
+pub(crate) fn renew(agent: &http::Client, state: &State) -> Result<Return, Error> {
     let grant = state
         .user
         .as_ref()
@@ -54,38 +55,44 @@ pub(crate) fn renew(agent: &http::Client, state: &State) -> Result<Grant, Error>
             body: Some(&bytes),
         },
     )?;
-    decode(&record.body.0, started, Some(grant))
+    Return::take(record, started, Kind::Renew)
 }
 
-pub(super) fn decode(
+pub(crate) fn decode(
     value: &Value,
     started: i64,
     previous: Option<&Grant>,
 ) -> Result<Grant, Error> {
     if value["token_type"].as_str() != Some("Bearer") {
-        return Err(response());
+        return Err(invalid(Field::Kind));
     }
-    let token = value["access_token"].as_str().ok_or_else(response)?;
-    visible(token, 8192).map_err(|_| response())?;
+    let token = value["access_token"]
+        .as_str()
+        .ok_or_else(|| invalid(Field::Token))?;
+    visible(token, 8192).map_err(|_| invalid(Field::Token))?;
     let ttl = value["expires_in"]
         .as_i64()
         .filter(|n| (60..=86400).contains(n))
-        .ok_or_else(response)?;
+        .ok_or_else(|| invalid(Field::Lifetime))?;
     let refresh = match value.get("refresh_token") {
         Some(Value::String(value)) => value.as_str(),
-        None => previous.map(|g| g.refresh.as_str()).ok_or_else(response)?,
-        _ => return Err(response()),
+        None => previous
+            .map(|g| g.refresh.as_str())
+            .ok_or_else(|| invalid(Field::Refresh))?,
+        _ => return Err(invalid(Field::Refresh)),
     };
-    visible(refresh, 8192).map_err(|_| response())?;
+    visible(refresh, 8192).map_err(|_| invalid(Field::Refresh))?;
     let expires = match value.get("refresh_token_expires_in") {
         Some(value) => {
             started
                 + value
                     .as_i64()
                     .filter(|n| (60..=366 * 86400).contains(n))
-                    .ok_or_else(response)?
+                    .ok_or_else(|| invalid(Field::Lease))?
         }
-        None => previous.map(|g| g.expires).ok_or_else(response)?,
+        None => previous
+            .map(|g| g.expires)
+            .ok_or_else(|| invalid(Field::Lease))?,
     };
     let scopes = match value.get("scope") {
         Some(Value::String(scope)) => scopes(
@@ -94,9 +101,11 @@ pub(super) fn decode(
                 .map(str::to_string)
                 .collect::<Vec<_>>(),
         )
-        .map_err(|_| response())?,
-        None => previous.map(|g| g.scopes.clone()).ok_or_else(response)?,
-        _ => return Err(response()),
+        .map_err(|_| invalid(Field::Scope))?,
+        None => previous
+            .map(|g| g.scopes.clone())
+            .ok_or_else(|| invalid(Field::Scope))?,
+        _ => return Err(invalid(Field::Scope)),
     };
     Ok(Grant {
         credential: Credential {
@@ -139,4 +148,8 @@ pub(crate) fn identity(agent: &http::Client, state: &State) -> Result<Identity, 
         observed: now(),
         stamp: stamp(token),
     })
+}
+
+fn invalid(field: Field) -> Error {
+    Error::token(field)
 }
