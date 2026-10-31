@@ -1,3 +1,4 @@
+mod interfaces;
 mod names;
 mod policy;
 mod query;
@@ -6,6 +7,7 @@ mod request;
 mod survey;
 mod types;
 
+pub use interfaces::{Address, Attachment, Interface, Location};
 pub use policy::{Action, Protocol, Rule, Rules};
 pub use query::{Group, Id, Operation, Page, Request, Subnet, Vpc};
 pub use survey::{Count, Survey};

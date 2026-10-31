@@ -16,6 +16,7 @@ fn response() -> Failure {
 impl Call {
     pub(super) fn decode(&self, value: &Value) -> Result<Data, Failure> {
         match self.kind {
+            Kind::Interfaces(window) => super::interfaces::decode(&self.body, value, window),
             Kind::Survey(probe) => probe.decode(&self.body, value),
             Kind::Vpc => Ok(Data::Created {
                 entry: Record(&value["Vpc"]).entry("VpcSet")?,

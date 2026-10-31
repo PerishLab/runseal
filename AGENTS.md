@@ -316,3 +316,28 @@ Hardrig owns plans, bindings, durable intents/receipts, generation, polling,
 cost approval, SSH trust and recovery. Lost receipts never authorize replay,
 compensation, automatic refresh or forced clearing. Protocol/offline tests are
 not real Tencent account, stock, pricing, purchase or Windtun qualification.
+
+## Instance network attachments
+
+`network interfaces --instance INS --offset N --limit N` and the public
+`network::Operation::Interfaces` issue one DescribeNetworkInterfaces query with
+only the exact attachment.instance-id filter. The limit is 1 through 100. This
+is an observed page, not a CVM absence proof, full account inventory, attachment
+ownership grant or deletion permit. The consumer owns pagination, cross-page
+coverage, policy, race handling and subsequent mutation decisions.
+
+Each entry requires a unique native ENI ID, VPC/subnet identity and an attachment
+matching the requested instance. Available zone facts must match the requested
+region. Nullable owner/device/primary/type/status/protection/groups and address
+collections remain unknown. AddressId and public address retain explicit empty
+strings separately from missing/null. Public IPv4/IPv6, extra addresses and EIP
+IDs remain visible; unknown native labels are bounded, not translated to idle.
+
+Only the finite public projection leaves the SDK. Tags, names, descriptions and
+raw provider JSON are withheld. Unknown response keys or unprojected nonempty
+CDC/legacy IPv6 facts mark schema coverage incomplete. Nested address coverage
+propagates to the interface. Schema coverage is not completeness of all nullable
+facts, a distributed lock or evidence that termination is safe. No interface or
+address create/delete/detach/release action is introduced, and no read or retry
+follows automatically. Existing custody, identity, signing, redaction, outcome
+and local request validation remain shared with the network capability.

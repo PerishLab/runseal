@@ -107,3 +107,27 @@ fn cvm() {
     ]);
     assert!(!output.status.success());
 }
+
+#[test]
+fn interfaces() {
+    let seat = Seat::new();
+    let output = seat.run(&[":", "@tencent", "network", "interfaces", "--help"]);
+    assert!(output.status.success(), "{output:?}");
+    for flag in ["--instance", "--offset", "--limit"] {
+        assert!(text(&output.stdout).contains(flag));
+    }
+    let output = seat.run(&[
+        ":",
+        "@tencent",
+        "network",
+        "--region",
+        "ap-hongkong",
+        "interfaces",
+        "--instance",
+        "ins-fixture",
+        "--raw-body",
+        "WITHHELD_FIXTURE",
+    ]);
+    assert!(!output.status.success());
+    assert!(!text(&output.stderr).contains("WITHHELD_FIXTURE"));
+}
