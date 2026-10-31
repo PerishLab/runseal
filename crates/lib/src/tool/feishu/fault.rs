@@ -25,6 +25,13 @@ pub enum Outcome {
     Observed,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Poll {
+    Pending,
+    Slow,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Error {
     pub class: Class,
@@ -32,6 +39,8 @@ pub struct Error {
     pub code: Option<i64>,
     pub status: Option<u16>,
     pub request: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub poll: Option<Poll>,
     detail: &'static str,
 }
 
@@ -43,6 +52,7 @@ impl Error {
             code: None,
             status: None,
             request: None,
+            poll: None,
             detail,
         }
     }
