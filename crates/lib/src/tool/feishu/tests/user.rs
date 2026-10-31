@@ -32,12 +32,13 @@ fn grant() {
 #[test]
 fn challenge() {
     let mut value = json!({"device_code":"DEVICE_SECRET","user_code":"ABCD-EFGH",
-        "verification_uri":"https://accounts.feishu.cn/oauth/device",
+        "verification_uri":"https://accounts.feishu.cn/oauth/v1/device/verify?flow_id=public-flow",
         "verification_uri_complete":"https://evil.invalid/SECRET", "expires_in":240,"interval":5});
     let held = device::decode(&value, 100, vec!["offline_access".into()]).unwrap();
     let public = serde_json::to_string(&held.challenge).unwrap();
     assert!(!public.contains("SECRET"));
     assert!(!public.contains("evil"));
+    assert!(public.contains("flow_id=public-flow"));
     assert_eq!(held.next, 105);
     for uri in [
         "https://evil.invalid/",
@@ -45,6 +46,9 @@ fn challenge() {
         "https://accounts.feishu.cn/?secret=x",
         "https://user@accounts.feishu.cn/",
         "https://accounts.feishu.cn/#secret",
+        "https://accounts.feishu.cn/?flow_id=one&flow_id=two",
+        "https://accounts.feishu.cn/?flow_id=DEVICE_SECRET",
+        "https://accounts.feishu.cn/?flow_id=one&redirect_uri=https://evil.invalid",
     ] {
         value["verification_uri"] = json!(uri);
         assert!(device::decode(&value, 100, vec![]).is_err());
