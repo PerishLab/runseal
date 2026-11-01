@@ -66,8 +66,14 @@ tests do not establish real account permissions or authorization compatibility.
 Private custody keeps secure opening, ancestor/owner/permission checks and state
 updates in Runseal. File mutual exclusion delegates to Radicula. The public
 `Private::lock` keeps its `File` return and legacy busy/error compatibility for
-existing consumers such as Hardrig; it is a narrow owned-file RAII adapter.
-Tencent and Feishu SDK sessions instead retain Radicula's owned-file Permit for the entire
+callers that deliberately tie mutual exclusion to physical File descriptors.
+Descriptor copies can retain that physical lock after the original File closes.
+Public `Private::hold` opens the same protected file and returns Radicula's
+owned-file Permit with immediate admission. Consumers retain that Permit for
+the whole session; Drop, explicit release and unwinding end the held interval
+even while an unrelated descriptor copy remains alive. They never unlock the
+underlying file independently. A bare descriptor copy is not a session permit.
+Tencent and Feishu SDK sessions use this same held interval for the entire
 Store lifetime, including early failure and unwinding. A session is not reduced
 to one read/write closure, and no cloud operation follows automatically from
 admission or release.

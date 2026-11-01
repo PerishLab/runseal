@@ -100,7 +100,7 @@ impl Private {
         Ok(file)
     }
 
-    pub(crate) fn hold(&self, path: &Path) -> io::Result<radicula_lock::file::Permit> {
+    pub fn hold(&self, path: &Path) -> io::Result<radicula_lock::file::Permit> {
         let file = self.open(path)?;
         radicula_lock::Factory::file(file, radicula_lock::Policy::EXCLUSIVE)
             .and_then(|gate| gate.acquire(radicula_lock::Wait::immediate()))
