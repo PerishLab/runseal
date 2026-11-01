@@ -16,7 +16,7 @@ pub(crate) fn begin(
     state: &State,
     requested: &[String],
 ) -> Result<Device, Error> {
-    let scopes = scopes(requested)?;
+    let scopes = scopes(requested, 32)?;
     let pair = Zeroizing::new(format!("{}:{}", state.app, state.secret));
     let basic = Zeroizing::new(STANDARD.encode(pair.as_bytes()));
     let header = Zeroizing::new(format!("Basic {}", &*basic));
