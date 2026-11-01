@@ -174,6 +174,13 @@ rather than becoming an empty collection. Typed failures distinguish input,
 custody, binding, authentication/expiry, permission, network, limits, response,
 unsupported and other provider refusals without exposing raw provider messages.
 
+Instance address decoding
+selects CVM PublicIpAddresses/PrivateIpAddresses or Lighthouse
+PublicAddresses/PrivateAddresses by the requested product. Foreign product fields
+refuse, even when null or empty. Native missing/null remains unknown and native
+empty arrays remain observed empty; malformed addresses refuse. The normalized
+public/private output and public Instance DTO retain their existing shape.
+
 CAM refusals retain a closed set of documented nonsecret error codes and a
 validated RequestId in typed failures and CLI errors. Unknown codes and all
 provider messages remain withheld; refusal alone does not justify replaying a

@@ -42,13 +42,13 @@ fn pages() {
 #[test]
 fn scope() {
     let call = query(Product::Lighthouse).call().unwrap();
-    let value = json!({"TotalCount":1,"InstanceSet":[{"InstanceId":"lhins-one","InstanceState":"RUNNING","Zone":"ap-hongkong-2","PublicIpAddresses":["192.0.2.1"]}]});
+    let value = json!({"TotalCount":1,"InstanceSet":[{"InstanceId":"lhins-one","InstanceState":"RUNNING","Zone":"ap-hongkong-2","PublicAddresses":["192.0.2.1"]}]});
     assert!(call.decode(&value).is_ok());
     for value in [
         json!({"TotalCount":1,"InstanceSet":[{"InstanceId":"ins-one","InstanceState":"RUNNING"}]}),
         json!({"TotalCount":1,"InstanceSet":[{"InstanceId":"lhins-one","InstanceState":"RUNNING","Zone":"ap-shanghai-1"}]}),
         json!({"TotalCount":1,"InstanceSet":[{"InstanceId":"lhins-one","InstanceState":"RUNNING","Zone":"ap-hongkong-1","Placement":{"Zone":"ap-hongkong-2"}}]}),
-        json!({"TotalCount":1,"InstanceSet":[{"InstanceId":"lhins-one","InstanceState":"RUNNING","PublicIpAddresses":["invalid"]}]}),
+        json!({"TotalCount":1,"InstanceSet":[{"InstanceId":"lhins-one","InstanceState":"RUNNING","PublicAddresses":["invalid"]}]}),
     ] {
         assert_eq!(call.decode(&value).unwrap_err().class, Class::Response);
     }

@@ -28,7 +28,7 @@ impl Call {
                 Ok(Data::Zones(items))
             }
             Kind::Instances(product, window) => {
-                let items: Vec<Instance> = receipt.list("InstanceSet")?;
+                let items: Vec<Value> = receipt.list("InstanceSet")?;
                 let items = items
                     .into_iter()
                     .map(|item| self.instance(item, product))
@@ -61,7 +61,9 @@ impl Call {
         }
     }
 
-    fn instance(&self, wire: Instance, product: Product) -> Result<Instance, Failure> {
+    fn instance(&self, value: Value, product: Product) -> Result<Instance, Failure> {
+        let wire: Instance =
+            serde_json::from_value(addresses(value, product)?).map_err(|_| response())?;
         identifier(
             &wire.id,
             if product == Product::Cvm {
@@ -94,6 +96,27 @@ impl Call {
 }
 
 struct Receipt<'a>(&'a Value);
+
+fn addresses(mut value: Value, product: Product) -> Result<Value, Failure> {
+    let cvm = ["PublicIpAddresses", "PrivateIpAddresses"];
+    let lighthouse = ["PublicAddresses", "PrivateAddresses"];
+    let (native, foreign) = match product {
+        Product::Cvm => (cvm, lighthouse),
+        Product::Lighthouse => (lighthouse, cvm),
+    };
+    let fields = value.as_object_mut().ok_or_else(response)?;
+    if foreign.iter().any(|name| fields.contains_key(*name)) {
+        return Err(response());
+    }
+    for (source, target) in native.into_iter().zip(cvm) {
+        if source != target
+            && let Some(addresses) = fields.remove(source)
+        {
+            fields.insert(target.into(), addresses);
+        }
+    }
+    Ok(value)
+}
 
 impl Receipt<'_> {
     fn images(&self, field: &str, prefix: &str) -> Result<Vec<Image>, Failure> {
