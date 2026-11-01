@@ -102,6 +102,10 @@ pub(super) enum Auth {
 
 #[derive(Subcommand)]
 pub(super) enum Im {
+    Reactions {
+        #[command(subcommand)]
+        deed: Reactions,
+    },
     Messages {
         #[command(subcommand)]
         deed: Messages,
@@ -171,5 +175,31 @@ pub(super) enum Messages {
         uuid: String,
         #[arg(long = "reply-in-thread")]
         thread: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub(super) enum Reactions {
+    #[command(
+        about = "Add one exact message reaction; case-sensitive emoji (Get is GET). No pre-read, retry or UUID dedup; caller owns durable intent and unknown-write observation"
+    )]
+    Create {
+        #[arg(long = "message-id")]
+        message: String,
+        #[arg(long = "emoji-type")]
+        emoji: String,
+    },
+    #[command(
+        about = "Observe one exact message reaction page with open_id users; no enrichment or automatic pagination"
+    )]
+    List {
+        #[arg(long = "message-id")]
+        message: String,
+        #[arg(long = "emoji-type")]
+        emoji: Option<String>,
+        #[arg(long = "page-size", default_value = "20")]
+        size: u8,
+        #[arg(long = "page-token")]
+        cursor: Option<String>,
     },
 }

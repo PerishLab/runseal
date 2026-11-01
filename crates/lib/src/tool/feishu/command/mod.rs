@@ -3,7 +3,7 @@ use crate::custody::Private;
 mod args;
 use super::Actor;
 pub(super) use args::Input;
-use args::{Auth, Deed, Im, Messages};
+use args::{Auth, Deed, Im, Messages, Reactions};
 use serde::Serialize;
 use serde_json::Value;
 use std::{collections::BTreeMap, path::Path};
@@ -34,6 +34,7 @@ pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<V
         return value(Client::import(&path, &app, credentials)?);
     }
     let operation = operation(&input.deed)?;
+    validate(&input.deed)?;
     let mut client = match actor(input.actor, vars)? {
         Actor::Bot => {
             if input.user.is_some() {
@@ -55,6 +56,30 @@ pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<V
             Client::user(&path, &app, expected)?
         }
     };
+    if let Deed::Im {
+        deed: Im::Reactions { deed },
+    } = &input.deed
+    {
+        return match deed {
+            Reactions::Create { message, emoji } => {
+                value(client.reaction(&super::reaction::Create {
+                    message: message.clone(),
+                    emoji: emoji.clone(),
+                })?)
+            }
+            Reactions::List {
+                message,
+                emoji,
+                size,
+                cursor,
+            } => value(client.reactions(&super::reaction::Page {
+                message: message.clone(),
+                emoji: emoji.clone(),
+                size: *size,
+                cursor: cursor.clone(),
+            })?),
+        };
+    }
     if let Deed::Im {
         deed:
             Im::Messages {
@@ -179,5 +204,39 @@ fn actor(input: Option<Actor>, vars: &BTreeMap<String, String>) -> Result<Actor,
         None | Some("bot") => Ok(Actor::Bot),
         Some("user") => Ok(Actor::User),
         _ => Err(invalid()),
+    }
+}
+
+fn validate(deed: &Deed) -> Result<(), Error> {
+    match deed {
+        Deed::Im {
+            deed:
+                Im::Reactions {
+                    deed: Reactions::Create { message, emoji },
+                },
+        } => super::reaction::Create {
+            message: message.clone(),
+            emoji: emoji.clone(),
+        }
+        .validate(),
+        Deed::Im {
+            deed:
+                Im::Reactions {
+                    deed:
+                        Reactions::List {
+                            message,
+                            emoji,
+                            size,
+                            cursor,
+                        },
+                },
+        } => super::reaction::Page {
+            message: message.clone(),
+            emoji: emoji.clone(),
+            size: *size,
+            cursor: cursor.clone(),
+        }
+        .validate(),
+        _ => Ok(()),
     }
 }

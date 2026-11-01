@@ -4,6 +4,7 @@ mod command;
 mod fault;
 mod message;
 mod model;
+pub use message::reaction;
 mod store;
 mod wire;
 

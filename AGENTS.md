@@ -362,3 +362,13 @@ facts, a distributed lock or evidence that termination is safe. No interface or
 address create/delete/detach/release action is introduced, and no read or retry
 follows automatically. Existing custody, identity, signing, redaction, outcome
 and local request validation remain shared with the network capability.
+
+Feishu reaction create and exact-message one-page list are independent atomic
+SDK and CLI operations. Emoji names are case-sensitive (`Get` is the platform's
+GET acknowledgment). A create acknowledgement must match the verified actor and
+requested emoji; it is accepted, not delivery proof. Reaction IDs are opaque.
+Lists preserve message scope, cursor and has-more evidence without enrichment.
+No pre-read, automatic pagination, retry, UUID dedup or delete compensation is
+provided. Consumers persist intents before dispatch, observe unknown writes
+explicitly, and own webhook event dedup and workflow policy. User scope grants
+do not prove bot permission. Issue #114 owns this subset and its evidence.
