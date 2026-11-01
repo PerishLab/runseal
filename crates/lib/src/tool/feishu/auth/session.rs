@@ -146,8 +146,11 @@ pub(super) fn uncertain() -> Error {
     )
 }
 
-pub(crate) fn scopes(values: &[String]) -> Result<Vec<String>, Error> {
-    if values.is_empty() || values.len() > 32 {
+pub(crate) fn scopes(values: &[String], limit: usize) -> Result<Vec<String>, Error> {
+    if values.is_empty()
+        || values.len() > limit
+        || values.iter().map(String::len).sum::<usize>() > 16384
+    {
         return Err(input());
     }
     let mut result = values.to_vec();

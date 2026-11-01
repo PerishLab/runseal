@@ -86,6 +86,7 @@ fn scope() {
     let mut user = Client::user(&fixture.state, "cli_fixture", "ou_user").unwrap();
     assert!(user.begin(&["im:message.send_as_user".into()]).is_err());
     assert!(user.begin(&["offline_access BAD".into()]).is_err());
+    assert!(user.begin(&vec!["offline_access".into(); 33]).is_err());
     assert!(user.status().user.is_none());
 }
 
@@ -120,7 +121,8 @@ fn recovery() {
     value["user"]["uncertain"] = json!(true);
     value["user"]["returned"] = json!({"kind":"Exchange","started":100,"request":"SAFE-REQUEST",
         "body":json!({"token_type":"Bearer","access_token":"RETURNED_SECRET","expires_in":7200,
-            "refresh_token":"REFRESH_SECRET","refresh_token_expires_in":604800,"scope":"offline_access"}).to_string()});
+            "refresh_token":"REFRESH_SECRET","refresh_token_expires_in":604800,
+            "scope":(0..171).map(|n|format!("scope:{n}")).collect::<Vec<_>>().join(" ")}).to_string()});
     fixture.write(value);
     let mut client = Client::user(&fixture.state, "cli_fixture", "ou_user").unwrap();
     assert!(client.status().user.unwrap().retained);
@@ -131,6 +133,7 @@ fn recovery() {
     let user = status.user.unwrap();
     assert!(!user.retained && !user.uncertain);
     assert_eq!(user.renewable, Some(604900));
+    assert_eq!(user.scopes.len(), 171);
     drop(client);
     let bot = Client::open(&fixture.state, "cli_fixture").unwrap();
     assert!(bot.status().valid);

@@ -123,6 +123,11 @@ revalidates that same return without network access or extending its lifetime,
 then requires separate identity verification. Missing or unreadable returns
 remain unknown and unrecoverable locally; no exchange/refresh replay follows.
 CLI help and finite diagnostic fields own routine operation/recovery guidance.
+Requested scopes remain caller supplied and limited to 32 entries. Granted
+scope metadata is independent: accept up to 512 entries and 16 KiB of scope
+names, retaining every normalized grant rather than truncating to the request.
+Each name remains at most 160 bytes with the same finite character grammar.
+Observed grants never expand supported operations or the consumer's authority.
 
 Message sends require an explicit chat or open_id target and caller UUID;
 user write acknowledgements must match the verified person, bot writes the

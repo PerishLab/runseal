@@ -30,6 +30,22 @@ fn grant() {
 }
 
 #[test]
+fn scopes() {
+    let values = (0..512).map(|n| format!("scope:{n}")).collect::<Vec<_>>();
+    assert!(session::scopes(&values[..32], 32).is_ok());
+    assert!(session::scopes(&values[..33], 32).is_err());
+    assert_eq!(session::scopes(&values, 512).unwrap().len(), 512);
+    assert!(session::scopes(&vec!["scope:read".into(); 513], 512).is_err());
+    assert!(session::scopes(&vec!["s".repeat(160); 103], 512).is_err());
+    assert!(session::scopes(&["scope:bad/value".into()], 512).is_err());
+    assert!(session::scopes(&[], 512).is_err());
+    assert_eq!(
+        session::scopes(&["scope:read".into(), "scope:read".into()], 512).unwrap(),
+        vec!["scope:read"]
+    );
+}
+
+#[test]
 fn challenge() {
     let mut value = json!({"device_code":"DEVICE_SECRET","user_code":"ABCD-EFGH",
         "verification_uri":"https://accounts.feishu.cn/oauth/v1/device/verify?flow_id=public-flow",

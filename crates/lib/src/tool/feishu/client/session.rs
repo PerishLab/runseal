@@ -2,7 +2,7 @@ use super::*;
 
 impl Client {
     pub fn begin(&mut self, scopes: &[String]) -> Result<super::super::Challenge, Error> {
-        let scopes = auth::scopes(scopes)?;
+        let scopes = auth::scopes(scopes, 32)?;
         if !scopes.iter().any(|scope| scope == "offline_access") {
             return Err(Error::new(
                 Class::Input,

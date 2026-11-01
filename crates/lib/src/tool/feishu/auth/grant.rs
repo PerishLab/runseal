@@ -100,6 +100,7 @@ pub(crate) fn decode(
                 .split_whitespace()
                 .map(str::to_string)
                 .collect::<Vec<_>>(),
+            512,
         )
         .map_err(|_| invalid(Field::Scope))?,
         None => previous
