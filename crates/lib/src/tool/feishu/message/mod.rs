@@ -1,4 +1,5 @@
 mod page;
+pub mod reaction;
 mod send;
 pub use page::{Messages, Page};
 pub use send::{Send, Target};

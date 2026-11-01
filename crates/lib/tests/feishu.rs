@@ -155,3 +155,6 @@ fn custody() {
 
 #[path = "feishu/user.rs"]
 mod user;
+
+#[path = "feishu/reaction.rs"]
+mod reaction;

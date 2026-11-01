@@ -1,3 +1,4 @@
+mod reaction;
 mod recovery;
 mod session;
 
