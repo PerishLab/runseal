@@ -14,6 +14,9 @@ pub enum Operation {
     Instance { id: String },
     Key { id: String },
     Keys(Window),
+    Import(super::Import),
+    Delete { id: String },
+    Associate(super::Binding),
 }
 
 pub(super) struct Call {
@@ -43,6 +46,12 @@ impl Request {
                     json!({"KeyIds":[id],"Offset":0,"Limit":1}),
                 )
             }
+            Operation::Import(value) => return value.call(),
+            Operation::Associate(value) => return value.call(),
+            Operation::Delete { id } => {
+                Names::id(id, "lhkp-")?;
+                ("DeleteKeyPairs", json!({"KeyIds":[id]}))
+            }
             Operation::Keys(window) => {
                 if !(1..=100).contains(&window.limit) {
                     return Err(super::input());
@@ -58,9 +67,9 @@ impl Request {
 
     pub(super) fn decode(&self, body: &Value) -> Result<Data, Failure> {
         let record = Record(body);
-        let total = record.number("TotalCount")?;
         match &self.operation {
             Operation::Instance { id } => {
+                let total = record.number("TotalCount")?;
                 let rows = record.array("InstanceSet", 1)?.ok_or_else(response)?;
                 if total != rows.len() as u64 {
                     return Err(response());
@@ -82,6 +91,7 @@ impl Request {
                 }))
             }
             Operation::Key { id } => {
+                let total = record.number("TotalCount")?;
                 let page = self.keys(
                     body,
                     Window {
@@ -105,6 +115,12 @@ impl Request {
                 }))
             }
             Operation::Keys(window) => Ok(Data::Keys(self.keys(body, *window)?)),
+            Operation::Import(value) => value.decode(body),
+            Operation::Associate(value) => value.decode(body),
+            Operation::Delete { id } => Ok(Data::Deleted {
+                id: id.clone(),
+                complete: record.known(&["RequestId"]),
+            }),
         }
     }
 
@@ -162,7 +178,12 @@ impl Request {
             region: self.region.clone(),
             request: request.into(),
             observed: crate::tencent::model::now(),
-            outcome: Outcome::Observed,
+            outcome: match self.operation {
+                Operation::Instance { .. } | Operation::Key { .. } | Operation::Keys(_) => {
+                    Outcome::Observed
+                }
+                _ => Outcome::Accepted,
+            },
             data,
         })
     }

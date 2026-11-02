@@ -5,6 +5,7 @@ mod custody;
 mod fixture;
 mod instance;
 mod key;
+mod mutation;
 mod protocol;
 
 fn request(operation: Operation) -> Request {

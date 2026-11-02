@@ -72,7 +72,14 @@ fn binding() {
         let before = std::fs::read(&path).unwrap();
         let client = Client::open(&path, "123").unwrap();
         assert!(Store::open(&path).is_err());
-        for mut request in [super::instance(), super::key(), super::keys()] {
+        for mut request in [
+            super::instance(),
+            super::key(),
+            super::keys(),
+            super::mutation::import(),
+            super::mutation::associate(),
+            super::mutation::delete(),
+        ] {
             if class == Class::Input {
                 request.region.clear()
             }

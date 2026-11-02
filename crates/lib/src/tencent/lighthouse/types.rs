@@ -102,6 +102,15 @@ pub enum Data {
     Instance(Lookup<Box<Instance>>),
     Key(Lookup<Key>),
     Keys(Page),
+    Imported(super::Imported),
+    Deleted {
+        id: String,
+        complete: bool,
+    },
+    Associated {
+        binding: super::Binding,
+        complete: bool,
+    },
 }
 
 pub type Receipt = crate::tencent::Receipt<Data>;

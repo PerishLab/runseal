@@ -49,7 +49,7 @@ impl Failure {
 
     pub(super) fn provider(value: &Value) -> Self {
         let code = value["Error"]["Code"].as_str().unwrap_or_default();
-        let (class, reason) = match code {
+        let disposition = match code {
             "ResourceNotFound" => (
                 Class::Input,
                 "referenced resource was not found; qualify exact owner/scope before interpreting absence",
@@ -155,6 +155,7 @@ impl Failure {
             }
             _ => (Class::Provider, "operation was refused"),
         };
+        let (class, reason) = super::refusal::classify(code).unwrap_or(disposition);
         let mut failure = Self::new(
             class,
             format!("Tencent {reason}; no provider message or raw response is emitted"),
