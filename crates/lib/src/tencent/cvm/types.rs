@@ -1,5 +1,4 @@
 use super::{Import, Instance, Key, Price, Quota, Status};
-use crate::tencent::{Identity, Outcome};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
@@ -16,18 +15,7 @@ pub enum Data {
     Acknowledged(String),
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct Receipt {
-    pub identity: Identity,
-    pub service: String,
-    pub version: String,
-    pub action: String,
-    pub region: String,
-    pub request: String,
-    pub observed: u64,
-    pub outcome: Outcome,
-    pub data: Data,
-}
+pub type Receipt = crate::tencent::Receipt<Data>;
 
 impl Import {
     pub fn validate(&self) -> Result<(), crate::tencent::Failure> {

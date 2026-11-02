@@ -392,3 +392,24 @@ Consumers own exhaustive paging, exact message/history reads, time and sender
 verification, exclusions and resource access policy. No refresh, scope grant,
 peer resolution, body lookup or retry follows. User grants never prove bot
 access. Issue #126 owns this typed atomic subset and its release evidence.
+
+`runseal::tencent::tat` and `Client::tat` share two atomic reads with the native
+TAT command: the product's region list and one exact Lighthouse agent status.
+Both require an explicit request region, owner and verified caller. The fixed
+endpoint/version is independent of Lighthouse compute availability. No hidden
+credential renewal, page loop, task dispatch or guest operation follows.
+
+Regions require checked unique IDs and matching native count; agent reads send
+one lhins ID with Offset=0/Limit=1 and reject foreign/duplicate/count conflicts.
+Missing/null collections or counts refuse; an empty checked agent set remains
+unlisted. Optional missing/null facts stay unknown, explicit feature [] stays
+empty, unknown finite labels are withheld and mark schema coverage incomplete.
+Coverage describes the known schema, not freshness or enrollment eligibility.
+Agent heartbeat is checked RFC 3339 evidence; consumers own freshness policy.
+Raw provider prose, unknown fields and region display names are withheld.
+Hardrig owns eligibility, durable enrollment, public-key binding, task policy,
+SSH trust and recovery; this observation capability grants none of them.
+
+CVM, network and TAT receipt paths alias one canonical generic Tencent Receipt;
+the public fields and serialization remain unchanged. Identity is housed in its
+existing namespace directory without changing public paths or custody behavior.

@@ -8,8 +8,9 @@ mod identity;
 pub use identity::Identity;
 use identity::{model, secret};
 pub mod network;
+pub mod tat;
 
-pub use api::{Class, Error, Failure, Outcome};
+pub use api::{Class, Error, Failure, Outcome, Receipt};
 pub use client::Client;
 pub use compute::{
     Bundle, Data, Image, Instance, Page, Product, Query, Read, Region, Shape, Window,
@@ -57,6 +58,17 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     let store = Store::open(&path)?;
     if let Deed::Auth(deed) = &input.deed {
         return store.auth(deed);
+    }
+    if let Deed::Tat(deed) = &input.deed {
+        let account = input
+            .account
+            .as_deref()
+            .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
+            .ok_or_else(|| {
+                anyhow::anyhow!("TAT requires an explicit owning account and verified caller")
+            })?;
+        return serde_json::to_value(Client::from(store, account)?.tat(&deed.into())?)
+            .map_err(Into::into);
     }
     if let Deed::Cvm(deed) = &input.deed {
         let account = input

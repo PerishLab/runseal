@@ -1,21 +1,10 @@
-use super::super::{Failure, Identity, Page};
+use super::super::{Failure, Page};
 use super::Rule;
 use serde::Serialize;
 
 pub use super::super::{Error, Outcome};
 
-#[derive(Clone, Debug, Serialize)]
-pub struct Receipt {
-    pub identity: Identity,
-    pub service: String,
-    pub version: String,
-    pub action: String,
-    pub region: String,
-    pub observed: u64,
-    pub request: String,
-    pub outcome: Outcome,
-    pub data: Data,
-}
+pub type Receipt = crate::tencent::Receipt<Data>;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
