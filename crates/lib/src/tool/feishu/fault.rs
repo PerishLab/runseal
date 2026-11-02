@@ -1,5 +1,6 @@
 use serde::Serialize;
-use std::fmt;
+use serde_json::Value;
+use std::{collections::BTreeSet, fmt};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -82,6 +83,8 @@ pub struct Error {
     pub request: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub poll: Option<Poll>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<Permissions>,
     detail: &'static str,
 }
 
@@ -95,6 +98,7 @@ impl Error {
             status: None,
             request: None,
             poll: None,
+            permissions: None,
             detail,
         }
     }
@@ -152,6 +156,9 @@ impl fmt::Display for Error {
         if let Some(request) = &self.request {
             write!(out, "; request {request}")?;
         }
+        if let Some(permissions) = &self.permissions {
+            write!(out, "; {permissions}")?;
+        }
         Ok(())
     }
 }
@@ -167,4 +174,71 @@ pub(super) fn input() -> Error {
 
 pub(super) fn response() -> Error {
     Error::unknown(Class::Response)
+}
+
+const SUBJECTS: &[&str] = &[
+    "im:message",
+    "im:message:readonly",
+    "im:message.history:readonly",
+    "im:message:send_as_bot",
+    "im:message.send_as_user",
+    "im:message.p2p_msg:readonly",
+    "im:message.p2p_msg:get_as_user",
+    "im:message.group_msg:get_as_user",
+    "im:message.group_msg",
+    "im:message.group_at_msg:readonly",
+    "im:message.reactions:read",
+    "im:message.reactions:write_only",
+    "im:chat:read",
+    "im:chat:readonly",
+    "contact:user.employee_id:readonly",
+];
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Permissions {
+    pub subjects: Vec<&'static str>,
+    pub unknown: usize,
+    pub truncated: bool,
+}
+
+impl Permissions {
+    pub(crate) fn read(value: &Value) -> Option<Self> {
+        let violations = value.get("error")?.get("permission_violations")?;
+        let mut result = Self {
+            subjects: Vec::new(),
+            unknown: 0,
+            truncated: false,
+        };
+        let Some(items) = violations.as_array() else {
+            result.unknown = 1;
+            return Some(result);
+        };
+        let mut subjects = BTreeSet::new();
+        for item in items.iter().take(32) {
+            match subject(item) {
+                Some(known) => {
+                    subjects.insert(known);
+                }
+                None => result.unknown += 1,
+            }
+        }
+        result.subjects = subjects.into_iter().collect();
+        result.truncated = items.len() > 32;
+        Some(result)
+    }
+}
+
+fn subject(item: &Value) -> Option<&'static str> {
+    let value = item.get("subject")?.as_str()?;
+    SUBJECTS.iter().copied().find(|known| *known == value)
+}
+
+impl fmt::Display for Permissions {
+    fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            out,
+            "provider permission subjects {:?}; unrecognized {}; truncated {}; subjects alone do not establish grant requirements",
+            self.subjects, self.unknown, self.truncated
+        )
+    }
 }

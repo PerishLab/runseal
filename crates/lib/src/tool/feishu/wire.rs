@@ -129,7 +129,13 @@ pub(super) fn decode(payload: wire::Payload) -> Result<Record, Error> {
         Ok(body) if payload.status == 200 && body.0["code"].as_i64() == Some(0) => {
             return Ok(Record { body, request });
         }
-        Ok(body) if payload.status < 500 => Error::provider(body.0["code"].as_i64()),
+        Ok(body) if payload.status < 500 => {
+            let mut error = Error::provider(body.0["code"].as_i64());
+            if error.class == Class::Permission {
+                error.permissions = super::fault::Permissions::read(&body.0);
+            }
+            error
+        }
         Ok(_) => response(),
         Err(_) => response(),
     };

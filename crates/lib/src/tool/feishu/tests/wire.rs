@@ -3,6 +3,9 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use zeroize::Zeroizing;
 
+#[path = "permission.rs"]
+mod permission;
+
 fn payload(status: u16, value: Value) -> wire::Payload {
     wire::Payload {
         status,
