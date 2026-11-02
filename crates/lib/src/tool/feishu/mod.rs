@@ -1,4 +1,5 @@
 mod auth;
+pub use message::chat;
 mod client;
 mod command;
 mod fault;

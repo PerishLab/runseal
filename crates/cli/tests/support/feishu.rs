@@ -5,6 +5,7 @@ fn help() {
     let seat = Seat::new();
     for command in [
         vec![":", "@feishu", "--help"],
+        vec![":", "@feishu", "im", "chats", "get", "--help"],
         vec![":", "@feishu", "auth", "renew", "--help"],
         vec![":", "@feishu", "auth", "recover", "--help"],
         vec![":", "@feishu", "--as", "user", "auth", "begin", "--help"],

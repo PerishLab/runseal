@@ -3,7 +3,7 @@ use crate::custody::Private;
 mod args;
 use super::Actor;
 pub(super) use args::Input;
-use args::{Auth, Deed, Im, Messages, Reactions};
+use args::{Auth, Chats, Deed, Im, Messages, Reactions};
 use serde::Serialize;
 use serde_json::Value;
 use std::{collections::BTreeMap, path::Path};
@@ -103,6 +103,9 @@ pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<V
             end: *end,
             ascending: *ascending,
         })?);
+    }
+    if let Some(chat) = input.deed.chat() {
+        return value(client.chat(&chat)?);
     }
     if let Some(search) = search(&input.deed) {
         return value(client.search(&search)?);
@@ -235,7 +238,23 @@ fn search(deed: &Deed) -> Option<super::Search> {
     }
 }
 
+impl Deed {
+    fn chat(&self) -> Option<super::chat::Get> {
+        match self {
+            Deed::Im {
+                deed: Im::Chats {
+                    deed: Chats::Get { chat },
+                },
+            } => Some(super::chat::Get { chat: chat.clone() }),
+            _ => None,
+        }
+    }
+}
+
 fn validate(deed: &Deed) -> Result<(), Error> {
+    if let Some(chat) = deed.chat() {
+        return chat.validate();
+    }
     if let Some(search) = search(deed) {
         return search.validate();
     }
