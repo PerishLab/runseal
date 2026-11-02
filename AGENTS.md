@@ -413,3 +413,15 @@ SSH trust and recovery; this observation capability grants none of them.
 CVM, network and TAT receipt paths alias one canonical generic Tencent Receipt;
 the public fields and serialization remain unchanged. Identity is housed in its
 existing namespace directory without changing public paths or custody behavior.
+
+Feishu chat get reads minimum metadata for one explicit chat through the fixed
+official chats.get endpoint and open_id selector. SDK chat::Get/Chat and
+Client::chat match im chats get. It projects only optional name, mode/type and
+external status; a missing field stays unknown and empty name stays observed
+empty. requested binds the caller's exact chat, not a fabricated provider echo:
+the official body need not contain chat_id. A present foreign/malformed echo
+refuses. Metadata success, absent names and external status prove neither
+membership nor historical message access. Consumers own resource choice and
+authorization. No name lookup, message read, membership change, pagination,
+credential renewal or retry follows. Remaining chat fields and operations are
+staged gaps against full lark-cli. Issue #133 owns this subset and its evidence.

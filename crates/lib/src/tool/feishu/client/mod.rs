@@ -1,3 +1,4 @@
+mod chat;
 mod reaction;
 mod recovery;
 mod search;

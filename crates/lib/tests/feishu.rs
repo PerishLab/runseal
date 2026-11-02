@@ -161,3 +161,6 @@ mod reaction;
 
 #[path = "feishu/search.rs"]
 mod search;
+
+#[path = "feishu/chat.rs"]
+mod chat;

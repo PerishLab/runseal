@@ -1,3 +1,4 @@
+pub mod chat;
 mod page;
 pub mod reaction;
 mod search;

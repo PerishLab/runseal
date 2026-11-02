@@ -102,6 +102,10 @@ pub(super) enum Auth {
 
 #[derive(Subcommand)]
 pub(super) enum Im {
+    Chats {
+        #[command(subcommand)]
+        deed: Chats,
+    },
     Reactions {
         #[command(subcommand)]
         deed: Reactions,
@@ -216,5 +220,16 @@ pub(super) enum Reactions {
         size: u8,
         #[arg(long = "page-token")]
         cursor: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub(super) enum Chats {
+    #[command(
+        about = "Read minimum metadata of one explicit chat; missing names remain unknown. No name lookup, messages, membership proof or changes"
+    )]
+    Get {
+        #[arg(long = "chat-id")]
+        chat: String,
     },
 }
