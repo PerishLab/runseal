@@ -1,17 +1,16 @@
 mod api;
-mod client;
 mod command;
 mod compute;
 pub mod cvm;
 pub mod dns;
 mod identity;
-pub use identity::Identity;
+pub mod lighthouse;
+pub use identity::{Client, Identity};
 use identity::{model, secret};
 pub mod network;
 pub mod tat;
 
-pub use api::{Class, Error, Failure, Outcome, Receipt};
-pub use client::Client;
+pub use api::{Class, Error, Failure, Lookup, Outcome, Receipt};
 pub use compute::{
     Bundle, Data, Image, Instance, Page, Product, Query, Read, Region, Shape, Window,
 };
@@ -68,6 +67,19 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
                 anyhow::anyhow!("TAT requires an explicit owning account and verified caller")
             })?;
         return serde_json::to_value(Client::from(store, account)?.tat(&deed.convert()?)?)
+            .map_err(Into::into);
+    }
+    if let Deed::Lighthouse(deed) = &input.deed {
+        let account = input
+            .account
+            .as_deref()
+            .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Lighthouse reads require an explicit owning account and verified caller"
+                )
+            })?;
+        return serde_json::to_value(Client::from(store, account)?.lighthouse(&deed.convert()?)?)
             .map_err(Into::into);
     }
     if let Deed::Cvm(deed) = &input.deed {

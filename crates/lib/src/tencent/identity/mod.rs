@@ -1,3 +1,5 @@
+mod client;
+pub use client::Client;
 pub(super) mod model;
 pub(super) mod secret;
 

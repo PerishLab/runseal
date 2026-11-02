@@ -1,4 +1,4 @@
-use super::super::api::{Collection, Number, text};
+use crate::tencent::api::{Collection, Number, text};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]

@@ -447,3 +447,34 @@ Schema coverage is no success,
 freshness, absence, guest privilege or SSH trust proof. No hidden read, waiter,
 page loop, refresh, retry or compensation is introduced. Hardrig owns orchestration,
 script/output policy, durable receipts, enrollment and trust registration.
+
+`runseal::tencent::lighthouse` and `Client::lighthouse` share finite read-only
+SDK/CLI operations: exact DescribeInstances, exact DescribeKeyPairs and one
+explicit key page. Native lhins/lhkp IDs, region and verified caller remain
+mandatory. Each operation sends one API without refresh, retry, pagination,
+mutation or trust registration. Generic `Lookup<T>` owns exact ID/value/count/
+coverage observations; checked empty means unlisted, never authoritative absence.
+
+Instance observations retain UUID/create time, native zone/platform/state,
+separate IPv4/IPv6 addresses, nullable login settings and independent latest
+operation/action/state/request/start time. Foreign CVM address/placement fields
+refuse. Missing/null facts remain unknown, native [] stays observed empty and
+blank operation facts remain unavailable. A documented empty LoginSettings.KeyIds
+may mean unavailable evidence; it proves no absence of guest access. Latest
+SUCCESS alone cannot settle a different operation or the consumer's intent.
+
+Key observations preserve public material and independent aggregate instance
+IDs and instance/user association entries. Multiple users for one instance remain
+distinct; neither collection supplies missing facts for the other. Unknown user
+and public-key values stay unknown; an empty public string cannot match a key.
+PrivateKey, tags and provider error prose never enter DTOs or diagnostics.
+Unknown fields/labels and nested association/login coverage propagate incomplete
+coverage. Coverage concerns this finite enrollment projection and known top-level
+fields, not a full storage/billing model, guest privilege or safe mutation proof.
+Consumers own cross-page coverage, freshness, ownership and enrollment policy.
+
+The common Client is housed with identity custody and CAM wire models/tests with
+their command adapter. Public Client/type paths, credential-state version,
+existing CLI grammar and public TAT contracts retain their behavior. No Plumb
+or Locus dependency enters the reusable library. This read surface grants no
+key import/binding, lifecycle authority, SSH trust or actual management access.

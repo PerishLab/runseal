@@ -3,7 +3,7 @@ pub(super) mod cam;
 mod compute;
 pub(super) mod cvm;
 pub(super) mod dns;
-mod model;
+mod lighthouse;
 pub(super) use dns::Dns;
 mod request;
 mod tat;
@@ -36,6 +36,7 @@ pub(super) enum Deed {
     Identity,
     Network(super::network::Request),
     Cvm(cvm::Request),
+    Lighthouse(lighthouse::Request),
     Tat(tat::Request),
     #[command(subcommand)]
     Compute(compute::Query),
