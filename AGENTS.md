@@ -97,6 +97,11 @@ target/content/UUID persistence, sender policy, pagination, event deduplication
 and recovery. Platform UUID dedup lasts one hour; it is no durable exactly-once
 contract. Do not replay unknown writes.
 
+Permission refusals retain only recognized static subjects from structured
+permission violations, with unknown entries and truncation explicit. No prose,
+descriptions or help URLs are exposed. Subjects alone establish neither an
+all-required grant set nor whether application settings are effective.
+
 The comparison baseline for stage one is larksuite/cli v1.0.98 at
 ac81f5056ab88f37d581d25916f3dab85abfca76. Its API catalog and shortcut families,
 configuration/auth/profile/identity, schema/discovery/output, event and extension

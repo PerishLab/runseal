@@ -11,7 +11,7 @@ mod wire;
 
 pub use auth::{Challenge, Session, Shape};
 pub use client::Client;
-pub use fault::{Class, Error, Field, Outcome, Poll};
+pub use fault::{Class, Error, Field, Outcome, Permissions, Poll};
 pub use message::{
     Content, Matches, Message, Messages, Operation, Page, Reply, Search, Send, Sender, Target,
 };
