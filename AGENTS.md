@@ -425,3 +425,23 @@ membership nor historical message access. Consumers own resource choice and
 authorization. No name lookup, message read, membership change, pagination,
 credential renewal or retry follows. Remaining chat fields and operations are
 staged gaps against full lark-cli. Issue #133 owns this subset and its evidence.
+
+TAT additionally dispatches one explicit public UTF-8 SHELL script to one
+Lighthouse through RunCommand and reads its scoped DescribeInvocationTasks result.
+Run fixes SaveCommand=false and EnableParameter=false, with explicit username,
+absolute remote Linux directory and timeout; no parameters, COS or secret payload.
+Accepted binds returned command/invocation/instance and input SHA-256, not success.
+RunCommand has no ClientToken: consumers persist exact intent before dispatch;
+unknown writes cannot be replayed or recovered by name/time-window adoption.
+
+Task lookup uses one exact invocation/instance filter or one exact task ID, then
+checks invocation, command, instance and optional task ID in the returned row.
+Checked empty remains unlisted; nullable facts remain unknown. Reads retain known
+finite statuses, times, signed exit, dropped count and command metadata/digest.
+Output is explicitly opt-in, decoded bytes in Rust and canonical base64 in JSON;
+hidden output stays withheld even if returned. Raw command content, provider
+error prose and external output URLs are withheld. Unknown fields/labels and
+external COS output mark coverage incomplete. Schema coverage is no success,
+freshness, absence, guest privilege or SSH trust proof. No hidden read, waiter,
+page loop, refresh, retry or compensation is introduced. Hardrig owns orchestration,
+script/output policy, durable receipts, enrollment and trust registration.

@@ -67,7 +67,7 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
             .ok_or_else(|| {
                 anyhow::anyhow!("TAT requires an explicit owning account and verified caller")
             })?;
-        return serde_json::to_value(Client::from(store, account)?.tat(&deed.into())?)
+        return serde_json::to_value(Client::from(store, account)?.tat(&deed.convert()?)?)
             .map_err(Into::into);
     }
     if let Deed::Cvm(deed) = &input.deed {

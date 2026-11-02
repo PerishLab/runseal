@@ -1,4 +1,11 @@
+mod execution;
 mod names;
+mod script;
+mod task;
+pub use execution::{
+    Dispatch, Document, Execution, Interval, Kind, Origin, Query, Stage, Target, Task, Timeline,
+};
+pub use script::Script;
 mod record;
 mod request;
 mod types;
@@ -10,7 +17,7 @@ pub use types::{Agent, Availability, Data, Environment, Feature, Receipt, Region
 fn input() -> Failure {
     Failure::new(
         Class::Input,
-        "TAT requires an explicit region and one exact Lighthouse instance for agent reads",
+        "TAT requires explicit region, exact Lighthouse scope and bounded public script/task fields; persist dispatch intent and never replay unknown writes",
     )
 }
 

@@ -24,6 +24,17 @@ impl Names {
         Ok(())
     }
 
+    pub fn id(value: &str, prefix: &str) -> Result<(), Failure> {
+        if !Self::lexical(value)
+            || value.strip_prefix(prefix).is_none_or(|suffix| {
+                suffix.is_empty() || !suffix.bytes().all(|byte| byte.is_ascii_alphanumeric())
+            })
+        {
+            return Err(input());
+        }
+        Ok(())
+    }
+
     pub fn instance(value: &str) -> Result<(), Failure> {
         if !Self::lexical(value)
             || value.strip_prefix("lhins-").is_none_or(|suffix| {

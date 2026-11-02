@@ -53,6 +53,14 @@ pub struct Agent {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Data {
+    Dispatched(super::Dispatch),
+    Task {
+        target: super::Target,
+        id: Option<String>,
+        output: bool,
+        value: Option<Box<super::Task>>,
+        complete: bool,
+    },
     Regions {
         entries: Vec<Region>,
         total: u64,

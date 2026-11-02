@@ -71,15 +71,20 @@ fn binding() {
         let before = std::fs::read(&path).unwrap();
         let client = Client::open(&path, "123").unwrap();
         assert!(Store::open(&path).is_err());
-        let mut request = agent();
-        if class == Class::Input {
-            request.region.clear();
+        for mut request in [
+            agent(),
+            super::request(Operation::Run(super::execution::script())),
+            super::request(Operation::Task(super::execution::query(false))),
+        ] {
+            if class == Class::Input {
+                request.region.clear();
+            }
+            let error = client.tat(&request).unwrap_err();
+            assert_eq!(error.outcome, Outcome::Unsent);
+            assert_eq!(error.fault.class, class);
+            assert!(!format!("{error:?} {error}").contains("PRIVATE_MARKER"));
+            assert_eq!(std::fs::read(&path).unwrap(), before);
         }
-        let error = client.tat(&request).unwrap_err();
-        assert_eq!(error.outcome, Outcome::Unsent);
-        assert_eq!(error.fault.class, class);
-        assert!(!format!("{error:?} {error}").contains("PRIVATE_MARKER"));
-        assert_eq!(std::fs::read(&path).unwrap(), before);
         drop(client);
         assert!(Store::open(&path).is_ok());
     }

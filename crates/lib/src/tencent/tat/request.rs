@@ -1,4 +1,6 @@
-use super::{Data, Failure, Receipt, names::Names};
+use super::{
+    Data, Dispatch, Failure, Query, Receipt, Script, Target, names::Names, response, script,
+};
 use crate::tencent::{Identity, Outcome, api};
 use serde_json::{Value, json};
 
@@ -12,6 +14,8 @@ pub struct Request {
 pub enum Operation {
     Regions,
     Lighthouse { id: String },
+    Run(Script),
+    Task(Query),
 }
 
 pub(super) struct Call {
@@ -27,6 +31,8 @@ impl Request {
     pub(super) fn call(&self) -> Result<Call, Failure> {
         Names::region(&self.region)?;
         let (action, body) = match &self.operation {
+            Operation::Run(script) => ("RunCommand", script.body()?),
+            Operation::Task(query) => ("DescribeInvocationTasks", query.body()?),
             Operation::Regions => ("DescribeRegions", json!({})),
             Operation::Lighthouse { id } => {
                 Names::instance(id)?;
@@ -40,7 +46,24 @@ impl Request {
     }
 
     pub(super) fn decode(&self, body: &Value) -> Result<Data, Failure> {
-        super::record::decode(self, body)
+        match &self.operation {
+            Operation::Run(sent) => {
+                let record = super::record::Record(body);
+                let command = record.text("CommandId")?.ok_or_else(response)?;
+                let invocation = record.text("InvocationId")?.ok_or_else(response)?;
+                let target = Target {
+                    command: command.into(),
+                    invocation: invocation.into(),
+                    instance: sent.instance.clone(),
+                };
+                target.validate().map_err(|_| response())?;
+                Ok(Data::Dispatched(Dispatch {
+                    target,
+                    digest: script::digest(sent.content.as_bytes()),
+                }))
+            }
+            _ => super::record::decode(self, body),
+        }
     }
 
     pub(super) fn receipt(&self, identity: Identity, body: &Value) -> Result<Receipt, Failure> {
@@ -61,7 +84,11 @@ impl Request {
             region: self.region.clone(),
             request: request.into(),
             observed: crate::tencent::model::now(),
-            outcome: Outcome::Observed,
+            outcome: if matches!(self.operation, Operation::Run(_)) {
+                Outcome::Accepted
+            } else {
+                Outcome::Observed
+            },
             data,
         })
     }

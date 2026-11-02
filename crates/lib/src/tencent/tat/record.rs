@@ -7,15 +7,34 @@ use std::collections::BTreeSet;
 
 pub(super) fn decode(request: &Request, body: &Value) -> Result<Data, Failure> {
     match &request.operation {
+        Operation::Run(_) => unreachable!(),
+        Operation::Task(query) => {
+            let record = Record(body);
+            let values = record.collection("InvocationTaskSet", 1)?;
+            let value = values
+                .first()
+                .map(|value| super::task::Reader(value).decode(query))
+                .transpose()?
+                .map(Box::new);
+            let complete = record.known(&["InvocationTaskSet", "TotalCount", "RequestId"])
+                && value.as_ref().is_none_or(|value| value.complete);
+            Ok(Data::Task {
+                target: query.target.clone(),
+                id: query.id.clone(),
+                output: query.output,
+                value,
+                complete,
+            })
+        }
         Operation::Regions => Record(body).regions(),
         Operation::Lighthouse { id } => Record(body).agent(id),
     }
 }
 
-struct Record<'a>(&'a Value);
+pub(super) struct Record<'a>(pub &'a Value);
 
 impl<'a> Record<'a> {
-    fn collection(&self, key: &str, limit: usize) -> Result<&'a Vec<Value>, Failure> {
+    pub(super) fn collection(&self, key: &str, limit: usize) -> Result<&'a Vec<Value>, Failure> {
         let values = self.0[key].as_array().ok_or_else(response)?;
         let count = self.0["TotalCount"].as_u64().ok_or_else(response)?;
         if values.len() > limit || count != values.len() as u64 {
@@ -24,13 +43,13 @@ impl<'a> Record<'a> {
         Ok(values)
     }
 
-    fn known(&self, fields: &[&str]) -> bool {
+    pub(super) fn known(&self, fields: &[&str]) -> bool {
         self.0
             .as_object()
             .is_some_and(|object| object.keys().all(|key| fields.contains(&key.as_str())))
     }
 
-    fn text(&self, field: &str) -> Result<Option<&'a str>, Failure> {
+    pub(super) fn text(&self, field: &str) -> Result<Option<&'a str>, Failure> {
         match self.0.get(field) {
             None | Some(Value::Null) => Ok(None),
             Some(Value::String(value)) if Names::lexical(value) => Ok(Some(value)),

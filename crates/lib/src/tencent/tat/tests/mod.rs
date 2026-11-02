@@ -77,7 +77,7 @@ fn grammar() {
         let crate::tencent::command::Deed::Tat(deed) = input.deed else {
             panic!("TAT");
         };
-        let request: Request = (&deed).into();
+        let request: Request = deed.convert().unwrap();
         assert_eq!(request.region, "na-ashburn");
         request.validate().unwrap();
     }
@@ -94,3 +94,8 @@ fn grammar() {
 
 #[cfg(unix)]
 mod custody;
+
+mod execution;
+mod tasks;
+
+mod dispatch;
