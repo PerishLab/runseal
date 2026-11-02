@@ -1,7 +1,7 @@
 mod fault;
 mod receipt;
 mod record;
-pub use receipt::Receipt;
+pub use receipt::{Lookup, Receipt};
 pub(super) mod sign;
 pub(super) use record::{Collection, Number, project, text};
 

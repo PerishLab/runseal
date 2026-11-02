@@ -1,3 +1,5 @@
+mod model;
+
 use super::super::secret;
 use super::{Cam, Key, Policy, Request, User, dns::positive};
 use anyhow::{Result, bail};
@@ -76,7 +78,6 @@ pub(in crate::tencent) fn request(deed: &Cam) -> Result<Request> {
 
 pub(in crate::tencent) fn receipt(deed: &Cam, value: &Value) -> Result<Value> {
     use super::super::api::project;
-    use super::model;
     match deed {
         Cam::User(_) => project::<model::User>(value),
         Cam::Policy(Policy::List { .. }) => project::<model::Policies>(value),
@@ -88,3 +89,6 @@ pub(in crate::tencent) fn receipt(deed: &Cam, value: &Value) -> Result<Value> {
         | Cam::Key(Key::Disable(_) | Key::Delete(_)) => project::<model::Ack>(value),
     }
 }
+
+#[cfg(test)]
+mod tests;

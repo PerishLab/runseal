@@ -1,8 +1,8 @@
-use super::compute::{Query, Read};
-use super::identity::{self, Identity};
 use super::model::{self, State};
 use super::secret::Store;
-use super::{Class, Failure, api};
+use crate::tencent::compute::{Query, Read};
+use crate::tencent::identity::{self, Identity};
+use crate::tencent::{Class, Failure, api};
 use std::path::Path;
 
 pub struct Client {
@@ -27,7 +27,7 @@ impl Client {
         Self::from(store, account)
     }
 
-    pub(super) fn from(store: Store, account: &str) -> Result<Self, Failure> {
+    pub(in crate::tencent) fn from(store: Store, account: &str) -> Result<Self, Failure> {
         if !account.bytes().all(|byte| byte.is_ascii_digit())
             || account.parse::<u64>().ok().is_none_or(|value| value == 0)
         {

@@ -2,6 +2,14 @@ use crate::tencent::{Identity, Outcome};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
+pub struct Lookup<T> {
+    pub id: String,
+    pub value: Option<T>,
+    pub total: u64,
+    pub complete: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct Receipt<T> {
     pub identity: Identity,
     pub service: String,
