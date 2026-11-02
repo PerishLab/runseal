@@ -104,6 +104,9 @@ pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<V
             ascending: *ascending,
         })?);
     }
+    if let Some(search) = search(&input.deed) {
+        return value(client.search(&search)?);
+    }
     if let Some(operation) = operation {
         return value(client.message(&operation)?);
     }
@@ -132,7 +135,7 @@ fn operation(deed: &Deed) -> Result<Option<Operation>, Error> {
         Deed::Im {
             deed: Im::Messages { deed },
         } => {
-            if matches!(deed, Messages::List { .. }) {
+            if matches!(deed, Messages::List { .. } | Messages::Search { .. }) {
                 return Ok(None);
             }
             let operation = deed.operation()?;
@@ -163,7 +166,7 @@ impl Messages {
                     uuid: uuid.clone(),
                 }))
             }
-            Self::List { .. } => Err(invalid()),
+            Self::List { .. } | Self::Search { .. } => Err(invalid()),
             Self::Get { message } => Ok(Operation::Get {
                 message: message.clone(),
             }),
@@ -207,7 +210,35 @@ fn actor(input: Option<Actor>, vars: &BTreeMap<String, String>) -> Result<Actor,
     }
 }
 
+fn search(deed: &Deed) -> Option<super::Search> {
+    match deed {
+        Deed::Im {
+            deed:
+                Im::Messages {
+                    deed:
+                        Messages::Search {
+                            query,
+                            start,
+                            end,
+                            size,
+                            cursor,
+                        },
+                },
+        } => Some(super::Search {
+            query: query.clone(),
+            start: *start,
+            end: *end,
+            size: *size,
+            cursor: cursor.clone(),
+        }),
+        _ => None,
+    }
+}
+
 fn validate(deed: &Deed) -> Result<(), Error> {
+    if let Some(search) = search(deed) {
+        return search.validate();
+    }
     match deed {
         Deed::Im {
             deed:

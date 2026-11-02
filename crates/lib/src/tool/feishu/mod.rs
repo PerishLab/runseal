@@ -11,7 +11,9 @@ mod wire;
 pub use auth::{Challenge, Session, Shape};
 pub use client::Client;
 pub use fault::{Class, Error, Field, Outcome, Poll};
-pub use message::{Content, Message, Messages, Operation, Page, Reply, Send, Sender, Target};
+pub use message::{
+    Content, Matches, Message, Messages, Operation, Page, Reply, Search, Send, Sender, Target,
+};
 pub use model::{Actor, Identity, Receipt, Status};
 
 use crate::tool::Reply as Output;

@@ -115,6 +115,21 @@ pub(super) enum Im {
 #[derive(Subcommand)]
 pub(super) enum Messages {
     #[command(
+        about = "Search one page of message IDs across visible chats in an explicit time range; empty query is allowed. Search indexing is not complete history. No body lookup, enrichment or pagination"
+    )]
+    Search {
+        #[arg(long, default_value = "")]
+        query: String,
+        #[arg(long = "start-time", help = "Range start, Unix seconds")]
+        start: i64,
+        #[arg(long = "end-time", help = "Range end, Unix seconds; must exceed start")]
+        end: i64,
+        #[arg(long = "page-size", default_value = "50")]
+        size: u8,
+        #[arg(long = "page-token")]
+        cursor: Option<String>,
+    },
+    #[command(
         about = "Send one plain-text message; explicit destination and UUID. Accepted is not delivery; caller owns durable intent and unknown-write recovery"
     )]
     Send {

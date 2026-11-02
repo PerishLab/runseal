@@ -379,3 +379,16 @@ No pre-read, automatic pagination, retry, UUID dedup or delete compensation is
 provided. Consumers persist intents before dispatch, observe unknown writes
 explicitly, and own webhook event dedup and workflow policy. User scope grants
 do not prove bot permission. Issue #114 owns this subset and its evidence.
+
+Feishu message search adds one POST /im/v1/messages/search page from the same
+fixed lark-cli baseline, without its compound body/chat/reaction enrichment.
+Client::search and im messages search take an optional keyword (empty allowed),
+explicit ordered Unix-second start/end, page size 1..50 and optional cursor.
+The request converts times to UTC RFC 3339; receipts retain message IDs in
+provider order, verified actor, request ID, has-more and next cursor. Missing
+coverage, duplicate/invalid IDs and nonprogressing pages refuse. Search results
+are indexed observations, not complete chat history or proof of absence.
+Consumers own exhaustive paging, exact message/history reads, time and sender
+verification, exclusions and resource access policy. No refresh, scope grant,
+peer resolution, body lookup or retry follows. User grants never prove bot
+access. Issue #126 owns this typed atomic subset and its release evidence.
