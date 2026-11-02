@@ -6,6 +6,7 @@ pub(super) mod dns;
 mod model;
 pub(super) use dns::Dns;
 mod request;
+mod tat;
 pub(super) use request::{Mode, Request};
 
 use clap::{Args, Parser, Subcommand};
@@ -14,7 +15,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
     name = "@tencent",
-    about = "One native Tencent account, CAM, DNSPod, network or compute operation",
+    about = "One native Tencent account, CAM, DNSPod, network, compute or TAT operation",
     after_help = "Profile references: TENCENTCLOUD_STATE_FILE selects an absolute private state file; TENCENTCLOUD_ACCOUNT_UIN declares the expected owning account. Profiles remain env, argv and symlink only.\n\nAuthorize with auth begin, complete the official Tencent Cloud CLI application's browser login, save the full return in a private file, then auth complete --response-file PATH. The return contains bearer tokens: never pass it as an argument or paste it into chat. Complete consumes that file after saving authorization. Verify identity before mutations and declare --account.\n\nRefresh renews the OAuth access token; renew separately acquires cloud credentials and clears the identity binding. Neither runs implicitly. Logout clears local custody only, without remote revocation. Key creation requires an explicit delegated user and reserves a new private --value-file before contacting CAM.\n\nAll private files require trusted ancestors and owner-only access (Unix 0600 files/0700 directories; Windows protected ACLs). Create the parent first. Responses project operation-specific public fields and omit credentials and raw provider error messages. Incomplete or oversized CAM receipts refuse instead of silently truncating. An uncertain remote result is never retried automatically: inspect the exact resource before recovery. DNS values are ordinary command arguments; do not use this surface to publish secret-bearing record values. Mainland Tencent Cloud only."
 )]
 pub(super) struct Input {
@@ -35,6 +36,7 @@ pub(super) enum Deed {
     Identity,
     Network(super::network::Request),
     Cvm(cvm::Request),
+    Tat(tat::Request),
     #[command(subcommand)]
     Compute(compute::Query),
     #[command(subcommand)]

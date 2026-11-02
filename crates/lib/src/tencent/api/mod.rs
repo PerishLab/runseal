@@ -1,5 +1,7 @@
 mod fault;
+mod receipt;
 mod record;
+pub use receipt::Receipt;
 pub(super) mod sign;
 pub(super) use record::{Collection, Number, project, text};
 
@@ -188,6 +190,7 @@ pub(super) fn version(service: &str) -> Result<&'static str> {
         "vpc" => Ok("2017-03-12"),
         "cvm" => Ok("2017-03-12"),
         "lighthouse" => Ok("2020-03-24"),
+        "tat" => Ok("2020-10-28"),
         "region" => Ok("2022-06-27"),
         _ => bail!("Tencent service refused"),
     }
