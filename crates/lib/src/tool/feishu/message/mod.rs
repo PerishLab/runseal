@@ -1,7 +1,9 @@
 mod page;
 pub mod reaction;
+mod search;
 mod send;
 pub use page::{Messages, Page};
+pub use search::{Matches, Search};
 pub use send::{Send, Target};
 
 use super::{

@@ -1,5 +1,6 @@
 mod reaction;
 mod recovery;
+mod search;
 mod session;
 
 use super::{

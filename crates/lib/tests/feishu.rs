@@ -158,3 +158,6 @@ mod user;
 
 #[path = "feishu/reaction.rs"]
 mod reaction;
+
+#[path = "feishu/search.rs"]
+mod search;
