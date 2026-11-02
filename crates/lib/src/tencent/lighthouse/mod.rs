@@ -1,5 +1,6 @@
 mod instance;
 mod key;
+mod mutation;
 mod names;
 mod record;
 mod request;
@@ -9,20 +10,21 @@ pub use super::Window;
 use super::{Class, Error, Failure, Lookup, Outcome};
 pub use instance::{Addresses, Instance, Login, Progress};
 pub use key::{Association, Key};
+pub use mutation::{Binding, Import, Imported};
 pub use request::{Operation, Request};
 pub use types::{Data, Extension, Label, Opaque, Page, Platform, Receipt, Schema, Shape, Stage};
 
-fn input() -> Failure {
+pub(in crate::tencent) fn input() -> Failure {
     Failure::new(
         Class::Input,
-        "Lighthouse read requires an explicit region, exact native ID or bounded key page",
+        "Lighthouse operation requires explicit region, native IDs and bounded public inputs",
     )
 }
 
 fn response() -> Failure {
     Failure::new(
         Class::Response,
-        "Lighthouse observation malformed, conflicting or outside the finite read model",
+        "Lighthouse result malformed, conflicting or outside the finite model",
     )
 }
 

@@ -27,9 +27,7 @@ fn receive(stream: &TcpStream) -> String {
     received
 }
 
-#[test]
-fn wire() {
-    let request = super::instance();
+pub(super) fn exchange(request: Request, response: Value) -> Receipt {
     let call = request.call().unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let origin = format!("http://{}", listener.local_addr().unwrap());
@@ -39,8 +37,7 @@ fn wire() {
             .set_read_timeout(Some(std::time::Duration::from_secs(5)))
             .unwrap();
         let received = receive(&stream);
-        let body =
-            json!({"Response": fixture::page("InstanceSet", fixture::instance())}).to_string();
+        let body = json!({"Response": response}).to_string();
         write!(
             stream,
             "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -63,20 +60,33 @@ fn wire() {
         )
         .unwrap();
     let result = request.receipt(identity(), &body.0).unwrap();
-    assert_eq!(result.outcome, Outcome::Observed);
+
     let received = worker.join().unwrap();
     let header = received.to_ascii_lowercase();
     for part in [
         "host: lighthouse.tencentcloudapi.com",
         "x-tc-region: na-ashburn",
-        "x-tc-action: describeinstances",
         "x-tc-version: 2020-03-24",
         "x-tc-token: token_fixture",
         "tc3-hmac-sha256 credential=akid_fixture/",
     ] {
         assert!(header.contains(part), "{part}");
     }
+    assert!(header.contains(&format!(
+        "x-tc-action: {}",
+        call.action.to_ascii_lowercase()
+    )));
     assert!(received.ends_with(&call.body.to_string()));
+    result
+}
+
+#[test]
+fn wire() {
+    let receipt = exchange(
+        super::instance(),
+        fixture::page("InstanceSet", fixture::instance()),
+    );
+    assert_eq!(receipt.outcome, Outcome::Observed);
 }
 
 #[test]

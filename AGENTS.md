@@ -490,3 +490,18 @@ their command adapter. Public Client/type paths, credential-state version,
 existing CLI grammar and public TAT contracts retain their behavior. No Plumb
 or Locus dependency enters the reusable library. This read surface grants no
 key import/binding, lifecycle authority, SSH trust or actual management access.
+
+Lighthouse additionally imports one named public RSA key, deletes one exact key,
+and associates one exact key/instance/explicit Linux user through fixed ONLINE.
+Import shares the CVM bounded 2048..4096-bit RSA validator and returns the native
+ID plus SHA256 fingerprint of submitted material; that fingerprint binds intent,
+not a provider observation. No private material, tags or generated keys enter
+these operations. CLI reads a bounded public file without printing its contents.
+Mutation receipts are accepted, never observed convergence. Unexpected response
+fields preserve incomplete coverage; malformed acknowledgements stay unknown.
+No client token, hidden read, refresh, retry, fallback to OFFLINE or compensation
+exists. Persist exact intent before dispatch; never replay unknown writes.
+ONLINE avoids shutdown, but does not promise preservation of existing credentials.
+Hardrig owns guest-impact review, ownership, latest-operation correlation,
+per-user binding observation, SSH authentication and independent host trust.
+Delete does not detach keys; callers qualify current references and own recovery.

@@ -1,6 +1,8 @@
 mod fault;
+pub(super) mod key;
 mod receipt;
 mod record;
+mod refusal;
 pub use receipt::{Lookup, Receipt};
 pub(super) mod sign;
 pub(super) use record::{Collection, Number, project, text};
