@@ -1,10 +1,53 @@
-use super::{Failure, names::Names, response};
+use super::{Extension, Failure, Opaque, Schema, Shape, names::Names, response};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
 pub(super) struct Record<'a>(pub &'a Value);
 
 impl<'a> Record<'a> {
+    pub fn extensions(&self) -> Vec<Opaque> {
+        let mut result = Vec::new();
+        for (name, field) in [
+            ("ActivityLabels", Extension::Labels),
+            ("BlueprintImageUrl", Extension::Image),
+            ("DisplayArea", Extension::Area),
+            ("DisplayLabel", Extension::Display),
+        ] {
+            if let Some(value) = self.0.get(name) {
+                let shape = match value {
+                    Value::Null => Shape::Null,
+                    Value::Bool(_) => Shape::Boolean,
+                    Value::Number(_) => Shape::Number,
+                    Value::String(_) => Shape::String,
+                    Value::Array(_) => Shape::Array,
+                    Value::Object(_) => Shape::Object,
+                };
+                result.push(Opaque { field, shape });
+            }
+        }
+        result
+    }
+
+    pub fn schema(&self, known: &[&str]) -> Result<Schema, Failure> {
+        let object = self.0.as_object().ok_or_else(response)?;
+        let mut fields = Vec::new();
+        let mut omitted = 0;
+        for name in object.keys().filter(|name| !known.contains(&name.as_str())) {
+            let public = name.len() <= 64
+                && name
+                    .bytes()
+                    .next()
+                    .is_some_and(|byte| byte.is_ascii_uppercase())
+                && name.bytes().all(|byte| byte.is_ascii_alphanumeric());
+            if public && name.bytes().any(|byte| byte.is_ascii_lowercase()) && fields.len() < 16 {
+                fields.push(name.clone());
+            } else {
+                omitted += 1
+            }
+        }
+        Ok(Schema { fields, omitted })
+    }
+
     pub fn known(&self, fields: &[&str]) -> bool {
         self.0
             .as_object()

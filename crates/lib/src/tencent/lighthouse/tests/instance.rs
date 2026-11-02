@@ -132,6 +132,85 @@ fn coverage() {
 }
 
 #[test]
+fn schema() {
+    let mut row = fixture::instance();
+    row["Foreign"] = json!({"Password":"PRIVATE_MARKER"});
+    row["PRIVATE_MARKER"] = json!("PRIVATE_MARKER");
+    row["bad\nname"] = json!("PRIVATE_MARKER");
+    let Data::Instance(lookup) = super::instance()
+        .decode(&fixture::page("InstanceSet", row))
+        .unwrap()
+    else {
+        panic!("instance")
+    };
+    let value = lookup.value.unwrap();
+    assert!(!lookup.complete && !value.complete);
+    assert_eq!(value.schema.fields, vec!["Foreign"]);
+    assert_eq!(value.schema.omitted, 2);
+    assert!(
+        !serde_json::to_string(&value)
+            .unwrap()
+            .contains("PRIVATE_MARKER")
+    );
+    let mut row = fixture::instance();
+    for index in 0..100 {
+        row[format!("Field{index}")] = json!("PRIVATE_MARKER")
+    }
+    let Data::Instance(lookup) = super::instance()
+        .decode(&fixture::page("InstanceSet", row))
+        .unwrap()
+    else {
+        panic!("instance")
+    };
+    let value = lookup.value.unwrap();
+    assert_eq!(value.schema.fields.len(), 16);
+    assert_eq!(value.schema.omitted, 84);
+    assert!(!lookup.complete);
+}
+
+#[test]
+fn extensions() {
+    for field in [
+        "ActivityLabels",
+        "BlueprintImageUrl",
+        "DisplayArea",
+        "DisplayLabel",
+    ] {
+        for (raw, shape) in [
+            (Value::Null, Shape::Null),
+            (json!(true), Shape::Boolean),
+            (json!(1), Shape::Number),
+            (json!("PRIVATE_MARKER"), Shape::String),
+            (json!(["PRIVATE_MARKER"]), Shape::Array),
+            (json!({"Password":"PRIVATE_MARKER"}), Shape::Object),
+        ] {
+            let mut row = fixture::instance();
+            row[field] = raw;
+            let value = observe(row);
+            assert!(value.schema.fields.is_empty() && value.schema.omitted == 0);
+            assert_eq!(value.extensions.len(), 1);
+            assert_eq!(value.extensions[0].shape, shape);
+            assert!(
+                !serde_json::to_string(&value)
+                    .unwrap()
+                    .contains("PRIVATE_MARKER")
+            );
+        }
+    }
+    assert!(observe(fixture::instance()).extensions.is_empty());
+    let mut row = fixture::instance();
+    row["FutureExtension"] = json!("PRIVATE_MARKER");
+    let Data::Instance(lookup) = super::instance()
+        .decode(&fixture::page("InstanceSet", row))
+        .unwrap()
+    else {
+        panic!("instance")
+    };
+    assert!(!lookup.complete);
+    assert_eq!(lookup.value.unwrap().schema.fields, vec!["FutureExtension"]);
+}
+
+#[test]
 fn conflicts() {
     for (field, value) in [
         ("InstanceId", json!("lhins-foreign")),

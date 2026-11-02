@@ -10,7 +10,7 @@ use super::{Class, Error, Failure, Lookup, Outcome};
 pub use instance::{Addresses, Instance, Login, Progress};
 pub use key::{Association, Key};
 pub use request::{Operation, Request};
-pub use types::{Data, Label, Page, Platform, Receipt, Stage};
+pub use types::{Data, Extension, Label, Opaque, Page, Platform, Receipt, Schema, Shape, Stage};
 
 fn input() -> Failure {
     Failure::new(
