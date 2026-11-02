@@ -441,7 +441,9 @@ finite statuses, times, signed exit, dropped count and command metadata/digest.
 Output is explicitly opt-in, decoded bytes in Rust and canonical base64 in JSON;
 hidden output stays withheld even if returned. Raw command content, provider
 error prose and external output URLs are withheld. Unknown fields/labels and
-external COS output mark coverage incomplete. Schema coverage is no success,
+external COS output or nonempty upload error information mark coverage incomplete.
+The documented upload error field is withheld; missing, null or empty is inert.
+Schema coverage is no success,
 freshness, absence, guest privilege or SSH trust proof. No hidden read, waiter,
 page loop, refresh, retry or compensation is introduced. Hardrig owns orchestration,
 script/output policy, durable receipts, enrollment and trust registration.

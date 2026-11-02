@@ -196,7 +196,9 @@ impl<'a> Reader<'a> {
             "ExecEndTime",
             "Dropped",
             "OutputUrl",
-        ]) && self.empty("OutputUrl");
+            "OutputUploadCOSErrorInfo",
+        ]) && self.empty("OutputUrl")
+            && self.empty("OutputUploadCOSErrorInfo");
         Ok(Execution {
             exit,
             output: if output {

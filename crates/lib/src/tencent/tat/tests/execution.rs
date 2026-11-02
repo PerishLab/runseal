@@ -31,7 +31,8 @@ pub(super) fn row() -> Value {
         "CommandDocument":{"Content":STANDARD.encode(script().content),"CommandType":"SHELL","Timeout":30,
             "Username":"root","WorkingDirectory":"/","OutputCOSBucketUrl":"","OutputCOSKeyPrefix":""},
         "TaskResult":{"ExitCode":0,"Output":STANDARD.encode("public-nonce\n"),"Dropped":0,
-            "ExecStartTime":"2026-11-02T04:00:00Z","ExecEndTime":"2026-11-02T04:00:01Z","OutputUrl":""},
+            "ExecStartTime":"2026-11-02T04:00:00Z","ExecEndTime":"2026-11-02T04:00:01Z","OutputUrl":"",
+            "OutputUploadCOSErrorInfo":""},
         "ErrorInfo":"PRIVATE_MARKER","CommandName":"public-probe"})
 }
 
