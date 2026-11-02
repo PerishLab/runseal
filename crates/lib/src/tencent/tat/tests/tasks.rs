@@ -65,6 +65,35 @@ fn hidden() {
 }
 
 #[test]
+fn upload() {
+    for field in ["OutputUrl", "OutputUploadCOSErrorInfo"] {
+        for empty in [Value::Null, json!("")] {
+            let mut value = row();
+            value["TaskResult"][field] = empty;
+            assert!(observe(value, true).complete);
+        }
+        let mut value = row();
+        value["TaskResult"].as_object_mut().unwrap().remove(field);
+        assert!(observe(value, true).complete);
+        for withheld in [json!("PRIVATE_MARKER"), json!(true), json!({})] {
+            let mut value = row();
+            value["TaskResult"][field] = withheld;
+            let result = observe(value, true);
+            assert!(!result.complete);
+            assert!(!result.result.as_ref().unwrap().complete);
+            assert!(
+                !serde_json::to_string(&result)
+                    .unwrap()
+                    .contains("PRIVATE_MARKER")
+            );
+        }
+    }
+    let mut value = row();
+    value["TaskResult"]["Foreign"] = json!("PRIVATE_MARKER");
+    assert!(!observe(value, true).complete);
+}
+
+#[test]
 fn states() {
     for state in [
         "PENDING",
