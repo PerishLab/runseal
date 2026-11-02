@@ -468,8 +468,20 @@ IDs and instance/user association entries. Multiple users for one instance remai
 distinct; neither collection supplies missing facts for the other. Unknown user
 and public-key values stay unknown; an empty public string cannot match a key.
 PrivateKey, tags and provider error prose never enter DTOs or diagnostics.
-Unknown fields/labels and nested association/login coverage propagate incomplete
-coverage. Coverage concerns this finite enrollment projection and known top-level
+Unknown field values/labels and nested association/login coverage propagate
+incomplete coverage. Instance schema diagnostics retain at most sixteen public
+CamelCase property names, each at most 64 ASCII alphanumeric bytes; other names
+stay omitted/count-only. No unknown field value enters these diagnostics, and
+every unsupported field still makes coverage incomplete.
+The live API additionally returns ActivityLabels, BlueprintImageUrl, DisplayArea
+and DisplayLabel, absent from the current public SDK/docs. These four named
+extensions have an explicit opaque disposition: retain only their finite field
+identity and JSON type, never values, nested contents or URL fetching. Missing
+extensions stay missing; null stays observed null. Their business meaning remains
+unassessed and grants no ownership, region, enrollment or mutation authority.
+Finite projection coverage accounts for these opaque observations; it does not
+claim their semantics or full provider business-schema coverage.
+Coverage concerns this finite enrollment projection and known top-level
 fields, not a full storage/billing model, guest privilege or safe mutation proof.
 Consumers own cross-page coverage, freshness, ownership and enrollment policy.
 

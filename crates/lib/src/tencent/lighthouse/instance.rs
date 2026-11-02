@@ -1,4 +1,6 @@
-use super::{Failure, Label, Platform, Stage, names::Names, record::Record, response};
+use super::{
+    Failure, Label, Opaque, Platform, Schema, Stage, names::Names, record::Record, response,
+};
 use serde::Serialize;
 use std::{collections::BTreeSet, net::IpAddr};
 
@@ -34,6 +36,8 @@ pub struct Instance {
     pub addresses: Addresses,
     pub login: Option<Login>,
     pub progress: Progress,
+    pub schema: Schema,
+    pub extensions: Vec<Opaque>,
     pub complete: bool,
 }
 
@@ -89,7 +93,7 @@ impl Record<'_> {
             })
             .transpose()?;
         let progress = self.progress()?;
-        let known = self.known(&[
+        let schema = self.schema(&[
             "InstanceId",
             "BundleId",
             "BlueprintId",
@@ -122,9 +126,13 @@ impl Record<'_> {
             "PublicIpv6Addresses",
             "InitInvocationId",
             "InstanceViolationDetail",
-        ]);
+            "ActivityLabels",
+            "BlueprintImageUrl",
+            "DisplayArea",
+            "DisplayLabel",
+        ])?;
         let coverage = [
-            known,
+            schema.known(),
             state.as_ref().is_none_or(Label::known),
             platform != Some(Platform::Unknown),
             login.as_ref().is_none_or(|value| value.complete),
@@ -145,6 +153,8 @@ impl Record<'_> {
             },
             login,
             progress,
+            schema,
+            extensions: self.extensions(),
             complete: coverage.into_iter().all(|known| known),
         })
     }
