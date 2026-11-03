@@ -8,6 +8,9 @@ use super::{
 };
 use crate::tool::Reply;
 
+const R2: &str = "r2/buckets";
+const CUSTOM: &str = "domains/custom";
+
 struct Request {
     method: &'static str,
     route: String,
@@ -32,32 +35,32 @@ pub(super) fn act(seat: &Seat, client: &Client, deed: &Control) -> Result<Reply>
         },
         Control::Bucket(Bucket::Show(name)) => Request {
             method: "GET",
-            route: format!("{account}/r2/buckets/{}", segment(name)),
+            route: format!("{account}/{R2}/{}", segment(name)),
             kind: "bucket",
             body: None,
         },
         Control::Bucket(Bucket::Create(name)) => Request {
             method: "POST",
-            route: format!("{account}/r2/buckets"),
+            route: format!("{account}/{R2}"),
             kind: "bucket",
             body: Some(serde_json::json!({ "name": name })),
         },
         Control::Bucket(Bucket::Domain(Domain::List(name))) => Request {
             method: "GET",
-            route: format!("{account}/r2/buckets/{}/domains/custom", segment(name)),
+            route: format!("{account}/{R2}/{}/{CUSTOM}", segment(name)),
             kind: "domains",
             body: None,
         },
         Control::Bucket(Bucket::Domain(Domain::Create(name))) => Request {
             method: "POST",
-            route: format!("{account}/r2/buckets/{}/domains/custom", segment(name)),
+            route: format!("{account}/{R2}/{}/{CUSTOM}", segment(name)),
             kind: "domain",
             body: Some(seat.body()?),
         },
         Control::Bucket(Bucket::Domain(Domain::Edit { bucket, domain })) => Request {
             method: "PUT",
             route: format!(
-                "{account}/r2/buckets/{}/domains/custom/{}",
+                "{account}/{R2}/{}/{CUSTOM}/{}",
                 segment(bucket),
                 segment(domain)
             ),
@@ -67,7 +70,7 @@ pub(super) fn act(seat: &Seat, client: &Client, deed: &Control) -> Result<Reply>
         Control::Bucket(Bucket::Domain(Domain::Drop { bucket, domain })) => Request {
             method: "DELETE",
             route: format!(
-                "{account}/r2/buckets/{}/domains/custom/{}",
+                "{account}/{R2}/{}/{CUSTOM}/{}",
                 segment(bucket),
                 segment(domain)
             ),
@@ -76,7 +79,7 @@ pub(super) fn act(seat: &Seat, client: &Client, deed: &Control) -> Result<Reply>
         },
         Control::Bucket(Bucket::Drop(name)) => Request {
             method: "DELETE",
-            route: format!("{account}/r2/buckets/{}", segment(name)),
+            route: format!("{account}/{R2}/{}", segment(name)),
             kind: "bucket",
             body: None,
         },
