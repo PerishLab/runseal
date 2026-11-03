@@ -2,6 +2,13 @@ use super::Class;
 
 pub(super) fn classify(code: &str) -> Option<(Class, &'static str)> {
     Some(match code {
+        "InvalidParameter.EntityFilterError"
+        | "InvalidParameter.PolicyIdError"
+        | "InvalidParameter.PolicyIdNotExist"
+        | "ResourceNotFound.PolicyIdNotFound" => (
+            Class::Input,
+            "CAM policy scope was refused; qualify exact identity and prior receipts before interpreting absence",
+        ),
         "UnauthorizedOperation.NoPermission" => {
             (Class::Permission, "required permission was refused")
         }
