@@ -49,7 +49,11 @@ fn dns() {
     for argument in ["--domain", "--domain-id", "--id"] {
         assert!(text(&output.stdout).contains(argument));
     }
-    let output = seat.run(&[
+    let missing = seat.run(&[":", "@tencent", "dns", "domain", "--domain-id", "42"]);
+    assert!(!missing.status.success());
+    assert!(text(&missing.stderr).contains("invalid @tencent command"));
+    let named = seat.run(&[":", "@tencent", "dns", "domain", "--domain", "example.org"]);
+    let both = seat.run(&[
         ":",
         "@tencent",
         "dns",
@@ -59,13 +63,17 @@ fn dns() {
         "--domain-id",
         "42",
     ]);
-    assert!(!output.status.success());
+    assert!(!named.status.success());
+    assert!(!text(&named.stderr).contains("invalid @tencent command"));
+    assert_eq!(text(&named.stderr), text(&both.stderr));
     let output = seat.run(&[
         ":",
         "@tencent",
         "dns",
         "record",
         "get",
+        "--domain",
+        "example.org",
         "--domain-id",
         "42",
         "--id",
@@ -74,6 +82,7 @@ fn dns() {
         "{}",
     ]);
     assert!(!output.status.success());
+    assert!(text(&output.stderr).contains("invalid @tencent command"));
 }
 
 #[test]

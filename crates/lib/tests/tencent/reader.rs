@@ -3,6 +3,52 @@ use runseal::tencent::{Class, Client, Product, Query, Window};
 use serde_json::{Value, json};
 
 #[test]
+fn selectors() {
+    use runseal::tencent::{Outcome, dns};
+    let fixture = Fixture::new();
+    fixture.write(&json!({"version":1,"credential":null,"identity":null}));
+    let client = Client::open(&fixture.state, "123").unwrap();
+    let fields = dns::Fields {
+        name: "@".into(),
+        kind: dns::Kind::A,
+        value: "192.0.2.1".into(),
+        line: "默认".into(),
+        ttl: 600,
+    };
+    for operation in [
+        dns::Operation::Domain,
+        dns::Operation::Get { id: 9 },
+        dns::Operation::List {
+            offset: 0,
+            limit: 1,
+        },
+        dns::Operation::Create(fields.clone()),
+        dns::Operation::Modify { id: 9, fields },
+        dns::Operation::Delete { id: 9 },
+    ] {
+        for zone in [
+            dns::Zone {
+                name: String::new(),
+                id: Some(42),
+            },
+            dns::Zone {
+                name: "example.org".into(),
+                id: Some(0),
+            },
+        ] {
+            let failure = client
+                .dns(&dns::Request {
+                    zone,
+                    operation: operation.clone(),
+                })
+                .unwrap_err();
+            assert_eq!(failure.fault.class, Class::Input);
+            assert_eq!(failure.outcome, Outcome::Unsent);
+        }
+    }
+}
+
+#[test]
 fn reader() {
     for (credential, identity, expected) in [
         (Value::Null, Value::Null, Class::Authentication),
@@ -57,7 +103,10 @@ fn reader() {
         ));
         assert!(!format!("{failure:?} {failure}").contains("SECRET_FIXTURE"));
         let query = runseal::tencent::dns::Request {
-            zone: runseal::tencent::dns::Zone::Id(42),
+            zone: runseal::tencent::dns::Zone {
+                name: "example.org".into(),
+                id: Some(42),
+            },
             operation: runseal::tencent::dns::Operation::Get { id: 9 },
         };
         let failure = client.dns(&query).unwrap_err();

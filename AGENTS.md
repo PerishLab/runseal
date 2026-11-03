@@ -249,13 +249,19 @@ attachment policy, qualified negative observations and durable recovery remain
 outside these atomic reads.
 
 `runseal::tencent::dns` exposes plain public Request/Operation/Zone/Fields and
-result types, independently of CLI grammar. `Client::dns` uses the existing
-private custody and verified caller binding for every read or write. Native
-DNS commands retain domain/record list/create/modify/delete and their flags;
-record get adds exact DescribeRecord. A command selects exactly one --domain
-or --domain-id, never both. Domain qualification is one explicit DescribeDomain
-operation; the SDK does not perform a hidden lookup before a record request.
-All DNSPod calls use the fixed global endpoint/version without X-TC-Region.
+result types, independently of CLI grammar. `Zone` carries the required
+canonical domain name and an optional nonzero DomainId. `Client::dns` uses the
+existing private custody and verified caller binding for every read or write.
+Native DNS commands retain domain/record list/create/modify/delete and their
+flags; record get adds exact DescribeRecord. Every current DNS command requires
+--domain. Optional --domain-id sends that DomainId with the name. Id-only input
+is refused. DescribeDomain, DescribeRecord, DescribeRecordList, CreateRecord,
+ModifyRecord and DeleteRecord all use this shape. Official schemas require
+Domain and treat DomainId as optional and overriding: when both are present the
+provider uses DomainId and ignores Domain. Supplying both is not an ownership
+or name-mapping proof. Callers qualify that correspondence separately. The SDK
+performs no hidden lookup, retry, fallback or extra read. All DNSPod calls use
+the fixed global endpoint/version without X-TC-Region.
 
 CLI DNS output cuts over to the typed receipt instead of the earlier
 {action,result} projection. All DNS reads now require an explicit owning
@@ -266,14 +272,18 @@ AAAA, CNAME and TXT. Observations also retain other bounded record kinds and
 system/default NS entries so a zone page cannot silently drop foreign records.
 Public record values and metadata must never carry credentials.
 
-A complete DNS locator has account, nonzero DomainId and RecordId. A named
-list or mutation acknowledgement that lacks DomainId retains an explicitly
-partial Reference; complete refuses it. Qualify the domain, then select its
-ID for complete record references. Exact reads verify the returned record and
-domain IDs. Qualified domain facts retain optional Tencent Uin separately from
-DNSPod UserId; missing Uin is unknown. Caller identity and a complete locator
-are not themselves a domain-ownership proof; consumers qualify owner/scope
-before binding or mutating shared domains.
+A complete DNS locator has account, nonzero DomainId and RecordId. Name-only
+list pages and mutation acknowledgements do not carry DomainId and retain an
+explicitly partial Reference; complete refuses it. Exact DescribeRecord returns
+DomainId and RecordId, so that returned identity can complete a name-only read.
+A supplied DomainId that differs from the returned record or qualification
+DomainId refuses, as does a qualification name that differs from the supplied
+name. The receipt keeps the request name and DomainId; response facts stay on
+the data. Qualified domain facts retain optional Tencent Uin separately from
+DNSPod UserId; missing Uin is unknown. Caller identity, a name plus DomainId,
+and a complete locator are not a domain-ownership or name-mapping proof.
+Consumers qualify owner, scope and that name/ID correspondence before binding
+or mutating shared domains.
 
 Lists set ErrorOnEmpty=no and return one checked page with offset/limit/total/
 next; limits are 1 through 3000. Count mismatch, duplicates, missing facts and

@@ -4,7 +4,18 @@ use serde_json::json;
 
 #[test]
 fn cli() {
-    let words = ["dns", "record", "get", "--domain-id", "42", "--id", "9"].map(str::to_owned);
+    let words = [
+        "dns",
+        "record",
+        "get",
+        "--domain",
+        "example.org",
+        "--domain-id",
+        "42",
+        "--id",
+        "9",
+    ]
+    .map(str::to_owned);
     let parsed = parse(&words).unwrap();
     let Deed::Dns(deed) = parsed.deed else {
         panic!("dns");
@@ -14,7 +25,9 @@ fn cli() {
         converted.call().unwrap().body,
         request(Operation::Get { id: 9 }).call().unwrap().body
     );
-    let conflict = [
+    let missing = ["dns", "domain", "--domain-id", "42"].map(str::to_owned);
+    assert!(parse(&missing).is_err());
+    let both = [
         "dns",
         "domain",
         "--domain",
@@ -23,7 +36,32 @@ fn cli() {
         "42",
     ]
     .map(str::to_owned);
-    assert!(parse(&conflict).is_err());
+    let parsed = parse(&both).unwrap();
+    let Deed::Dns(deed) = parsed.deed else {
+        panic!("dns");
+    };
+    assert_eq!(
+        crate::tencent::command::dns::request(&deed)
+            .unwrap()
+            .call()
+            .unwrap()
+            .body,
+        json!({"Domain":"example.org","DomainId":42})
+    );
+    let zero = [
+        "dns",
+        "domain",
+        "--domain",
+        "example.org",
+        "--domain-id",
+        "0",
+    ]
+    .map(str::to_owned);
+    let parsed = parse(&zero).unwrap();
+    let Deed::Dns(deed) = parsed.deed else {
+        panic!("dns");
+    };
+    assert!(crate::tencent::command::dns::request(&deed).is_err());
     let region = [
         "dns",
         "domain",
@@ -38,6 +76,8 @@ fn cli() {
         "dns",
         "record",
         "get",
+        "--domain",
+        "example.org",
         "--domain-id",
         "42",
         "--id",

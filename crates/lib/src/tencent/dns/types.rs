@@ -3,10 +3,9 @@ use super::{Class, input};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "value", rename_all = "lowercase")]
-pub enum Zone {
-    Name(String),
-    Id(u64),
+pub struct Zone {
+    pub name: String,
+    pub id: Option<u64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
