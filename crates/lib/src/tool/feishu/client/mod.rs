@@ -108,21 +108,24 @@ impl Client {
         }
     }
 
-    pub fn messages(&self, page: &super::Page) -> Result<Receipt<super::Messages>, Error> {
-        let call = page.call()?;
+    fn observed<T>(
+        &self,
+        call: &super::message::Call,
+        decode: impl FnOnce(&serde_json::Value) -> Result<T, Error>,
+    ) -> Result<Receipt<T>, Error> {
         let identity = self.binding()?;
         let bearer = Zeroizing::new(format!("Bearer {}", self.token()?));
         let url = format!("https://open.feishu.cn/open-apis/{}", call.path);
         let record = wire::invoke(
             &self.agent,
             http::Request {
-                method: "GET",
+                method: call.method,
                 url: &url,
                 headers: &[("Authorization", &bearer)],
                 body: None,
             },
         )?;
-        let data = page.decode(&record.body.0).map_err(|_| {
+        let data = decode(&record.body.0).map_err(|_| {
             let mut error = response();
             error.request = record.request.clone();
             error
@@ -135,6 +138,11 @@ impl Client {
             outcome: Outcome::Observed,
             data,
         })
+    }
+
+    pub fn messages(&self, page: &super::Page) -> Result<Receipt<super::Messages>, Error> {
+        let call = page.call()?;
+        self.observed(&call, |body| page.decode(body))
     }
 
     pub fn message(&self, operation: &Operation) -> Result<Receipt<Message>, Error> {
