@@ -11,6 +11,9 @@ struct Fixture {
 #[path = "tencent/reader.rs"]
 mod reader;
 
+#[path = "tencent/cam.rs"]
+mod cam;
+
 impl Fixture {
     fn new() -> Self {
         #[cfg(windows)]

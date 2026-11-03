@@ -1,5 +1,5 @@
 mod auth;
-pub(super) mod cam;
+pub mod cam;
 mod compute;
 pub(super) mod cvm;
 pub(super) mod dns;
@@ -88,6 +88,16 @@ pub(super) struct Name {
 
 #[derive(Subcommand)]
 pub(super) enum Policy {
+    Entities {
+        #[arg(long)]
+        id: u64,
+        #[arg(long, default_value = "1")]
+        page: u32,
+    },
+    Delete {
+        #[arg(long)]
+        id: u64,
+    },
     List {
         #[arg(long, default_value = "1")]
         page: u32,

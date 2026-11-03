@@ -510,3 +510,40 @@ ONLINE avoids shutdown, but does not promise preservation of existing credential
 Hardrig owns guest-impact review, ownership, latest-operation correlation,
 per-user binding observation, SSH authentication and independent host trust.
 Delete does not detach keys; callers qualify current references and own recovery.
+
+## CAM Policy Retirement
+
+`runseal::tencent::cam` exposes plain public Request/Data/Entity/Page models and
+`Client::cam`, reusing the existing CAM capability group. Native `cam policy
+entities --id ID --page N` and `cam policy delete --id ID` consume that same
+contract. Both require an explicit owning account and verified current caller;
+other CAM commands retain their existing contracts. Native private custody and
+the session's held Permit remain shared, without a CLI subprocess bridge.
+
+Entities sends one ListEntitiesForPolicy page with EntityFilter=All, Rp=100 and
+an explicit positive page. It retains the requested policy reference, page,
+limit, total, next and finite entity ID/relation/UIN projection. This reference
+binds the request, not a fabricated provider echo. User/group/role relations stay
+distinct, zero UIN stays observed zero, and missing/null UIN remains unknown.
+Names and attachment-time values are withheld; their supported opaque shapes
+contribute coverage. Unknown fields or relations mark coverage incomplete.
+Missing/null counts/arrays, malformed identifiers, count conflicts and duplicate
+relation/ID pairs refuse. Complete means finite page projection coverage, not
+exhaustive pagination, ownership, an attachment lock or permission to delete.
+
+Delete sends exactly one ID in the provider's PolicyId array. It performs no
+pre-read, detach, page loop, refresh, retry or compensation. Accepted means an
+acknowledgement, never converged absence. Unknown transport or malformed results
+retain uncertain outcome and cannot authorize replay. Fixed mainland global CAM
+requests omit X-TC-Region; the generic receipt's region is the empty string.
+Safe documented policy-ID refusal codes remain diagnostics, not absence proof.
+
+Consumers persist exact intent and independently qualify original ownership,
+unchanged policy metadata/document and fresh complete association coverage.
+They own pagination, race policy, exact postconditions and recovery. Empty pages
+or a single not-found diagnostic prove no global absence or effective-permission
+revocation. SDK fixtures establish implementation behavior, not real account
+authority or retirement of a particular policy. Hardrig #197's four temporary
+definitions are the separate installed RC/stable qualification consumer in
+Runseal #168; standing operator/observer/DNS grants and the production instance
+remain outside its deletion set.

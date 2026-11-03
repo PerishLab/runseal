@@ -1,23 +1,32 @@
 mod model;
+mod record;
+mod retirement;
+mod types;
+
+pub use retirement::Request;
+pub use types::{Data, Entity, Page, Receipt, Relation};
 
 use super::super::secret;
-use super::{Cam, Key, Policy, Request, User, dns::positive};
+use super::{Cam, Key, Policy, User, dns::positive};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
-pub(in crate::tencent) fn request(deed: &Cam) -> Result<Request> {
+pub(in crate::tencent) fn request(deed: &Cam) -> Result<super::Request> {
     let found = match deed {
-        Cam::User(User::Get(name)) => Request::read("GetUser", json!({"Name": name.name})),
-        Cam::User(User::Create(name)) => Request::write(
+        Cam::Policy(Policy::Entities { .. } | Policy::Delete { .. }) => {
+            bail!("CAM policy operation requires its verified native client")
+        }
+        Cam::User(User::Get(name)) => super::Request::read("GetUser", json!({"Name": name.name})),
+        Cam::User(User::Create(name)) => super::Request::write(
             "AddUser",
             json!({"Name": name.name, "ConsoleLogin": 0, "UseApi": 0}),
         ),
-        Cam::Policy(Policy::List { page }) => Request::read(
+        Cam::Policy(Policy::List { page }) => super::Request::read(
             "ListPolicies",
             json!({"Scope": "Local", "Rp": 100, "Page": positive(u64::from(*page))?}),
         ),
         Cam::Policy(Policy::Get { id }) => {
-            Request::read("GetPolicy", json!({"PolicyId": positive(*id)?}))
+            super::Request::read("GetPolicy", json!({"PolicyId": positive(*id)?}))
         }
         Cam::Policy(Policy::Create { name, document }) => {
             let data = secret::read(document)?;
@@ -33,31 +42,31 @@ pub(in crate::tencent) fn request(deed: &Cam) -> Result<Request> {
             }
             let encoded = serde_json::to_string(&document)
                 .map_err(|_| anyhow::anyhow!("Tencent policy document refused"))?;
-            Request::write(
+            super::Request::write(
                 "CreatePolicy",
                 json!({"PolicyName": name, "PolicyDocument": encoded}),
             )
         }
-        Cam::Policy(Policy::Attach(binding)) => Request::write(
+        Cam::Policy(Policy::Attach(binding)) => super::Request::write(
             "AttachUserPolicy",
             json!({"PolicyId": positive(binding.id)?, "AttachUin": positive(binding.user)?}),
         ),
-        Cam::Policy(Policy::Detach(binding)) => Request::write(
+        Cam::Policy(Policy::Detach(binding)) => super::Request::write(
             "DetachUserPolicy",
             json!({"PolicyId": positive(binding.id)?, "DetachUin": positive(binding.user)?}),
         ),
         Cam::Key(Key::List { user }) => {
-            Request::read("ListAccessKeys", json!({"TargetUin": positive(*user)?}))
+            super::Request::read("ListAccessKeys", json!({"TargetUin": positive(*user)?}))
         }
-        Cam::Key(Key::Create { user, .. }) => Request::write(
+        Cam::Key(Key::Create { user, .. }) => super::Request::write(
             "CreateAccessKey",
             json!({"TargetUin": positive(*user)?, "Description": "runseal scoped credential delivery"}),
         ),
-        Cam::Key(Key::Disable(handle)) => Request::write(
+        Cam::Key(Key::Disable(handle)) => super::Request::write(
             "UpdateAccessKey",
             json!({"TargetUin": positive(handle.user)?, "AccessKeyId": handle.id, "Status": "Inactive"}),
         ),
-        Cam::Key(Key::Delete(handle)) => Request::write(
+        Cam::Key(Key::Delete(handle)) => super::Request::write(
             "DeleteAccessKey",
             json!({"TargetUin": positive(handle.user)?, "AccessKeyId": handle.id}),
         ),
@@ -79,6 +88,9 @@ pub(in crate::tencent) fn request(deed: &Cam) -> Result<Request> {
 pub(in crate::tencent) fn receipt(deed: &Cam, value: &Value) -> Result<Value> {
     use super::super::api::project;
     match deed {
+        Cam::Policy(Policy::Entities { .. } | Policy::Delete { .. }) => {
+            bail!("CAM policy receipt requires its finite native model")
+        }
         Cam::User(_) => project::<model::User>(value),
         Cam::Policy(Policy::List { .. }) => project::<model::Policies>(value),
         Cam::Policy(Policy::Get { .. }) => project::<model::Document>(value),
@@ -92,3 +104,20 @@ pub(in crate::tencent) fn receipt(deed: &Cam, value: &Value) -> Result<Value> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod checks;
+
+#[cfg(test)]
+mod protocol;
+
+pub(in crate::tencent) fn convert(policy: &Policy) -> Option<Request> {
+    match policy {
+        Policy::Entities { id, page } => Some(Request::Entities {
+            policy: *id,
+            page: *page,
+        }),
+        Policy::Delete { id } => Some(Request::Delete { policy: *id }),
+        _ => None,
+    }
+}

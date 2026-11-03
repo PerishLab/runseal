@@ -1,5 +1,6 @@
 mod api;
 mod command;
+pub use command::cam;
 mod compute;
 pub mod cvm;
 pub mod dns;
@@ -57,6 +58,21 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     let store = Store::open(&path)?;
     if let Deed::Auth(deed) = &input.deed {
         return store.auth(deed);
+    }
+    if let Deed::Cam(Cam::Policy(deed)) = &input.deed
+        && let Some(request) = command::cam::convert(deed)
+    {
+        let account = input
+            .account
+            .as_deref()
+            .or_else(|| vars.get("TENCENTCLOUD_ACCOUNT_UIN").map(String::as_str))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "CAM policy operations require an explicit owner and verified caller"
+                )
+            })?;
+        return serde_json::to_value(Client::from(store, account)?.cam(&request)?)
+            .map_err(Into::into);
     }
     if let Deed::Tat(deed) = &input.deed {
         let account = input
