@@ -11,10 +11,9 @@ pub(in crate::tencent) enum Dns {
 }
 
 #[derive(Args)]
-#[group(required = true, multiple = false)]
 pub(in crate::tencent) struct Selection {
     #[arg(long)]
-    domain: Option<String>,
+    domain: String,
     #[arg(long = "domain-id")]
     number: Option<u64>,
 }
@@ -77,11 +76,13 @@ pub(in crate::tencent) struct Fields {
 
 impl Selection {
     fn model(&self) -> Result<dns::Zone> {
-        match (&self.domain, self.number) {
-            (Some(domain), None) => Ok(dns::Zone::Name(domain.clone())),
-            (None, Some(id)) => Ok(dns::Zone::Id(id)),
-            _ => bail!("select exactly one domain name or DomainId"),
+        if let Some(id) = self.number {
+            positive(id)?;
         }
+        Ok(dns::Zone {
+            name: self.domain.clone(),
+            id: self.number,
+        })
     }
 }
 

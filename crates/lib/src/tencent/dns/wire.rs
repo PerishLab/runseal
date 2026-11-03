@@ -3,7 +3,6 @@ use super::{
     tests::{fields, request},
 };
 use crate::tencent::{Class, Error, Failure, Outcome, api, model::Credential};
-use serde_json::json;
 use std::{
     io::{BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
@@ -127,11 +126,12 @@ fn uncertainty() {
             attempts(&listener)
         });
         let credential = credential();
+        let params = request(Operation::Delete { id: 9 }).call().unwrap().body;
         let fault = api::Client::new(&credential)
             .request(
                 (&origin, "dnspod.tencentcloudapi.com"),
                 api::Operation::new("DeleteRecord", "2021-03-23", None),
-                &json!({"DomainId":42,"RecordId":9}),
+                &params,
             )
             .err()
             .expect("refusal");

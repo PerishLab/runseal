@@ -10,7 +10,7 @@ pub use types::{Data, Domain, Entry, Fields, Kind, Receipt, Reference, Remote, S
 fn input() -> Failure {
     Failure::new(
         Class::Input,
-        "DNSPod input refused; use a canonical zone name or positive DomainId, bounded public fields and explicit record IDs",
+        "DNSPod input refused; use a canonical domain name, optional positive DomainId, bounded public fields and explicit record IDs",
     )
 }
 

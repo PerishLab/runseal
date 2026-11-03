@@ -25,23 +25,17 @@ pub(super) struct Call {
 
 impl Zone {
     pub(super) fn body(&self) -> Result<Value, Failure> {
-        match self {
-            Self::Name(name) => {
-                Names::domain(name)?;
-                Ok(json!({"Domain":name}))
-            }
-            Self::Id(id) => {
-                Names::id(*id)?;
-                Ok(json!({"DomainId":id}))
-            }
+        Names::domain(&self.name)?;
+        let mut body = json!({"Domain": self.name});
+        if let Some(id) = self.id {
+            Names::id(id)?;
+            body["DomainId"] = json!(id);
         }
+        Ok(body)
     }
 
     pub(super) fn id(&self) -> Option<u64> {
-        match self {
-            Self::Id(id) => Some(*id),
-            _ => None,
-        }
+        self.id
     }
 }
 

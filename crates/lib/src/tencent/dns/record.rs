@@ -1,4 +1,4 @@
-use super::{Data, Domain, Entry, Operation, Reference, Request, Status, Zone, names::Names};
+use super::{Data, Domain, Entry, Operation, Reference, Request, Status, names::Names};
 use crate::tencent::{Class, Failure, Page};
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -139,11 +139,7 @@ impl Request {
         let id = record.positive("DomainId")?;
         let name = record.text("Domain")?;
         Names::domain(&name).map_err(|_| response())?;
-        let matches = match &self.zone {
-            Zone::Name(expected) => expected == &name,
-            Zone::Id(expected) => *expected == id,
-        };
-        if !matches {
+        if name != self.zone.name || self.zone.id.is_some_and(|expected| expected != id) {
             return Err(response());
         }
         let account = value
