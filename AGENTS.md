@@ -557,3 +557,25 @@ authority or retirement of a particular policy. Hardrig #197's four temporary
 definitions are the separate installed RC/stable qualification consumer in
 Runseal #168; standing operator/observer/DNS grants and the production instance
 remain outside its deletion set.
+
+
+## Lighthouse Firewall
+
+The native library and CLI expose one explicit DescribeFirewallRules page and
+single-rule CreateFirewallRules/DeleteFirewallRules requests through the existing
+Lighthouse client. Reads retain requested instance/page, total, next, version,
+nullable rule fields and unknown-schema coverage. Missing/null top-level counts,
+version or rule arrays refuse. Complete means known schema, not complete paging,
+current effective policy or an absence proof; callers qualify every page against
+the same firewall version and owning instance.
+
+Writes require one TCP/UDP port, canonical IPv4 CIDR, ACCEPT/DROP, explicit
+instance/region and a nonzero current FirewallVersion. Creation may name one
+bounded public description; deletion uses only the exact native selector. The
+SDK does not pre-read, retry, page, reset the whole ruleset or touch templates.
+Acknowledgement retains the requested target/version/rule and means accepted,
+not a fabricated echoed version or verified convergence. Version conflict and
+busy refusals retain their safe codes; caller-owned durable intent and exact
+observation decide recovery. Existing foreign SSH/HTTP and other rules remain
+outside the requested additive/exact operation. Hardrig owns desired state,
+policy, permissions, mutation ordering and production ingress qualification.

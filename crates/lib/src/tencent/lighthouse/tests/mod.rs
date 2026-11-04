@@ -2,6 +2,7 @@ use super::*;
 use serde_json::{Value, json};
 
 mod custody;
+mod firewall;
 mod fixture;
 mod instance;
 mod key;

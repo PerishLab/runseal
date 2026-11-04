@@ -99,6 +99,11 @@ pub struct Page {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Data {
+    Rules(super::firewall::Page),
+    Changed {
+        requested: super::firewall::Change,
+        complete: bool,
+    },
     Instance(Lookup<Box<Instance>>),
     Key(Lookup<Key>),
     Keys(Page),

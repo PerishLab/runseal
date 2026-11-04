@@ -152,3 +152,77 @@ fn enrollment() {
     };
     assert!(super::cam::request(&Cam::Key(deed)).is_err());
 }
+
+#[test]
+fn firewall() {
+    for (verb, action) in [
+        ("list", "DescribeFirewallRules"),
+        ("create", "CreateFirewallRules"),
+        ("delete", "DeleteFirewallRules"),
+    ] {
+        let mut words = vec![
+            "lighthouse",
+            "--region",
+            "na-ashburn",
+            "firewall",
+            verb,
+            "--instance",
+            "lhins-fixture",
+        ];
+        if verb != "list" {
+            words.extend([
+                "--version",
+                "7",
+                "--protocol",
+                "TCP",
+                "--port",
+                "443",
+                "--cidr",
+                "0.0.0.0/0",
+                "--action",
+                "ACCEPT",
+            ]);
+        }
+        let input = parse(
+            &words
+                .iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        let Deed::Lighthouse(command) = input.deed else {
+            panic!()
+        };
+        let request = command.convert().unwrap();
+        request.validate().unwrap();
+        assert_eq!(request.region, "na-ashburn");
+        let crate::tencent::lighthouse::Operation::Firewall(operation) = request.operation else {
+            panic!()
+        };
+        use crate::tencent::lighthouse::firewall::Operation;
+        match operation {
+            Operation::List { instance, window } => {
+                assert_eq!(action, "DescribeFirewallRules");
+                assert_eq!(instance, "lhins-fixture");
+                assert_eq!(window.limit, 20);
+            }
+            Operation::Create(change) | Operation::Delete(change) => {
+                assert_ne!(action, "DescribeFirewallRules");
+                assert_eq!(change.instance, "lhins-fixture");
+                assert_eq!(change.version, 7);
+                assert_eq!(change.rule.port, 443);
+                assert!(change.rule.description.is_none());
+            }
+        }
+    }
+    let words = ["lighthouse", "--region", "na-ashburn", "firewall", "reset"];
+    assert!(
+        parse(
+            &words
+                .iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+        )
+        .is_err()
+    );
+}

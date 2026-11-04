@@ -4,7 +4,7 @@ use std::{io::Read, path::PathBuf};
 
 #[derive(Args)]
 #[command(
-    about = "One Lighthouse observation or public-key operation; no enrollment workflow",
+    about = "One Lighthouse observation, public-key or exact firewall rule operation",
     after_help = "Preserve nullable facts and schema coverage. Empty key associations and LoginSettings.KeyIds are not proof of absent guest access. Exact unlisted is not absence. Per-user associations and aggregate IDs are independent observations. Latest-operation SUCCESS must match the caller's exact operation; Persist exact intent before writes: no client token, polling, refresh, retry or trust registration. ONLINE is explicit and never falls back to OFFLINE; existing passwords or keys may become invalid. Accepted is not binding convergence or SSH authentication."
 )]
 pub(in crate::tencent) struct Request {
@@ -16,6 +16,10 @@ pub(in crate::tencent) struct Request {
 
 #[derive(Subcommand)]
 enum Operation {
+    Firewall {
+        #[command(subcommand)]
+        operation: Firewall,
+    },
     Import {
         #[arg(long)]
         name: String,
@@ -50,6 +54,7 @@ struct Id {
 impl Request {
     pub(in crate::tencent) fn convert(&self) -> Result<sdk::Request, crate::tencent::Failure> {
         let operation = match &self.operation {
+            Operation::Firewall { operation } => sdk::Operation::Firewall(operation.convert()),
             Operation::Import { name, public } => {
                 let mut text = zeroize::Zeroizing::new(String::new());
                 std::fs::File::open(public)
@@ -86,5 +91,79 @@ impl Request {
         };
         request.validate()?;
         Ok(request)
+    }
+}
+
+#[derive(Subcommand)]
+enum Firewall {
+    List {
+        #[arg(long)]
+        instance: String,
+        #[arg(long, default_value_t = 0)]
+        offset: u32,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    Create {
+        #[command(flatten)]
+        target: Target,
+        #[arg(long)]
+        description: Option<String>,
+    },
+    Delete(Target),
+}
+
+#[derive(Args)]
+struct Target {
+    #[arg(long)]
+    instance: String,
+    #[arg(long)]
+    version: u64,
+    #[arg(long, value_parser = ["TCP", "UDP"])]
+    protocol: String,
+    #[arg(long)]
+    port: u16,
+    #[arg(long)]
+    cidr: String,
+    #[arg(long, value_parser = ["ACCEPT", "DROP"])]
+    action: String,
+}
+
+impl Target {
+    fn change(&self, description: Option<String>) -> sdk::firewall::Change {
+        sdk::firewall::Change {
+            instance: self.instance.clone(),
+            version: self.version,
+            rule: sdk::firewall::Rule {
+                protocol: self.protocol.clone(),
+                port: self.port,
+                cidr: self.cidr.clone(),
+                action: self.action.clone(),
+                description,
+            },
+        }
+    }
+}
+
+impl Firewall {
+    fn convert(&self) -> sdk::firewall::Operation {
+        match self {
+            Self::List {
+                instance,
+                offset,
+                limit,
+            } => sdk::firewall::Operation::List {
+                instance: instance.clone(),
+                window: sdk::Window {
+                    offset: *offset,
+                    limit: *limit,
+                },
+            },
+            Self::Create {
+                target,
+                description,
+            } => sdk::firewall::Operation::Create(target.change(description.clone())),
+            Self::Delete(target) => sdk::firewall::Operation::Delete(target.change(None)),
+        }
     }
 }

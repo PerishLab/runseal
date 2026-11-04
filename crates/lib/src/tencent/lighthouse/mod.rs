@@ -1,3 +1,4 @@
+pub mod firewall;
 mod instance;
 mod key;
 mod mutation;
