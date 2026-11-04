@@ -11,6 +11,7 @@ pub struct Request {
 
 #[derive(Clone, Debug)]
 pub enum Operation {
+    Firewall(super::firewall::Operation),
     Instance { id: String },
     Key { id: String },
     Keys(Window),
@@ -32,6 +33,7 @@ impl Request {
     pub(super) fn call(&self) -> Result<Call, Failure> {
         Names::region(&self.region)?;
         let (action, body) = match &self.operation {
+            Operation::Firewall(value) => return value.call(),
             Operation::Instance { id } => {
                 Names::id(id, "lhins-")?;
                 (
@@ -68,6 +70,7 @@ impl Request {
     pub(super) fn decode(&self, body: &Value) -> Result<Data, Failure> {
         let record = Record(body);
         match &self.operation {
+            Operation::Firewall(value) => value.decode(body),
             Operation::Instance { id } => {
                 let total = record.number("TotalCount")?;
                 let rows = record.array("InstanceSet", 1)?.ok_or_else(response)?;
@@ -179,9 +182,10 @@ impl Request {
             request: request.into(),
             observed: crate::tencent::model::now(),
             outcome: match self.operation {
-                Operation::Instance { .. } | Operation::Key { .. } | Operation::Keys(_) => {
-                    Outcome::Observed
-                }
+                Operation::Instance { .. }
+                | Operation::Key { .. }
+                | Operation::Keys(_)
+                | Operation::Firewall(super::firewall::Operation::List { .. }) => Outcome::Observed,
                 _ => Outcome::Accepted,
             },
             data,

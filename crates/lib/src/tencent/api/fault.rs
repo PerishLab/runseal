@@ -97,6 +97,14 @@ impl Failure {
             | "OperationDenied.NotManagedUser" => {
                 (Class::Permission, "DNS domain permission was refused")
             }
+            "UnsupportedOperation.FirewallVersionMismatch" => (
+                Class::Binding,
+                "Lighthouse firewall version changed; read complete current rules before preparing a new intent",
+            ),
+            "UnsupportedOperation.FirewallBusy" => (
+                Class::Binding,
+                "Lighthouse firewall is busy; observe the exact instance before preparing a new intent",
+            ),
             "UnsupportedOperation.VersionMismatch" => (
                 Class::Binding,
                 "security group policy version changed; read the complete policy set before preparing a new intent",
@@ -207,6 +215,11 @@ impl std::error::Error for Failure {}
 fn diagnostic() {
     for (code, class) in [
         ("ResourceNotFound", Class::Input),
+        (
+            "UnsupportedOperation.FirewallVersionMismatch",
+            Class::Binding,
+        ),
+        ("UnsupportedOperation.FirewallBusy", Class::Binding),
         ("InvalidParameter.ActionNotExist", Class::Input),
         ("FailedOperation.PolicyFull", Class::Limit),
         ("FailedOperation.PolicyNameInUse", Class::Input),
