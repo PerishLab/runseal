@@ -1,12 +1,12 @@
-use super::{Class, Client, Error, Operation, Reply, fault::input as invalid};
-use crate::custody::Private;
+use super::{Class, Client, Error, Operation, fault::input as invalid};
 mod args;
+mod message;
 use super::Actor;
 pub(super) use args::Input;
 use args::{Auth, Chats, Deed, Im, Messages, Reactions};
 use serde::Serialize;
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
 
 pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value, Error> {
     let path = input
@@ -149,57 +149,8 @@ fn operation(deed: &Deed) -> Result<Option<Operation>, Error> {
     }
 }
 
-impl Messages {
-    fn operation(&self) -> Result<Operation, Error> {
-        match self {
-            Self::Send {
-                chat,
-                recipient,
-                text,
-                uuid,
-            } => {
-                let target = match (chat, recipient) {
-                    (Some(chat), None) => super::Target::Chat(chat.clone()),
-                    (None, Some(user)) => super::Target::User(user.clone()),
-                    _ => return Err(invalid()),
-                };
-                Ok(Operation::Send(super::Send {
-                    target,
-                    text: content(text)?,
-                    uuid: uuid.clone(),
-                }))
-            }
-            Self::List { .. } | Self::Search { .. } => Err(invalid()),
-            Self::Get { message } => Ok(Operation::Get {
-                message: message.clone(),
-            }),
-            Self::Reply {
-                message,
-                text,
-                uuid,
-                thread,
-            } => Ok(Operation::Reply(Reply {
-                message: message.clone(),
-                text: content(text)?,
-                uuid: uuid.clone(),
-                thread: *thread,
-            })),
-        }
-    }
-}
-
 fn value<T: Serialize>(value: T) -> Result<Value, Error> {
     serde_json::to_value(value).map_err(|_| invalid())
-}
-
-fn content(path: &Path) -> Result<String, Error> {
-    let bytes = Private::current().read(path, 20_000).map_err(|_| {
-        Error::new(
-            Class::Input,
-            "Feishu text needs an absolute private UTF-8 file up to 20000 bytes",
-        )
-    })?;
-    String::from_utf8(bytes).map_err(|_| invalid())
 }
 
 fn actor(input: Option<Actor>, vars: &BTreeMap<String, String>) -> Result<Actor, Error> {

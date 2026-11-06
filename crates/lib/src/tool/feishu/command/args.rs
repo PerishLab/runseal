@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
     name = "@feishu",
-    about = "Native Feishu operations; custom-app bot/user authorization and atomic text messages. No automatic login, renewal, retries, enrichment or pagination."
+    about = "Native Feishu operations; custom-app bot/user authorization and atomic text/post messages. No automatic login, renewal, retries, enrichment or pagination."
 )]
 pub(crate) struct Input {
     #[arg(
@@ -177,16 +177,25 @@ pub(super) enum Messages {
         message: String,
     },
     #[command(
-        about = "Reply once with plain text; caller owns sender policy and durable intent. Accepted does not prove delivery. UUID dedup is time-bounded (one hour), not durable exactly-once."
+        about = "Reply once with text or a finite post document; caller owns sender policy and durable intent. Accepted does not prove delivery. UUID dedup is time-bounded (one hour), not durable exactly-once."
     )]
     Reply {
         #[arg(long = "message-id")]
         message: String,
         #[arg(
             long = "text-file",
+            conflicts_with = "post",
+            required_unless_present = "post",
             help = "Absolute private UTF-8 file, 1..20000 bytes"
         )]
-        text: PathBuf,
+        text: Option<PathBuf>,
+        #[arg(
+            long = "post-file",
+            conflicts_with = "text",
+            required_unless_present = "text",
+            help = "Absolute private JSON Document: optional title and content paragraphs of text/a nodes; up to 30000 bytes"
+        )]
+        post: Option<PathBuf>,
         #[arg(
             long = "idempotency-key",
             help = "Explicit UUID, 1..50 visible ASCII bytes; persist exact target/content/UUID before dispatch"
@@ -194,6 +203,25 @@ pub(super) enum Messages {
         uuid: String,
         #[arg(long = "reply-in-thread")]
         thread: bool,
+    },
+    #[command(
+        about = "Edit one bot-authored text/post message by exact ID. No pre-read, UUID dedup or retry; persist intent and observe unknown writes"
+    )]
+    Edit {
+        #[arg(long = "message-id")]
+        message: String,
+        #[arg(
+            long = "text-file",
+            conflicts_with = "post",
+            required_unless_present = "post"
+        )]
+        text: Option<PathBuf>,
+        #[arg(
+            long = "post-file",
+            conflicts_with = "text",
+            required_unless_present = "text"
+        )]
+        post: Option<PathBuf>,
     },
 }
 

@@ -1,9 +1,13 @@
 pub mod chat;
+mod edit;
 mod page;
+mod post;
 pub mod reaction;
 mod search;
 mod send;
+pub use edit::{Body, Edit};
 pub use page::{Messages, Page};
+pub use post::{Document, Node, Post};
 pub use search::{Matches, Search};
 pub use send::{Send, Target};
 
@@ -20,6 +24,8 @@ pub enum Operation {
     Get { message: String },
     Reply(Reply),
     Send(Send),
+    Post(Post),
+    Edit(Edit),
 }
 
 #[derive(Clone, Debug)]
@@ -97,6 +103,8 @@ impl Operation {
             }
             Self::Reply(reply) => reply.call(),
             Self::Send(send) => send.call(),
+            Self::Post(post) => post.call(),
+            Self::Edit(edit) => edit.call(),
         }
     }
 
@@ -109,7 +117,7 @@ impl Operation {
                 }
                 &items[0]
             }
-            Self::Reply(_) | Self::Send(_) => &value["data"],
+            Self::Reply(_) | Self::Send(_) | Self::Post(_) | Self::Edit(_) => &value["data"],
         };
         let message: Message = serde_json::from_value(record.clone()).map_err(|_| response())?;
         message.validate()?;
@@ -119,6 +127,14 @@ impl Operation {
                 Err(response())
             }
             Self::Send(send) if !send.matches(&message) => Err(response()),
+            Self::Post(post)
+                if message.parent.as_deref() != Some(&post.message) || message.kind != "post" =>
+            {
+                Err(response())
+            }
+            Self::Edit(edit) if message.id != edit.message || message.kind != edit.body.kind() => {
+                Err(response())
+            }
             _ => Ok(message),
         }
     }

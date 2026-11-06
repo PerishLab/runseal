@@ -579,3 +579,14 @@ busy refusals retain their safe codes; caller-owned durable intent and exact
 observation decide recovery. Existing foreign SSH/HTTP and other rules remain
 outside the requested additive/exact operation. Hardrig owns desired state,
 policy, permissions, mutation ordering and production ingress qualification.
+
+
+Feishu additionally exposes a finite post reply and exact text/post message edit.
+Post files contain an optional title and content paragraphs of text/a nodes;
+the SDK supplies the language envelope and refuses unsupported fields/nodes.
+Existing plain-text Reply/Send wire and CLI calls remain compatible. Edit is
+bot/tenant-only, carries no UUID dedup and performs no pre-read or retry. Its
+returned ID/type and all mutation actors are checked; accepted is not observed
+convergence. Consumers retain exact intents and own unknown-write recovery,
+message-source conventions and takeover order. Issue #189 owns this subset;
+Santi #373 owns its real messaging-window acceptance.
