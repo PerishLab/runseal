@@ -13,7 +13,8 @@ pub use auth::{Challenge, Session, Shape};
 pub use client::Client;
 pub use fault::{Class, Error, Field, Outcome, Permissions, Poll};
 pub use message::{
-    Content, Matches, Message, Messages, Operation, Page, Reply, Search, Send, Sender, Target,
+    Body, Content, Document, Edit, Matches, Message, Messages, Node, Operation, Page, Post, Reply,
+    Search, Send, Sender, Target,
 };
 pub use model::{Actor, Identity, Receipt, Status};
 

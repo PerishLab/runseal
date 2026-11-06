@@ -13,6 +13,7 @@ fn help() {
         vec![":", "@feishu", "im", "messages", "list", "--help"],
         vec![":", "@feishu", "im", "messages", "search", "--help"],
         vec![":", "@feishu", "im", "messages", "reply", "--help"],
+        vec![":", "@feishu", "im", "messages", "edit", "--help"],
     ] {
         let output = seat.run(&command);
         assert!(output.status.success(), "{output:?}");
@@ -22,6 +23,7 @@ fn help() {
     let output = seat.run(&[":", "@feishu", "im", "messages", "reply", "--help"]);
     for flag in [
         "--text-file",
+        "--post-file",
         "--message-id",
         "--idempotency-key",
         "--reply-in-thread",

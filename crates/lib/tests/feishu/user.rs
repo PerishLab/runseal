@@ -172,3 +172,18 @@ fn preservation() {
         assert_eq!(client.exchange().unwrap_err().outcome, Outcome::Unsent);
     }
 }
+
+#[test]
+fn editing() {
+    let fixture = Fixture::new();
+    fixture.write(state());
+    let user = Client::user(&fixture.state, "cli_fixture", "ou_user").unwrap();
+    let error = user
+        .message(&Operation::Edit(runseal::feishu::Edit {
+            message: "om_target".into(),
+            body: runseal::feishu::Body::Text("new text".into()),
+        }))
+        .unwrap_err();
+    assert_eq!(error.class, Class::Input);
+    assert_eq!(error.outcome, Outcome::Unsent);
+}

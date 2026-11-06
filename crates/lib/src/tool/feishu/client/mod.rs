@@ -148,6 +148,12 @@ impl Client {
     pub fn message(&self, operation: &Operation) -> Result<Receipt<Message>, Error> {
         let call = operation.call()?;
         let identity = self.binding()?;
+        if matches!(operation, Operation::Edit(_)) && identity.user.is_some() {
+            return Err(Error::new(
+                Class::Input,
+                "Feishu message edit requires an explicit bot actor; nothing sent",
+            ));
+        }
         let bearer = Zeroizing::new(format!("Bearer {}", self.token()?));
         let body = call
             .body
@@ -179,7 +185,7 @@ impl Client {
             error.request = record.request.clone();
             error
         })?;
-        if call.method == "POST" && !data.sender.matches(&identity) {
+        if call.method != "GET" && !data.sender.matches(&identity) {
             let mut error = response();
             error.request = record.request;
             return Err(error);
