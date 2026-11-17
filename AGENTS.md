@@ -642,9 +642,11 @@ an empty query string and the signed action header. The library binds the
 observed caller to the explicitly named owning account and accepts only an
 observed RAM user of it; root accounts and assumed roles are refused, and the
 bound ARN must name a user of that same account. Expected-principal handling is
-a command concern: the CLI compares the observed principal with the explicit
-`--principal` after verification, while the library does not take or enforce an
-expected principal. Hardrig separately enforces its own declaration. Principal
+a command concern: when `--principal` or its profile value is supplied, the CLI
+compares it with the observed principal after verification. Initial discovery
+requires the owning account but no preknown principal; its receipt lets the
+operator explicitly bind the selected RAM identity. The library does not take
+an expected principal. Hardrig separately enforces its own declaration. Principal
 and user identifiers are independent provider fields and may legitimately be
 equal. The verified identity is stamped over the stored signing material, so
 replacing that material invalidates the binding; status reports typed validated

@@ -63,17 +63,17 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     let principal = input
         .principal
         .as_deref()
-        .or_else(|| vars.get("ALIBABA_CLOUD_PRINCIPAL_ID").map(String::as_str))
-        .ok_or_else(|| {
-            anyhow::anyhow!("Alibaba identity requires an explicit delegated --principal")
-        })?;
-    let width = (1..=256).contains(&principal.len());
-    let lexical = principal.is_ascii() && !principal.bytes().any(|byte| byte.is_ascii_control());
-    if !width || !lexical {
-        bail!("Alibaba expected principal is malformed");
+        .or_else(|| vars.get("ALIBABA_CLOUD_PRINCIPAL_ID").map(String::as_str));
+    if let Some(principal) = principal {
+        let width = (1..=256).contains(&principal.len());
+        let lexical =
+            principal.is_ascii() && !principal.bytes().any(|byte| byte.is_ascii_control());
+        if !width || !lexical {
+            bail!("Alibaba expected principal is malformed");
+        }
     }
     let identity = Client::open(&path, account)?.identity()?;
-    if identity.principal != principal {
+    if principal.is_some_and(|expected| identity.principal != expected) {
         bail!("Alibaba observed caller differs from the explicitly declared principal");
     }
     serde_json::to_value(identity).map_err(Into::into)

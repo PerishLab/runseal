@@ -75,6 +75,17 @@ fn ceremony() {
     assert!(receipt["alibaba"]["identity"].is_null());
     let renew = seat.run(&[":", "@alibaba", "--state", state, "auth", "renew"]);
     assert!(!renew.status.success(), "{renew:?}");
+    let observed = seat.run(&[
+        ":",
+        "@alibaba",
+        "--state",
+        state,
+        "--account",
+        "1234567890",
+        "identity",
+    ]);
+    assert!(!observed.status.success(), "{observed:?}");
+    assert!(!text(&observed.stderr).contains("principal"));
     let relative = seat.run(&[":", "@alibaba", "--state", "relative.json", "auth", "begin"]);
     assert!(!relative.status.success(), "{relative:?}");
 }

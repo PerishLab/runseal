@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "@alibaba",
     about = "One native Alibaba Cloud China-site authorization or identity operation",
-    after_help = "Runseal implements the official CLI application's CN OAuth PKCE protocol over fixed HTTPS endpoints. No Alibaba CLI process or credential configuration is used. Browser login, MFA and consent remain human actions.\n\nBegin returns an authorization URL. Save the full redirected callback URL in a private file; never paste it into chat or pass the authorization code as an argument. Complete consumes --response-file after private custody. It does not acquire STS credentials or verify identity automatically.\n\nRefresh explicitly renews OAuth tokens. Renew separately exchanges OAuth access for STS credentials. Verify identity with the expected --account and --principal after renewal. Recover only processes a retained private response without network replay. Unknown token-changing outcomes prevent automatic replay; inspect status before recovery or explicit reauthorization.\n\nPrivate state and callback files require trusted ancestors and owner-only access. Local logout does not revoke the remote application grant. This stage supports China-site RAM users only and exposes no resource mutations, raw API action or endpoint override."
+    after_help = "Runseal implements the official CLI application's CN OAuth PKCE protocol over fixed HTTPS endpoints. No Alibaba CLI process or credential configuration is used. Browser login, MFA and consent remain human actions.\n\nBegin returns an authorization URL. Save the full redirected callback URL in a private file; never paste it into chat or pass the authorization code as an argument. Complete consumes --response-file after private custody. It does not acquire STS credentials or verify identity automatically.\n\nRefresh explicitly renews OAuth tokens. Renew separately exchanges OAuth access for STS credentials. Verify identity with the owning --account after renewal. Supply --principal to check a previously selected caller; omit it for initial owner-bound identity discovery. Recover only processes a retained private response without network replay. Unknown token-changing outcomes prevent automatic replay; inspect status before recovery or explicit reauthorization.\n\nPrivate state and callback files require trusted ancestors and owner-only access. Local logout does not revoke the remote application grant. This stage supports China-site RAM users only and exposes no resource mutations, raw API action or endpoint override."
 )]
 pub(super) struct Input {
     #[arg(long, global = true)]
@@ -25,7 +25,7 @@ pub(super) enum Deed {
     #[command(subcommand)]
     Auth(Auth),
     #[command(
-        about = "Verify the current non-root caller against an explicit owning account and principal"
+        about = "Observe the non-root caller under an explicit owning account; optionally check a known principal"
     )]
     Identity,
 }
