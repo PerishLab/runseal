@@ -1,3 +1,5 @@
+#[path = "support/alibaba.rs"]
+mod alibaba;
 #[path = "support/cloudflare/mod.rs"]
 mod cloudflare;
 #[path = "support/feishu.rs"]

@@ -590,3 +590,66 @@ returned ID/type and all mutation actors are checked; accepted is not observed
 convergence. Consumers retain exact intents and own unknown-write recovery,
 message-source conventions and takeover order. Issue #189 owns this subset;
 Santi #373 owns its real messaging-window acceptance.
+
+## Alibaba Cloud authorization
+
+Alibaba Cloud is a native capability under the same rule as the Feishu and
+Tencent subsets: the official `aliyun` CLI is never a runtime, login or test
+dependency, and no operation spawns or parses it. The native library and CLI
+implement the observed mainland China OAuth and STS protocol directly. Static
+fixtures and recorded protocol evidence qualify implementation behavior only;
+they are not a real account, RAM permission, session or price qualification.
+The protocol baseline is the official third-party `aliyun-cli` v3.5.3 client
+identity, token and exchange endpoints, manual callback flow and ACS3 signing
+shape. The release-hosted managed skill is a separate marker-bound brief on the
+release depot that routes consumers to CLI help and this file; it is not
+generated from this text.
+
+Authorization uses the fixed public client identity with PKCE. `begin` creates
+random state and verifier material, persists only a digest of the state with the
+verifier, and prints one authorization URL. A human carries the browser result
+back explicitly through `complete --response-file`; no listener is opened and no
+callback is fetched. The registered redirect is exactly
+`http://127.0.0.1:12345/cli/callback`. A returned URL is refused unless its
+scheme, host, port and path match that value with no userinfo or fragment, it
+carries exactly one code and one state, it reports no provider error, and the
+decoded state hashes to the persisted digest. A raw state value is never
+compared as its own digest. The authorization deadline, single use and consumed
+flag belong to local custody, not the provider.
+
+State lives in one JSON document at one explicit absolute private path. Opening
+custody folders the parent, takes an exclusive lock beside the state file and
+holds it for the whole session, so a second concurrent session refuses instead
+of interleaving. Reads and writes are bounded; a state larger than the
+allowance is refused before replacing a good file, so an accepted provider
+response cannot poison custody. Secrets zeroize when dropped. No command prints
+access tokens, refresh tokens, access-key secrets, security tokens or raw
+provider bodies, and no provider error prose is echoed.
+
+Every token-changing operation persists its pending stage before dispatch and
+clears it only on a settled local result. Transport failure, a server error and
+an undecodable body all remain unknown: they never retry, never replay and
+never authorize a fresh request on the caller's behalf. The raw private
+response, when it exists, is retained for the matching pending stage so
+`recover` can settle the outcome offline. `recover` performs no network call.
+`refresh` and `renew` are separate explicit steps; neither runs implicitly when
+a token nears expiry or when a read fails. `logout` clears local custody and
+claims no remote revocation.
+
+STS credentials come from the token exchange, not from a credential file or
+environment variable. Identity verification calls `GetCallerIdentity` once with
+an empty query string and the signed action header. The library binds the
+observed caller to the explicitly named owning account and accepts only an
+observed RAM user of it; root accounts and assumed roles are refused, and the
+bound ARN must name a user of that same account. Expected-principal handling is
+a command concern: the CLI compares the observed principal with the explicit
+`--principal` after verification, while the library does not take or enforce an
+expected principal. Hardrig separately enforces its own declaration. Principal
+and user identifiers are independent provider fields and may legitimately be
+equal. The verified identity is stamped over the stored signing material, so
+replacing that material invalidates the binding; status reports typed validated
+facts, never raw provider JSON.
+
+Consumers own escalation; the SDK owns finite mechanics. ECS typed reads and
+any further service belong to their own Issues, and this subset introduces no
+cloud write. Issue #204 owns this contract.
