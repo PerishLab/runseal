@@ -655,3 +655,30 @@ facts, never raw provider JSON.
 Consumers own escalation; the SDK owns finite mechanics. ECS typed reads and
 any further service belong to their own Issues, and this subset introduces no
 cloud write. Issue #204 owns this contract.
+
+## Alibaba trust resources
+
+Issue #212 adds the finite public `alibaba::ram` SDK surface for initial trust
+establishment: exact provider/role/custom-policy reads and creates, exact policy
+version reads, one documented role-policy list and one custom-policy attachment.
+There is no raw action/endpoint selector or CLI subprocess. IMS2019-08-15 and
+RAM2015-05-01 keep their separate fixed HTTPS endpoints and native query fields.
+ACS3 canonical query encoding remains distinct from OAuth form encoding.
+
+Resource access requires a separately verified retained RAMUser credential,
+explicit owning account and exact principal. Its custody Permit spans the whole
+client session. No operation verifies, refreshes, pre-reads, adopts, updates,
+deletes, detaches or retries implicitly. Creates are single explicit calls;
+update, retirement and other IAM domains remain outside this initial subset.
+Hardrig owns desired state, explicit adoption, policy review, durable dispatch
+intents, exact observations, unknown-write recovery and any subsequent scope.
+
+Receipts separate requested selectors from observed data. Reads are observed;
+mutations acknowledge accepted, never convergence or effective permission.
+Missing, null, zero and empty values remain distinct; incomplete schema coverage
+is explicit. A missing/null role-policy list refuses rather than proving absence.
+No documented pagination is invented for ListPoliciesForRole. GetPolicy's
+obsolete Policy.PolicyDocument is never substituted for DefaultPolicyVersion.
+Provider/role names and ARNs bind exact account/resource identity; RoleId stays
+independent. Unknown provider prose and unrecognized response fields are never
+printed as raw JSON. No real account or cloud write is qualified by fixtures.

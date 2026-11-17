@@ -148,3 +148,37 @@ fn encoded() {
     assert_eq!(held.stamp, stamp(&credential()));
     assert_eq!(sign::hash(b"fixture").len(), 64);
 }
+
+#[test]
+fn resource() {
+    use super::Fixture;
+    use crate::alibaba::{Client, Outcome, ram};
+    let fixture = Fixture::new();
+    let mut state = State::fresh();
+    state.credential = Some(credential());
+    fixture.store().save(&state).unwrap();
+    let mut client = Client::open(&fixture.state, "1234567890").unwrap();
+    let request = ram::Request::Role {
+        name: "operator".into(),
+    };
+    let error = client.ram("1234567890123456", &request).unwrap_err();
+    assert_eq!(error.outcome, Outcome::Unsent);
+    drop(client);
+    let mut identity = held();
+    identity.stamp = stamp(state.credential.as_ref().unwrap());
+    state.identity = Some(identity);
+    fixture.store().save(&state).unwrap();
+    let mut client = Client::open(&fixture.state, "1234567890").unwrap();
+    let error = client.ram("different-principal", &request).unwrap_err();
+    assert_eq!(error.outcome, Outcome::Unsent);
+    let invalid = ram::Request::Role {
+        name: "wrong/name".into(),
+    };
+    assert_eq!(
+        client
+            .ram("1234567890123456", &invalid)
+            .unwrap_err()
+            .outcome,
+        Outcome::Unsent
+    );
+}

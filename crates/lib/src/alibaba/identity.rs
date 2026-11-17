@@ -9,6 +9,60 @@ pub struct Client {
 }
 
 impl Client {
+    pub fn ram(
+        &mut self,
+        principal: &str,
+        request: &super::ram::Request,
+    ) -> Result<super::ram::Receipt, super::Error> {
+        use super::{Error, Outcome};
+        let refused = |fault| Error {
+            fault,
+            outcome: Outcome::Unsent,
+        };
+        let state = self
+            .store
+            .read()
+            .map_err(|error| refused(Failure::capture(error, Class::Custody)))?;
+        if state.pending.is_some() || state.retained.is_some() {
+            return Err(refused(Failure::new(
+                Class::Binding,
+                "Alibaba token operation is unresolved; recover before resource access",
+            )));
+        }
+        let expired = state
+            .credential
+            .as_ref()
+            .is_some_and(|held| held.expires <= model::now());
+        let class = if expired {
+            Class::Expired
+        } else {
+            Class::Authentication
+        };
+        let credential = state
+            .credential()
+            .map_err(|error| refused(Failure::capture(error, class)))?;
+        let identity = state.identity.as_ref().ok_or_else(|| {
+            refused(Failure::new(
+                Class::Binding,
+                "Alibaba resource access requires separate explicit caller verification",
+            ))
+        })?;
+        let observed = (
+            identity.account.as_str(),
+            identity.principal.as_str(),
+            identity.stamp.as_str(),
+        );
+        let stamp = model::stamp(credential);
+        let expected = (self.account.as_str(), principal, stamp.as_str());
+        if principal.is_empty() || observed != expected {
+            return Err(refused(Failure::new(
+                Class::Binding,
+                "Alibaba resource caller differs from the exact declared account and principal",
+            )));
+        }
+        super::ram::send(credential, identity, request)
+    }
+
     pub fn open(path: &Path, account: &str) -> std::result::Result<Self, Failure> {
         number(account).map_err(|error| Failure::capture(error, Class::Input))?;
         let store = Store::open(path).map_err(|error| Failure::capture(error, Class::Custody))?;
