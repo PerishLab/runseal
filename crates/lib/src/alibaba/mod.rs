@@ -9,7 +9,7 @@ mod oauth;
 pub mod ram;
 mod secret;
 
-pub use auth::Auth;
+pub use auth::{Auth, Binding, Role};
 pub use command::{call, run};
 pub use fault::{Class, Error, Failure, Outcome};
 pub use identity::Client;

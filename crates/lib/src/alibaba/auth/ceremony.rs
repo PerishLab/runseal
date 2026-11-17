@@ -15,6 +15,9 @@ pub(super) fn begin(store: &Store) -> Result<Value> {
     if exists {
         let state = store.read()?;
         available(&state)?;
+        if state.federation.is_some() {
+            bail!("Alibaba OAuth bootstrap and Ensign federation require separate custody");
+        }
         if state.oauth.is_some() || state.credential.is_some() {
             bail!(
                 "Alibaba authorization already exists; explicitly clear local custody before starting another login"

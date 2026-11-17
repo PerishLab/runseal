@@ -1,3 +1,5 @@
+mod state;
+
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -6,13 +8,15 @@ use zeroize::{Zeroize, Zeroizing};
 pub(super) const SITE: &str = "CN";
 pub(super) const CODE: &str = "code-exchange";
 pub(super) const REFRESH: &str = "token-refresh";
+pub(super) const OIDC: &str = "ensign-exchange";
+pub(super) const ROLE: &str = "oidc-sts";
 pub(super) const STS: &str = "sts-exchange";
 pub(super) const STATE: usize = 2 * 1024 * 1024;
 pub(super) const BODY: usize = 256 * 1024;
 pub(super) const RETAINED: usize = BODY / 3 * 4 + 8;
 
 pub(super) fn stage(value: &str) -> Result<()> {
-    if !matches!(value, CODE | REFRESH | STS) {
+    if !matches!(value, CODE | REFRESH | STS | OIDC | ROLE) {
         bail!("Alibaba pending stage refused");
     }
     Ok(())
@@ -21,6 +25,8 @@ pub(super) fn stage(value: &str) -> Result<()> {
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federation: Option<super::auth::role::Federation>,
     pub version: u32,
     pub site: String,
     pub intent: Option<Intent>,
@@ -141,105 +147,6 @@ impl Identity {
             bail!("Alibaba identity stamp refused");
         }
         Ok(())
-    }
-}
-
-impl State {
-    pub(super) fn fresh() -> Self {
-        Self {
-            version: 1,
-            site: SITE.into(),
-            ..Self::default()
-        }
-    }
-
-    pub(super) fn check(&self) -> Result<()> {
-        if self.version != 1 || self.site != SITE {
-            bail!("Alibaba state version or site refused");
-        }
-        if let Some(intent) = &self.intent {
-            for value in [&intent.state, &intent.verifier, &intent.redirect] {
-                text(value)?;
-            }
-        }
-        if let Some(grant) = &self.oauth {
-            text(&grant.access)?;
-            text(&grant.refresh)?;
-        }
-        if let Some(credential) = &self.credential {
-            text(&credential.id)?;
-            text(&credential.key)?;
-            text(&credential.token)?;
-        }
-        if let Some(identity) = &self.identity {
-            identity.validate()?;
-        }
-        if let Some(pending) = &self.pending {
-            stage(&pending.stage)?;
-            if pending.started == 0 {
-                bail!("Alibaba pending stage refused");
-            }
-        }
-        if let Some(retained) = &self.retained {
-            stage(&retained.stage)?;
-            if self
-                .pending
-                .as_ref()
-                .is_none_or(|pending| pending.stage != retained.stage)
-            {
-                bail!("Alibaba retained response has no matching pending stage");
-            }
-            if retained.body.len() > RETAINED {
-                bail!("Alibaba retained response exceeds the private state allowance");
-            }
-            let decoded = Zeroizing::new(
-                base64::Engine::decode(
-                    &base64::engine::general_purpose::STANDARD,
-                    retained.body.as_bytes(),
-                )
-                .map_err(|_| anyhow::anyhow!("Alibaba retained response encoding refused"))?,
-            );
-            if decoded.len() > BODY {
-                bail!("Alibaba retained response exceeds the response allowance");
-            }
-        }
-        if let Some(identity) = &self.identity {
-            let credential = self.credential.as_ref().ok_or_else(|| {
-                anyhow::anyhow!("Alibaba verified identity requires its signing credential")
-            })?;
-            if identity.stamp != stamp(credential) {
-                bail!("Alibaba verified identity no longer matches the stored signing material");
-            }
-        }
-        Ok(())
-    }
-
-    pub(super) fn credential(&self) -> Result<&Credential> {
-        let held = self.credential.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("Alibaba STS credentials are absent; renew explicitly")
-        })?;
-        if held.expires <= now() {
-            bail!(
-                "Alibaba STS credentials expired; explicitly refresh the OAuth token if needed, renew, then verify identity"
-            );
-        }
-        text(&held.id)?;
-        text(&held.key)?;
-        text(&held.token)?;
-        Ok(held)
-    }
-
-    pub(super) fn receipt(&self) -> Value {
-        json!({
-            "site": SITE,
-            "authorized": self.oauth.is_some(),
-            "credentialPresent": self.credential.is_some(),
-            "oauthExpiresAt": self.oauth.as_ref().map(|held| held.expires),
-            "credentialExpiresAt": self.credential.as_ref().map(|held| held.expires),
-            "identity": self.identity,
-            "pending": self.pending.as_ref().map(|held| json!({"stage": held.stage, "startedAt": held.started, "retainedReturn": self.retained.is_some()})),
-            "callback": self.intent.as_ref().map(|held| json!({"redirect": held.redirect, "expiresAt": held.deadline, "consumed": held.consumed})),
-        })
     }
 }
 

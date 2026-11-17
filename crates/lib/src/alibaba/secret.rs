@@ -42,7 +42,7 @@ impl Store {
         let bytes = read(&self.path)?;
         let state: State =
             serde_json::from_slice(&bytes).map_err(|_| anyhow::anyhow!("Alibaba state refused"))?;
-        if state.version != 1 || state.site != super::model::SITE {
+        if !matches!(state.version, 1 | 2) || state.site != super::model::SITE {
             bail!("Alibaba state version or site refused");
         }
         state.check()?;

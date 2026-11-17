@@ -79,6 +79,45 @@ impl Client {
         &self.account
     }
 
+    pub fn role(&mut self) -> std::result::Result<super::Role, Failure> {
+        let mut state = self
+            .store
+            .read()
+            .map_err(|e| Failure::capture(e, Class::Custody))?;
+        if state.pending.is_some() || state.retained.is_some() {
+            return Err(Failure::new(
+                Class::Binding,
+                "Alibaba token operation remains unresolved",
+            ));
+        }
+        let held = state
+            .federation
+            .as_ref()
+            .ok_or_else(|| Failure::new(Class::Binding, "Alibaba federated custody is absent"))?;
+        if held.binding.account != self.account {
+            return Err(Failure::new(
+                Class::Binding,
+                "Alibaba role owning account differs from client",
+            ));
+        }
+        let credential = state
+            .credential()
+            .map_err(|e| Failure::capture(e, Class::Authentication))?;
+        let response = api::identity(credential, &api::agent())
+            .map_err(|e| Failure::capture(e, Class::Response))?;
+        let identity = super::auth::role::decode(&response.0, held, &model::stamp(credential))
+            .map_err(|e| Failure::capture(e, Class::Binding))?;
+        state
+            .federation
+            .as_mut()
+            .expect("checked federation")
+            .identity = Some(identity.clone());
+        self.store
+            .save(&state)
+            .map_err(|e| Failure::capture(e, Class::Custody))?;
+        Ok(identity)
+    }
+
     pub fn identity(&mut self) -> std::result::Result<Identity, Failure> {
         let mut state = self
             .store
@@ -88,6 +127,12 @@ impl Client {
             return Err(Failure::new(
                 Class::Binding,
                 "Alibaba token operation is unresolved; recover or explicitly discard local custody before caller verification",
+            ));
+        }
+        if state.federation.is_some() {
+            return Err(Failure::new(
+                Class::Binding,
+                "Federated custody requires explicit role verification",
             ));
         }
         let class = if state

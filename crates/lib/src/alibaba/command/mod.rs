@@ -45,6 +45,11 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
     if let Deed::Auth(deed) = input.deed {
         let held = Auth::new(&path)?;
         return match deed {
+            args::Auth::Federate { binding, home } => {
+                let binding = binding.or_else(|| vars.get("ALIBABA_CLOUD_FEDERATION_FILE").map(Into::into)).ok_or_else(|| anyhow::anyhow!("Federate requires --binding-file or profile ALIBABA_CLOUD_FEDERATION_FILE"))?;
+                let home = home.or_else(|| vars.get("ENSIGN_HOME").map(Into::into)).ok_or_else(|| anyhow::anyhow!("Federate requires --ensign-home or profile ENSIGN_HOME"))?;
+                held.federate(&home,&bindingfile(&binding)?)
+            },
             args::Auth::Begin => held.begin(),
             args::Auth::Complete { response } => held.complete(&response),
             args::Auth::Refresh => held.refresh(),
@@ -72,9 +77,32 @@ fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value> {
             bail!("Alibaba expected principal is malformed");
         }
     }
-    let identity = Client::open(&path, account)?.identity()?;
+    let mut client = Client::open(&path, account)?;
+    if matches!(input.deed, Deed::Role) {
+        let identity = client.role()?;
+        if principal.is_some_and(|expected| identity.principal != expected) {
+            bail!("Alibaba role caller differs from the declared principal");
+        }
+        return serde_json::to_value(identity).map_err(Into::into);
+    }
+    let identity = client.identity()?;
     if principal.is_some_and(|expected| identity.principal != expected) {
         bail!("Alibaba observed caller differs from the explicitly declared principal");
     }
     serde_json::to_value(identity).map_err(Into::into)
+}
+
+fn bindingfile(path: &std::path::Path) -> Result<super::Binding> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(65537)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 65536 {
+        bail!("Alibaba public federation binding exceeds its allowance");
+    }
+    let binding: super::Binding = serde_json::from_slice(&bytes)
+        .map_err(|_| anyhow::anyhow!("Alibaba public federation binding JSON refused"))?;
+    binding.validate()?;
+    Ok(binding)
 }
