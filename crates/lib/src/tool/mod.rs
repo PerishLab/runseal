@@ -83,6 +83,7 @@ pub fn call(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Res
     match name {
         "cloudflare" => cloudflare::call(argv, vars),
         "tencent" => tencent::call(argv, vars),
+        "alibaba" => crate::alibaba::call(argv, vars),
         "feishu" => crate::feishu::call(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
@@ -92,6 +93,7 @@ pub fn run(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Resu
     match name {
         "cloudflare" => cloudflare::run(argv, vars),
         "tencent" => tencent::run(argv, vars),
+        "alibaba" => crate::alibaba::run(argv, vars),
         "feishu" => crate::feishu::run(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
