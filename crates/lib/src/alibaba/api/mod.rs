@@ -123,7 +123,7 @@ pub(super) fn identity(credential: &Credential, agent: &wire::Client) -> Result<
     Ok(body)
 }
 
-fn nonce() -> Result<String> {
+pub(super) fn nonce() -> Result<String> {
     let mut random = [0u8; 16];
     getrandom::fill(&mut random)
         .map_err(|_| anyhow::anyhow!("Alibaba request entropy unavailable"))?;

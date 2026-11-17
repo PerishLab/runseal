@@ -7,7 +7,7 @@ pub(in crate::alibaba) fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-pub(super) fn authorization(
+pub(in crate::alibaba) fn authorization(
     credential: (&str, &str),
     headers: &[(&str, &str)],
     query: &str,
@@ -48,7 +48,7 @@ pub(super) fn authorization(
     ))
 }
 
-pub(super) fn date(timestamp: u64) -> Result<String> {
+pub(in crate::alibaba) fn date(timestamp: u64) -> Result<String> {
     let timestamp =
         i64::try_from(timestamp).map_err(|_| anyhow::anyhow!("Alibaba signing time refused"))?;
     let time = time::OffsetDateTime::from_unix_timestamp(timestamp)

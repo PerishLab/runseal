@@ -4,7 +4,9 @@ mod command;
 mod fault;
 mod identity;
 mod model;
+#[path = "auth/oauth.rs"]
 mod oauth;
+pub mod ram;
 mod secret;
 
 pub use auth::Auth;
