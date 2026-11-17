@@ -1,3 +1,12 @@
+pub(super) mod binding;
+mod federation;
+pub(super) mod role;
+mod source;
+mod token;
+
+pub use binding::Binding;
+pub use role::Identity as Role;
+
 mod ceremony;
 mod exchange;
 mod result;
@@ -17,6 +26,10 @@ impl Auth {
             .map_err(|error| Failure::capture(error, Class::Custody))
     }
 
+    pub fn federate(&self, home: &Path, binding: &Binding) -> Result<Value, Error> {
+        source::acquire(&self.store, home, binding).map_err(local)
+    }
+
     pub fn begin(&self) -> Result<Value, Error> {
         ceremony::begin(&self.store).map_err(local)
     }
@@ -30,7 +43,12 @@ impl Auth {
     }
 
     pub fn renew(&self) -> Result<Value, Error> {
-        exchange::renew(&self.store).map_err(local)
+        let state = self.store.read().map_err(local)?;
+        if state.federation.is_some() {
+            federation::renew(&self.store).map_err(local)
+        } else {
+            exchange::renew(&self.store).map_err(local)
+        }
     }
 
     pub fn recover(&self) -> Result<Value, Error> {

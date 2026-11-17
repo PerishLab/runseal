@@ -43,6 +43,10 @@ pub(super) fn settle(store: &Store, state: &mut State) -> Result<Value> {
 
 fn refusal(status: u16, body: &Value) -> Error {
     let code = body.get("error").and_then(Value::as_str);
+    if let Some(code) = body.get("Code").and_then(Value::as_str) {
+        let request = body.get("RequestId").and_then(Value::as_str);
+        return Error::remote(Failure::acs(status, Some(code), request));
+    }
     let request = body
         .get("requestId")
         .or_else(|| body.get("request_id"))
@@ -57,7 +61,11 @@ fn refusal(status: u16, body: &Value) -> Error {
 }
 
 pub(super) fn apply(state: &mut State, value: &Value, pending: &model::Pending) -> Result<()> {
-    if pending.stage == model::STS {
+    if pending.stage == model::OIDC {
+        super::source::apply(state, value)?;
+    } else if pending.stage == model::ROLE {
+        super::federation::apply(state, value, pending)?;
+    } else if pending.stage == model::STS {
         let expiration = model::field(value, "expiration")?;
         let expires = time::OffsetDateTime::parse(
             expiration,

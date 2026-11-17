@@ -1,3 +1,4 @@
+mod federation;
 mod identity;
 mod protocol;
 mod recovery;

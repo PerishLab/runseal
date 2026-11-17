@@ -682,3 +682,45 @@ obsolete Policy.PolicyDocument is never substituted for DefaultPolicyVersion.
 Provider/role names and ARNs bind exact account/resource identity; RoleId stays
 independent. Unknown provider prose and unrecognized response fields are never
 printed as raw JSON. No real account or cloud write is qualified by fixtures.
+
+## Alibaba Ensign federation
+
+Issue #211 adds an independent version-two custody mode. Bootstrap OAuth RAMUser
+and routine Ensign role sessions never share one state. `Binding` explicitly
+names the Ensign source, canonical HTTPS issuer, stable external subject, one
+resource audience, owning Alibaba account, provider ARN, role ARN, stable RoleId,
+session name and requested duration. The public binding JSON fields are `source`,
+`issuer`, `subject`, `audience`, `account`, `provider`, `role`, `id` (RoleId),
+`session` and `duration` (seconds); unknown fields refuse. CLI accepts
+`--binding-file` and `--ensign-home`, or the selected profile's
+`ALIBABA_CLOUD_FEDERATION_FILE` and `ENSIGN_HOME`. No ambient home fallback.
+Source aliases are explicit; only loopback
+aliases may use HTTP. Discovery cannot establish the trust declaration.
+
+The reusable library consumes published `ensign-client` and `radicula-oidc`.
+It passes the selected profile's explicit Ensign directory to the public SDK,
+never parses its login file, never exports its held bearer and introduces no
+Plumb/Locus/Keel dependency or core execution callback. Ensign identity, discovery
+and trusted-source keys precede one explicit audience exchange. Signature,
+algorithm/key, issuer, subject, single audience, access kind and lifetime are
+verified before the token becomes usable. Exchange responses stay private.
+
+`auth federate` obtains only the upstream token. `auth renew` in federation mode
+makes one anonymous native AssumeRoleWithOIDC call on fixed CN STS; it never
+refreshes Ensign or repairs trust resources. `role` separately calls signed
+GetCallerIdentity and binds the explicit owner, RoleId and exact session ARN.
+The STS return uses `:role/name/session`; GetCallerIdentity uses the independently
+documented `:assumed-role/name/session`. Preserve those distinct native shapes;
+never compare them as one literal ARN. RoleId is independent of PrincipalId,
+UserId and opaque AssumedRoleId. The legacy
+RAMUser SDK/commands retain their original mode; trust-resource operations still
+require their separately verified administrator custody.
+
+Each token-changing dispatch persists uncertainty first. A returned document is
+retained privately before field validation; `recover` uses the same return
+without network replay. Missing returns block replay until explicit local
+custody discard. A successful STS response is not a verified caller or permission.
+Source/fixture checks do not qualify Alibaba acceptance of Ensign's access-token
+shape or ES256 keys, production issuer reachability, real RAM trust or permission.
+Seatrial #132 owns distributed interoperability; Runseal #207 owns real-account
+qualification. Hardrig owns supplier resources, policy, durable intent and recovery.
