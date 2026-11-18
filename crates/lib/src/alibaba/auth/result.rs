@@ -60,13 +60,21 @@ fn refusal(status: u16, body: &Value) -> Error {
     error
 }
 
+fn wire<'a>(value: &'a Value, canonical: &str, alternate: &str) -> Result<&'a str> {
+    match (value.get(canonical), value.get(alternate)) {
+        (Some(_), None) => model::field(value, canonical),
+        (None, Some(_)) => model::field(value, alternate),
+        _ => bail!("Alibaba credential field is missing or ambiguous"),
+    }
+}
+
 pub(super) fn apply(state: &mut State, value: &Value, pending: &model::Pending) -> Result<()> {
     if pending.stage == model::OIDC {
         super::source::apply(state, value)?;
     } else if pending.stage == model::ROLE {
         super::federation::apply(state, value, pending)?;
     } else if pending.stage == model::STS {
-        let expiration = model::field(value, "expiration")?;
+        let expiration = wire(value, "Expiration", "expiration")?;
         let expires = time::OffsetDateTime::parse(
             expiration,
             &time::format_description::well_known::Rfc3339,
@@ -77,9 +85,9 @@ pub(super) fn apply(state: &mut State, value: &Value, pending: &model::Pending) 
             bail!("Alibaba STS return expired");
         }
         let credential = Credential {
-            id: model::field(value, "accessKeyId")?.into(),
-            key: model::field(value, "accessKeySecret")?.into(),
-            token: model::field(value, "securityToken")?.into(),
+            id: wire(value, "AccessKeyId", "accessKeyId")?.into(),
+            key: wire(value, "AccessKeySecret", "accessKeySecret")?.into(),
+            token: wire(value, "SecurityToken", "securityToken")?.into(),
             expires,
             observed: pending.started,
         };
