@@ -31,8 +31,11 @@ command, wrapper, task graph, or implicit orchestration.
 
 Optional Locus observation:
   Set [locus] enabled = true in <Runseal data home>/config.toml.
-  endpoint defaults to LOCUS_API or http://127.0.0.1:43308.
-  Buffer: <Runseal data home>/state/locus. Missing configuration disables it.
+  For HTTPS, set endpoint and the absolute writer key_file together.
+  On Unix, sender may name a trusted absolute locus executable.
+  Retry <Runseal data home>/state/locus.https/runseal with locus deliver --buffer.
+  Legacy HTTP defaults to http://127.0.0.1:43308 and uses state/locus.
+  Without local transport fields, LOCUS_API, LOCUS_API_KEY_FILE and LOCUS_SENDER supply them.
   Profile files remain env, argv, and symlink only.
   External preparation emits one bounded, source-less prepared.v1 fact.
   It classifies gh/concord/plumb, simple env assignments and public verbs;

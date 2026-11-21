@@ -291,3 +291,6 @@ fn nested() {
             && atom["choices"][0]["role"] == "locus.parent"
     }));
 }
+
+#[path = "support/https.rs"]
+mod https;
