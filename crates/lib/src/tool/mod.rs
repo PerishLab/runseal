@@ -7,6 +7,7 @@ use zeroize::Zeroize;
 
 pub mod cloudflare;
 pub mod feishu;
+pub mod github;
 pub use crate::tencent;
 
 #[derive(PartialEq)]
@@ -85,6 +86,7 @@ pub fn call(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Res
         "tencent" => tencent::call(argv, vars),
         "alibaba" => crate::alibaba::call(argv, vars),
         "feishu" => crate::feishu::call(argv, vars),
+        "github" => github::call(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }
@@ -95,6 +97,7 @@ pub fn run(name: &str, argv: &[String], vars: &BTreeMap<String, String>) -> Resu
         "tencent" => tencent::run(argv, vars),
         "alibaba" => crate::alibaba::run(argv, vars),
         "feishu" => crate::feishu::run(argv, vars),
+        "github" => github::run(argv, vars),
         _ => bail!("unknown Runseal tool: @{name}"),
     }
 }

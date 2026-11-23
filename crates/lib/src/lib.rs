@@ -6,6 +6,6 @@ pub mod parse;
 pub mod tencent;
 pub mod tool;
 
-pub use tool::feishu;
+pub use tool::{feishu, github};
 
 pub use core::runtime::{Execution, Outcome, inspect, resolve, run};
