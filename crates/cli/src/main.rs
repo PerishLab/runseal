@@ -25,6 +25,7 @@ Execution model:
   runseal : <command> [args...]   run inside the default profile
   runseal :name <command> [...]   run inside a named profile
   runseal :name @tool [...]       run a Runseal-owned atomic tool
+  runseal :name @github --help    list native GitHub operations
 
 A profile contains only env, argv, and symlink declarations. It carries no
 command, wrapper, task graph, or implicit orchestration.
