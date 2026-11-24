@@ -8,12 +8,12 @@ const TOKEN: &str = "github_pat_fixture";
 const PROJECT: &str = r#"{"data":{"organization":{"login":"PerishLab","projectV2":{"id":"PVT_example","number":6,"title":"Observation"}}}}"#;
 const PARTIAL: &str = r#"{"data":{"organization":{"login":"PerishLab","projectV2":{"id":"PVT_example","number":6,"title":"Observation"}}},"errors":[{"message":"github_pat_fixture"}]}"#;
 
-struct Server {
-    client: Client,
-    thread: JoinHandle<Vec<String>>,
+pub(super) struct Server {
+    pub(super) client: Client,
+    pub(super) thread: JoinHandle<Vec<String>>,
 }
 
-fn serve(replies: Vec<Option<String>>) -> Server {
+pub(super) fn serve(replies: Vec<Option<String>>) -> Server {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let mut client = Client::token(TOKEN).unwrap();
@@ -78,7 +78,7 @@ fn read(stream: &TcpStream) -> String {
     headers
 }
 
-fn reply(status: &str, headers: &str, body: &str) -> Option<String> {
+pub(super) fn reply(status: &str, headers: &str, body: &str) -> Option<String> {
     Some(format!(
         "HTTP/1.1 {status}\r\nConnection: close\r\nContent-Length: {}\r\n{headers}\r\n{body}",
         body.len()

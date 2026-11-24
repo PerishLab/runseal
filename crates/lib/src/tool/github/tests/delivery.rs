@@ -6,7 +6,7 @@ const HEAD: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 #[test]
 fn creation() {
-    let created = r#"{"data":{"createIssue":{"issue":{"id":"I_new","number":42,"title":"Delivery","body":"Body","url":"https://github.com/PerishLab/runseal/issues/42","state":"OPEN","updated":"2026-11-23T00:00:00Z","repository":{"id":"R_runseal"},"kind":{"id":"IT_task","name":"Task"}}}}}"#;
+    let created = r#"{"data":{"createIssue":{"issue":{"id":"I_new","number":42,"title":"Delivery","body":"Body","url":"https://github.com/PerishLab/runseal/issues/42","state":"OPEN","reason":null,"updated":"2026-11-23T00:00:00Z","repository":{"id":"R_runseal"},"kind":{"id":"IT_task","name":"Task"}}}}}"#;
     let wrong = created.replace("IT_task", "IT_other");
     let server = serve(vec![
         reply("200 OK", "", created),
