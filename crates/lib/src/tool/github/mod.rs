@@ -22,12 +22,14 @@ pub use page::{Page, Window};
 pub use project::activity;
 pub use project::catalogue;
 pub use project::columns;
+pub use project::inventory;
 pub use project::view;
 pub use project::{
     Acknowledgement, Action, Alternative, Calendar, Change, Choice, Color, Confirmation, Content,
     Definition, Descriptor, Entry, Field, Item, Iteration, Organization, Overview, Period,
     Schedule, Schema, Seat, Settings, Shape, Structure,
 };
+pub use pull::tags;
 pub use pull::{
     Annotation, Blob, Branch, Commit, Compare, Directory, Edit, File, Head, Member, Merge, Object,
     Origin, Permission, Pointer, Principal, Proposal, Pull, Reference, Revision, Search, Squash,

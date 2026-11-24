@@ -4,6 +4,22 @@ use serde::Serialize;
 use serde_json::Value;
 
 #[derive(Args)]
+pub(super) struct Tags {
+    owner: String,
+    name: String,
+    #[arg(long, default_value_t = 1)]
+    page: u32,
+    #[arg(long, default_value_t = 30)]
+    size: u8,
+}
+
+impl Tags {
+    pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
+        encode(client.tags(&self.owner, &self.name, self.page, self.size)?)
+    }
+}
+
+#[derive(Args)]
 pub(super) struct Pointer {
     owner: String,
     name: String,

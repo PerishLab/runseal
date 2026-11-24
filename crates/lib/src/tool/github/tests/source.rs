@@ -1,6 +1,6 @@
 use super::{reply, serve};
 use crate::github::{Cause, Outcome};
-use serde_json::json;
+use serde_json::{Value, json};
 
 const HEAD: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const BLOB: &str = "ce013625030ba8dba906f756967f9e9ca394464a";
@@ -180,4 +180,66 @@ fn matching() {
         server.thread.join().unwrap()[0]
             .starts_with("GET /repos/PerishLab/runseal/git/matching-refs/heads/auto/12 ")
     );
+}
+
+const SHA: &str = "9a5538669420630dd1a3a450f162879f164a01f6";
+
+fn tag(name: &str, repository: &str) -> Value {
+    json!({"name":name,"commit":{"sha":SHA,"url":format!("https://api.github.com/repos/{repository}/commits/{SHA}")}})
+}
+
+#[test]
+fn tags() {
+    let pack = json!([tag("v0.54.0", "PerishLab/runseal")]).to_string();
+    let first =
+        "Link: <https://api.github.com/repositories/1/tags?per_page=2&page=2>; rel=\"next\"\r\n";
+    let last =
+        "Link: <https://api.github.com/repositories/1/tags?per_page=1&page=1>; rel=\"prev\"\r\n";
+    let target = serve(vec![
+        reply("200 OK", first, &pack),
+        reply("200 OK", last, &pack),
+    ]);
+    let page = target
+        .client
+        .tags("perishlab", "runseal", 1, 2)
+        .unwrap()
+        .value;
+    assert_eq!(page.next, Some(2));
+    assert_eq!(page.rows[0].name, "v0.54.0");
+    assert_eq!(page.rows[0].commit.sha, SHA);
+    let page = target
+        .client
+        .tags("perishlab", "runseal", 2, 1)
+        .unwrap()
+        .value;
+    assert_eq!(page.next, None);
+    let requests = target.thread.join().unwrap();
+    assert!(requests[0].starts_with("GET /repos/perishlab/runseal/tags?per_page=2&page=1 "));
+    assert!(requests[1].starts_with("GET /repos/perishlab/runseal/tags?per_page=1&page=2 "));
+}
+
+#[test]
+fn invalid() {
+    let duplicate = tag("v0.54.0", "PerishLab/runseal");
+    let target = serve(vec![
+        reply(
+            "200 OK",
+            "",
+            &json!([tag("v0.54.0", "Other/repo")]).to_string(),
+        ),
+        reply("200 OK", "", &json!([duplicate, duplicate]).to_string()),
+        reply(
+            "200 OK",
+            "Link: <https://api.github.com/tags?page=2>; rel=\"next\"\r\n",
+            "[]",
+        ),
+    ]);
+    for _ in 0..3 {
+        let error = target
+            .client
+            .tags("PerishLab", "runseal", 1, 2)
+            .unwrap_err();
+        assert_eq!(error.cause, Cause::Shape);
+    }
+    assert_eq!(target.thread.join().unwrap().len(), 3);
 }

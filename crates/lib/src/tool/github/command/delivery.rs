@@ -144,7 +144,7 @@ pub(in crate::tool::github) fn read(file: PathBuf) -> Result<String, Error> {
 }
 
 #[derive(Args)]
-pub(super) struct Kinds {
+pub(super) struct Organization {
     owner: String,
     #[arg(long, default_value_t = 30)]
     size: u8,
@@ -152,7 +152,12 @@ pub(super) struct Kinds {
     after: Option<String>,
 }
 
-impl Kinds {
+impl Organization {
+    pub(super) fn projects(self, client: &Client) -> Result<Value, Error> {
+        let window = Window::new(self.size, self.after.as_deref())?;
+        encode(client.projects(&self.owner, &window)?)
+    }
+
     pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
         let window = Window::new(self.size, self.after.as_deref())?;
         encode(client.kinds(&self.owner, &window)?)
