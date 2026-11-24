@@ -35,11 +35,19 @@ struct Info {
 }
 
 pub(super) fn page<T: DeserializeOwned>(scope: &Value, window: &Window) -> Option<Page<T>> {
+    connection(scope, "list", window)
+}
+
+pub(super) fn connection<T: DeserializeOwned>(
+    scope: &Value,
+    name: &str,
+    window: &Window,
+) -> Option<Page<T>> {
     let target = scope.get("id")?.as_str()?;
     if !node(target) {
         return None;
     }
-    let group = scope.get("list")?;
+    let group = scope.get(name)?;
     let rows: Vec<T> = field(group, "/rows")?;
     let total: u32 = field(group, "/total")?;
     let info: Info = field(group, "/page")?;

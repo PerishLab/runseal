@@ -18,6 +18,7 @@ pub use issue::acceptance;
 pub use issue::discussion;
 pub use issue::phase;
 pub use issue::records;
+pub use issue::review;
 pub use issue::snapshot;
 pub use issue::{Comment, Draft, Identity, Kind, Label, Link, Related, Relation, Ticket};
 pub use model::{Cause, Error, Evidence, Issue, Outcome, Project, Receipt, Repository, Target};

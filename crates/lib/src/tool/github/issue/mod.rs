@@ -2,6 +2,7 @@ pub mod acceptance;
 pub mod discussion;
 pub mod phase;
 pub mod records;
+pub mod review;
 pub mod snapshot;
 
 use super::{
@@ -67,6 +68,7 @@ pub struct Ticket {
     pub body: String,
     pub url: String,
     pub state: String,
+    #[serde(deserialize_with = "records::nullable")]
     pub reason: Option<String>,
     pub updated: String,
     #[serde(skip_serializing_if = "Option::is_none")]
