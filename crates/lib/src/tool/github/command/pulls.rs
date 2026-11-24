@@ -89,6 +89,13 @@ pub(super) struct Lifecycle {
 enum Deed {
     #[command(about = "Read merge readiness with the exact pull head SHA")]
     Readiness(Spot),
+    #[command(about = "Read ancestry evidence for two full commit SHAs")]
+    Ancestry {
+        owner: String,
+        name: String,
+        base: String,
+        head: String,
+    },
     #[command(about = "Read a page of checks and status contexts for an exact pull head")]
     Rollup {
         #[command(flatten)]
@@ -130,6 +137,12 @@ impl Lifecycle {
     pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
         match self.deed {
             Deed::Readiness(place) => encode(client.readiness(&place.target()?)?),
+            Deed::Ancestry {
+                owner,
+                name,
+                base,
+                head,
+            } => encode(client.ancestry((&owner, &name), &base, &head)?),
             Deed::Rollup {
                 place,
                 head,

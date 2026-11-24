@@ -37,7 +37,7 @@ pub use pull::{
     Origin, Permission, Pointer, Principal, Proposal, Pull, Reference, Revision, Search, Squash,
     State, Tree,
 };
-pub use pull::{lifecycle, rollup, tags};
+pub use pull::{lifecycle, lineage, rollup, tags};
 
 use crate::custody::Private;
 use serde::de::DeserializeOwned;

@@ -243,3 +243,36 @@ fn invalid() {
     }
     assert_eq!(target.thread.join().unwrap().len(), 3);
 }
+
+#[test]
+fn ancestry() {
+    let first = "1234567890123456789012345678901234567890";
+    let last = "abcdefabcdefabcdefabcdefabcdefabcdefabcd";
+    let url = format!("https://api.github.com/repos/PerishLab/probe/compare/{first}...{last}");
+    let body = serde_json::json!({
+        "url":url,"base_commit":{"sha":first},"merge_base_commit":{"sha":first},"status":"ahead"
+    })
+    .to_string();
+    let foreign = body.replace("/PerishLab/probe/", "/Other/probe/");
+    let server = serve(vec![
+        reply("200 OK", "", &body),
+        reply("200 OK", "", &foreign),
+    ]);
+    let result = server
+        .client
+        .ancestry(("PerishLab", "probe"), first, last)
+        .unwrap()
+        .value;
+    assert_eq!(result.base.sha, first);
+    assert_eq!(result.merge.sha, first);
+    assert_eq!(
+        server
+            .client
+            .ancestry(("PerishLab", "probe"), first, last)
+            .unwrap_err()
+            .cause,
+        Cause::Shape
+    );
+    let sent = server.thread.join().unwrap();
+    assert!(sent[0].contains("?per_page=1&page=1 HTTP/1.1"));
+}

@@ -82,21 +82,27 @@ impl Client {
     }
 
     pub fn document(&self, target: &Target, id: u64) -> Result<Receipt<Document>, Error> {
-        self.remark(target, id, |entry, value| {
-            let user = entry.user.as_ref()?;
-            let author: Principal = field(value, "/user")?;
-            let updated = value.get("updated_at")?.as_str()?;
-            if user.id != author.id || !author.matches(&user.login) {
+        self.remark(target, id, Document::read)
+    }
+
+    pub fn lookup(&self, owner: &str, name: &str, id: u64) -> Result<Receipt<Document>, Error> {
+        let repo = crate::github::pull::repository(owner, name)?;
+        if id == 0 {
+            return Err(Error::local(Cause::Input));
+        }
+        let path = format!("/repos/{repo}/issues/comments/{id}");
+        let scope = format!("/repos/{repo}/issues");
+        self.wire.send(&self.bearer, Call::Rest(&path), |value| {
+            let entry = Entry::deserialize(&value).ok()?;
+            let (origin, number) = entry.issue.rsplit_once('/')?;
+            if !origin.eq_ignore_ascii_case(&format!("https://api.github.com{scope}")) {
                 return None;
             }
-            if !matches!(author.kind.as_str(), "User" | "Bot") || updated.is_empty() {
+            let target = Target::new(owner, name, number.parse().ok()?).ok()?;
+            if entry.id != id || !entry.matches(&target, &format!("{scope}/{number}")) {
                 return None;
             }
-            Some(Document {
-                entry,
-                author,
-                updated: updated.into(),
-            })
+            Document::read(entry, &value)
         })
     }
 
@@ -154,5 +160,22 @@ impl Entry {
             .as_ref()
             .is_none_or(|user| user.id > 0 && login(&user.login));
         routes && identity && user
+    }
+}
+
+impl Document {
+    fn read(entry: Entry, value: &serde_json::Value) -> Option<Self> {
+        let user = entry.user.as_ref()?;
+        let author: Principal = field(value, "/user")?;
+        let updated = value.get("updated_at")?.as_str()?;
+        let identity = user.id == author.id && author.matches(&user.login);
+        if !identity || !matches!(author.kind.as_str(), "User" | "Bot") || updated.is_empty() {
+            return None;
+        }
+        Some(Self {
+            entry,
+            author,
+            updated: updated.into(),
+        })
     }
 }

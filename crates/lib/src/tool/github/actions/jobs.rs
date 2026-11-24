@@ -58,6 +58,8 @@ pub struct Job {
     pub attempt: Option<u32>,
     #[serde(rename = "head_sha")]
     pub head: String,
+    #[serde(rename = "head_branch", skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
     #[serde(rename = "html_url")]
     pub url: String,
     pub name: String,
