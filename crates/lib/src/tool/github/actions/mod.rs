@@ -1,4 +1,8 @@
-use super::{Call, Cause, Client, Error, Origin, Receipt, node, pull::sha, reference, valid};
+use super::{
+    Call, Cause, Client, Error, Origin, Receipt, node,
+    pull::{Principal, sha},
+    reference, valid,
+};
 mod archive;
 mod artifact;
 pub(super) mod command;
@@ -91,6 +95,12 @@ pub struct Run {
     #[serde(rename = "html_url")]
     pub url: String,
     pub event: String,
+    #[serde(rename = "display_title", skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor: Option<Principal>,
+    #[serde(rename = "triggering_actor", skip_serializing_if = "Option::is_none")]
+    pub initiator: Option<Principal>,
     pub path: String,
     pub status: String,
     pub conclusion: Option<String>,
