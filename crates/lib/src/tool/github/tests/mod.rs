@@ -175,7 +175,7 @@ fn repository() {
 
 #[test]
 fn confirmed() {
-    let body = r#"{"data":{"closeIssue":{"issue":{"id":"I_example","state":"CLOSED","reason":"COMPLETED"}}}}"#;
+    let body = r#"{"data":{"closeIssue":{"issue":{"id":"I_example","state":"CLOSED","reason":"COMPLETED","repository":{"id":"R_example"}}}}}"#;
     let target = serve(vec![reply("200 OK", "", body), reply("200 OK", "", body)]);
     let closed = target.client.close("I_example").unwrap();
     assert_eq!(closed.value.state, "CLOSED");
@@ -196,3 +196,35 @@ fn truncated() {
     assert_eq!(error.evidence.status, Some(503));
     assert_eq!(target.thread.join().unwrap().len(), 1);
 }
+
+mod issues;
+
+mod pulls;
+
+mod actions;
+
+mod delivery;
+
+mod project;
+
+#[test]
+fn token() {
+    for value in [TOKEN, "ghs_1234_eyJhIjoiYiJ9.eyJjIjoiZCJ9.signature"] {
+        assert!(Client::token(value).is_ok());
+    }
+    for value in ["", "abc def", "abc\r\nAuthorization: other", "abc\0def"] {
+        let Some(error) = Client::token(value).err() else {
+            panic!("accepted invalid bearer");
+        };
+        assert_eq!(error.outcome, Outcome::Unsent);
+        assert_eq!(error.cause, Cause::Custody);
+    }
+}
+
+mod source;
+
+mod structure;
+
+mod schema;
+
+mod catalogue;

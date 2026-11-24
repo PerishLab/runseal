@@ -1,9 +1,38 @@
+mod actions;
 mod command;
+mod issue;
 mod model;
+mod page;
+mod project;
+mod pull;
 mod wire;
 
+pub use actions::release;
+pub use actions::{
+    App, Archive, Artifact, Artifacts, Check, Checks, Combined, Dispatch, Download, Filter,
+    Inventory, Invocation, Job, Jobs, Launch, Listing, Producer, Run, Signal, Status, Step,
+    Verdict,
+};
 pub(crate) use command::{call, run};
-pub use model::{Cause, Error, Evidence, Issue, Outcome, Project, Receipt, Repository};
+pub use issue::acceptance;
+pub use issue::phase;
+pub use issue::{Comment, Draft, Identity, Kind, Label, Link, Related, Relation, Ticket};
+pub use model::{Cause, Error, Evidence, Issue, Outcome, Project, Receipt, Repository, Target};
+pub use page::{Page, Window};
+pub use project::activity;
+pub use project::catalogue;
+pub use project::columns;
+pub use project::view;
+pub use project::{
+    Acknowledgement, Action, Alternative, Calendar, Change, Choice, Color, Confirmation, Content,
+    Definition, Descriptor, Entry, Field, Item, Iteration, Organization, Overview, Period,
+    Schedule, Schema, Seat, Settings, Shape, Structure,
+};
+pub use pull::{
+    Annotation, Blob, Branch, Commit, Compare, Directory, Edit, File, Head, Member, Merge, Object,
+    Origin, Permission, Pointer, Principal, Proposal, Pull, Reference, Revision, Search, Squash,
+    State, Tree,
+};
 
 use crate::custody::Private;
 use serde::de::DeserializeOwned;
@@ -13,7 +42,7 @@ use wire::{Call, Wire};
 use zeroize::Zeroizing;
 
 const PROJECT: &str = "query RunsealProject($owner: String!, $number: Int!) { organization(login: $owner) { login projectV2(number: $number) { id number title } } }";
-const CLOSE: &str = "mutation RunsealClose($issue: ID!) { closeIssue(input: {issueId: $issue, stateReason: COMPLETED}) { issue { id state reason: stateReason } } }";
+const CLOSE: &str = "mutation RunsealClose($issue: ID!) { closeIssue(input: {issueId: $issue, stateReason: COMPLETED}) { issue { id state reason: stateReason repository { id } } } }";
 
 pub struct Client {
     wire: Wire,
@@ -33,7 +62,7 @@ impl Client {
 
     pub fn token(token: &str) -> Result<Self, Error> {
         let token = token.trim();
-        if token.is_empty() || token.len() > 4096 || !token.bytes().all(symbol) {
+        if token.is_empty() || token.len() > 4096 || !token.bytes().all(credential) {
             return Err(Error::local(Cause::Custody));
         }
         Ok(Self {
@@ -52,16 +81,19 @@ impl Client {
             Call::Rest(&format!("/repos/{expected}")),
             |value| {
                 let repo: Repository = serde_json::from_value(value).ok()?;
-                repo.name.eq_ignore_ascii_case(&expected).then_some(repo)
+                if repo.id == 0 || !repo.name.eq_ignore_ascii_case(&expected) {
+                    return None;
+                }
+                repo.owner
+                    .as_ref()
+                    .is_none_or(|actor| actor.matches(owner))
+                    .then_some(repo)
             },
         )
     }
 
     pub fn project(&self, owner: &str, number: u32) -> Result<Receipt<Project>, Error> {
-        if !valid(owner, false) || number == 0 || number > i32::MAX as u32 {
-            return Err(Error::local(Cause::Input));
-        }
-        let variables = json!({"owner":owner, "number":number});
+        let variables = project::variables(owner, number)?;
         self.wire.send(
             &self.bearer,
             Call::Query(graph(PROJECT, variables)),
@@ -86,8 +118,10 @@ impl Client {
             Call::Mutation(graph(CLOSE, variables)),
             |value| {
                 let found: Issue = field(&value, "/data/closeIssue/issue")?;
-                (found.id == issue && found.state == "CLOSED" && found.reason == "COMPLETED")
-                    .then_some(found)
+                if found.id != issue || !node(&found.repository.id) {
+                    return None;
+                }
+                (found.state == "CLOSED" && found.reason == "COMPLETED").then_some(found)
             },
         )
     }
@@ -99,6 +133,10 @@ fn graph(query: &str, variables: Value) -> Value {
 
 fn field<T: DeserializeOwned>(value: &Value, pointer: &str) -> Option<T> {
     T::deserialize(value.pointer(pointer)?).ok()
+}
+
+fn credential(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || b"-._~+/=".contains(&byte)
 }
 
 fn symbol(byte: u8) -> bool {
@@ -119,6 +157,13 @@ fn node(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| symbol(byte) || matches!(byte, b'+' | b'/' | b'='))
+}
+
+fn reference(value: &str) -> bool {
+    if value.len() > 1024 || value.contains("..") {
+        return false;
+    }
+    value.split('/').all(|part| valid(part, true))
 }
 
 #[cfg(test)]

@@ -2,15 +2,25 @@ use super::{Cause, Error, Evidence, Outcome, Receipt};
 use crate::http::wire::{Client, Payload, Policy, Request};
 use serde_json::Value;
 use std::time::Duration;
+use zeroize::Zeroizing;
 
 pub(super) struct Wire {
     pub(super) origin: String,
     client: Client,
+    source: Client,
+    survey: Client,
 }
 
 pub(super) enum Call<'a> {
     Rest(&'a str),
+    Recent(&'a str, Option<Value>),
+    Source(&'a str),
+    Put(&'a str, Value),
+    Post(&'a str, Value),
+    Patch(&'a str, Value),
+    Dispatch(&'a str, Value),
     Query(Value),
+    Survey(Value),
     Mutation(Value),
 }
 
@@ -18,12 +28,9 @@ impl Wire {
     pub(super) fn new(origin: String) -> Self {
         Self {
             origin,
-            client: Client::new(Policy {
-                redirects: 0,
-                overall: Some(Duration::from_secs(8)),
-                connect: Some(Duration::from_secs(3)),
-                limit: 1024 * 1024,
-            }),
+            client: client(1024 * 1024),
+            source: client(4 * 1024 * 1024),
+            survey: client(8 * 1024 * 1024),
         }
     }
 
@@ -33,38 +40,67 @@ impl Wire {
         call: Call<'_>,
         parse: impl Fn(Value) -> Option<T>,
     ) -> Result<Receipt<T>, Error> {
+        self.inspect(bearer, call, |value, _| parse(value))
+    }
+
+    pub(super) fn inspect<T>(
+        &self,
+        bearer: &str,
+        call: Call<'_>,
+        parse: impl Fn(Value, &Payload) -> Option<T>,
+    ) -> Result<Receipt<T>, Error> {
         let (method, path, body) = match &call {
-            Call::Rest(path) => ("GET", *path, None),
-            Call::Query(body) | Call::Mutation(body) => {
+            Call::Rest(path) | Call::Source(path) | Call::Recent(path, None) => {
+                ("GET", *path, None)
+            }
+            Call::Dispatch(path, body)
+            | Call::Post(path, body)
+            | Call::Recent(path, Some(body)) => ("POST", *path, Some(body.to_string())),
+            Call::Patch(path, body) => ("PATCH", *path, Some(body.to_string())),
+            Call::Put(path, body) => ("PUT", *path, Some(body.to_string())),
+            Call::Query(body) | Call::Survey(body) | Call::Mutation(body) => {
                 ("POST", "/graphql", Some(body.to_string()))
             }
         };
         let url = format!("{}{path}", self.origin);
-        let headers = [
-            ("authorization", bearer),
-            ("accept", "application/vnd.github+json"),
-            ("content-type", "application/json"),
-            ("user-agent", "perishlab-runseal"),
-            ("x-github-api-version", "2022-11-28"),
-        ];
-        let limit = if matches!(call, Call::Mutation(_)) {
+        let version = if matches!(call, Call::Dispatch(..) | Call::Recent(..)) {
+            "2026-03-10"
+        } else {
+            "2022-11-28"
+        };
+        let headers = headers(bearer, version);
+        let graphql = matches!(call, Call::Query(_) | Call::Survey(_) | Call::Mutation(_));
+        let limit = if matches!(
+            call,
+            Call::Mutation(_)
+                | Call::Put(..)
+                | Call::Post(..)
+                | Call::Patch(..)
+                | Call::Dispatch(..)
+                | Call::Recent(_, Some(_))
+        ) {
             1
         } else {
             2
         };
+        let http = match call {
+            Call::Source(_) => &self.source,
+            Call::Survey(_) => &self.survey,
+            _ => &self.client,
+        };
         let mut number = 1;
         loop {
-            let answer = self
-                .request(
-                    Request {
-                        method,
-                        url: &url,
-                        headers: &headers,
-                        body: body.as_deref().map(str::as_bytes),
-                    },
-                    number,
-                )
-                .and_then(|payload| decode(payload, number, body.is_some(), &parse));
+            let answer = request(
+                http,
+                Request {
+                    method,
+                    url: &url,
+                    headers: &headers,
+                    body: body.as_deref().map(str::as_bytes),
+                },
+                number,
+            )
+            .and_then(|payload| decode(payload, number, graphql, &parse));
             match answer {
                 Err(error) if number < limit && retry(&error) => {
                     std::thread::sleep(Duration::from_millis(120));
@@ -75,23 +111,75 @@ impl Wire {
         }
     }
 
-    fn request(&self, request: Request<'_>, attempts: u8) -> Result<Payload, Error> {
-        let evidence = Evidence {
-            attempts,
-            ..Evidence::default()
-        };
-        let reply = self.client.send(request).map_err(|_| Error {
+    pub(super) fn redirect(
+        &self,
+        bearer: &str,
+        path: &str,
+    ) -> Result<Receipt<Zeroizing<String>>, Error> {
+        let headers = headers(bearer, "2022-11-28");
+        let url = format!("{}{path}", self.origin);
+        let payload = request(
+            &self.client,
+            Request {
+                method: "GET",
+                url: &url,
+                headers: &headers,
+                body: None,
+            },
+            1,
+        )?;
+        let evidence = evidence(&payload, 1);
+        if payload.status != 302 {
+            return Err(status(&payload, evidence));
+        }
+        let location = payload.headers.get("location").ok_or_else(|| Error {
             outcome: Outcome::Unknown,
-            cause: Cause::Network,
+            cause: Cause::Shape,
             evidence: evidence.clone(),
         })?;
-        let status = Some(reply.status);
-        reply.collect().map_err(|_| Error {
-            outcome: Outcome::Unknown,
-            cause: Cause::Read,
-            evidence: Evidence { status, ..evidence },
+        Ok(Receipt {
+            outcome: Outcome::Observed,
+            evidence,
+            value: location.clone(),
         })
     }
+}
+
+fn request(client: &Client, request: Request<'_>, attempts: u8) -> Result<Payload, Error> {
+    let evidence = Evidence {
+        attempts,
+        ..Evidence::default()
+    };
+    let reply = client.send(request).map_err(|_| Error {
+        outcome: Outcome::Unknown,
+        cause: Cause::Network,
+        evidence: evidence.clone(),
+    })?;
+    let status = Some(reply.status);
+    reply.collect().map_err(|_| Error {
+        outcome: Outcome::Unknown,
+        cause: Cause::Read,
+        evidence: Evidence { status, ..evidence },
+    })
+}
+
+fn client(limit: u64) -> Client {
+    Client::new(Policy {
+        redirects: 0,
+        overall: Some(Duration::from_secs(8)),
+        connect: Some(Duration::from_secs(3)),
+        limit,
+    })
+}
+
+fn headers<'a>(bearer: &'a str, version: &'static str) -> [(&'static str, &'a str); 5] {
+    [
+        ("authorization", bearer),
+        ("accept", "application/vnd.github+json"),
+        ("content-type", "application/json"),
+        ("user-agent", "perishlab-runseal"),
+        ("x-github-api-version", version),
+    ]
 }
 
 fn retry(error: &Error) -> bool {
@@ -109,7 +197,7 @@ fn decode<T>(
     response: Payload,
     attempts: u8,
     graphql: bool,
-    parse: impl Fn(Value) -> Option<T>,
+    parse: impl Fn(Value, &Payload) -> Option<T>,
 ) -> Result<Receipt<T>, Error> {
     let mut evidence = evidence(&response, attempts);
     if !matches!(response.status, 200..=299) {
@@ -132,7 +220,7 @@ fn decode<T>(
             evidence,
         });
     }
-    let value = parse(value).ok_or_else(|| Error {
+    let value = parse(value, &response).ok_or_else(|| Error {
         outcome: Outcome::Unknown,
         cause: Cause::Shape,
         evidence: evidence.clone(),
@@ -149,19 +237,23 @@ fn evidence(response: &Payload, attempts: u8) -> Evidence {
     Evidence {
         attempts,
         status: Some(response.status),
-        request: header("x-github-request-id")
-            .filter(|id| {
-                !id.is_empty()
-                    && id.len() <= 96
-                    && id
-                        .bytes()
-                        .all(|byte| byte.is_ascii_hexdigit() || byte == b':')
-            })
-            .map(str::to_owned),
+        request: identifier(header("x-github-request-id")),
         wait: header("retry-after").and_then(|text| text.parse().ok()),
         reset: header("x-ratelimit-reset").and_then(|text| text.parse().ok()),
         partial: false,
     }
+}
+
+pub(super) fn identifier(value: Option<&str>) -> Option<String> {
+    value
+        .filter(|id| {
+            !id.is_empty()
+                && id.len() <= 96
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() || byte == b':')
+        })
+        .map(str::to_owned)
 }
 
 fn status(response: &Payload, evidence: Evidence) -> Error {
@@ -171,7 +263,7 @@ fn status(response: &Payload, evidence: Evidence) -> Error {
         response.status == 429 || response.headers.contains_key("retry-after") || exhausted;
     let cause = if limited { Cause::Limited } else { Cause::Http };
     let outcome = match response.status {
-        400 | 401 | 403 | 404 | 409 | 410 | 422 | 429 => Outcome::Refused,
+        400 | 401 | 403 | 404 | 405 | 409 | 410 | 422 | 429 => Outcome::Refused,
         _ => Outcome::Unknown,
     };
     Error {
