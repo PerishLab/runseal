@@ -218,3 +218,75 @@ fn viewer() {
     let requests = server.thread.join().unwrap();
     assert!(requests[0].contains("viewer { id databaseId login }"));
 }
+
+#[test]
+fn discussion() {
+    let row = json!({
+        "id":19,"node_id":"IC_fixture","body":"Receipt",
+        "html_url":"https://github.com/PerishLab/probe/issues/9#issuecomment-19",
+        "issue_url":"https://api.github.com/repos/PerishLab/probe/issues/9",
+        "user":{"id":3,"login":"fixture[bot]"},
+    });
+    let good = json!([&row]).to_string();
+    let foreign = good.replace("/issues/9", "/issues/8");
+    let link =
+        "Link: <https://api.github.com/repositories/10/issues/9/comments?page=2>; rel=\"next\"\r\n";
+    let server = serve(vec![
+        reply("200 OK", link, &good),
+        reply("200 OK", "", &foreign),
+        reply("200 OK", link, "[]"),
+        reply("200 OK", "", &row.to_string()),
+    ]);
+    let target = crate::github::Target::new("PerishLab", "probe", 9).unwrap();
+    let page = |number| crate::github::Number::new(number, 1).unwrap();
+    let result = server.client.discussion(&target, page(1)).unwrap().value;
+    assert_eq!(result.next, Some(2));
+    assert_eq!(result.rows[0].user.as_ref().unwrap().id, 3);
+    for number in [2, 3] {
+        assert_eq!(
+            server
+                .client
+                .discussion(&target, page(number))
+                .unwrap_err()
+                .cause,
+            Cause::Shape
+        );
+    }
+    assert_eq!(
+        server.client.entry(&target, 19).unwrap().value.node,
+        "IC_fixture"
+    );
+    assert_eq!(server.thread.join().unwrap().len(), 4);
+}
+
+#[test]
+fn complete() {
+    let body = "Accepted";
+    let issue = json!({"id":"I_fixture","body":body,"state":"CLOSED","reason":"COMPLETED","repository":{"id":"R_probe"}});
+    let result = json!({"data":{"updateIssue":{"issue":issue}}}).to_string();
+    let wrong = result.replace("COMPLETED", "NOT_PLANNED");
+    let server = serve(vec![
+        reply("200 OK", "", &result),
+        reply("200 OK", "", &wrong),
+        None,
+    ]);
+    assert_eq!(
+        server
+            .client
+            .complete("I_fixture", body)
+            .unwrap()
+            .value
+            .body,
+        body
+    );
+    assert_eq!(
+        server.client.complete("I_fixture", body).unwrap_err().cause,
+        Cause::Shape
+    );
+    let missing = server.client.complete("I_fixture", body).unwrap_err();
+    assert_eq!(missing.outcome, Outcome::Unknown);
+    assert_eq!(missing.evidence.attempts, 1);
+    let requests = server.thread.join().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests[0].contains(r#""stateInput":{"stateReason":"COMPLETED","value":"CLOSED"}"#));
+}

@@ -213,3 +213,15 @@ impl Repository {
         encode(client.repository(&self.owner, &self.name)?)
     }
 }
+
+#[derive(Args)]
+pub(super) struct Project {
+    owner: String,
+    number: u32,
+}
+
+impl Project {
+    pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
+        encode(client.project(&self.owner, self.number)?)
+    }
+}

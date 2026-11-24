@@ -162,10 +162,12 @@ impl Record {
     }
 }
 
-fn login(name: &str) -> bool {
+pub(super) fn login(name: &str) -> bool {
     valid(name.strip_suffix("[bot]").unwrap_or(name), false)
 }
 
-fn nullable<'de, D: Deserializer<'de>, T: DeserializeOwned>(de: D) -> Result<Option<T>, D::Error> {
+pub(super) fn nullable<'de, D: Deserializer<'de>, T: DeserializeOwned>(
+    de: D,
+) -> Result<Option<T>, D::Error> {
     Option::deserialize(de)
 }

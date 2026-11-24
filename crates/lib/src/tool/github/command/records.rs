@@ -1,7 +1,8 @@
-use crate::github::{Cause, Client, Error};
+use crate::github::{Cause, Client, Error, Number};
 use clap::{Args, Subcommand};
 use serde::Serialize;
 use serde_json::Value;
+use std::path::PathBuf;
 
 #[derive(Args)]
 pub(super) struct Issues {
@@ -24,6 +25,27 @@ enum Action {
     },
     #[command(about = "Read an exact Issue with its native author and labels")]
     Show(super::delivery::Spot),
+    #[command(about = "Read one page of Issue comments with their native authors")]
+    Comments {
+        #[command(flatten)]
+        target: super::delivery::Spot,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        #[arg(long, default_value_t = 30)]
+        size: u8,
+    },
+    #[command(about = "Read a comment bound to its exact Issue and numeric ID")]
+    Entry {
+        #[command(flatten)]
+        target: super::delivery::Spot,
+        id: u64,
+    },
+    #[command(about = "Set the body and close an exact Issue as completed in one update")]
+    Complete {
+        node: String,
+        #[arg(long = "body-file")]
+        body: PathBuf,
+    },
 }
 
 impl Issues {
@@ -37,6 +59,11 @@ impl Issues {
                 size,
             } => encode(client.issues(&owner, &name, page, size)?),
             Action::Show(target) => encode(client.ticket(&target.target()?)?),
+            Action::Comments { target, page, size } => {
+                encode(client.discussion(&target.target()?, Number::new(page, size)?)?)
+            }
+            Action::Entry { target, id } => encode(client.entry(&target.target()?, id)?),
+            Action::Complete { node, body } => encode(client.complete(&node, &super::read(body)?)?),
         }
     }
 }

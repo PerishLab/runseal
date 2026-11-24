@@ -88,3 +88,33 @@ pub(super) fn continuation(value: &str) -> Option<bool> {
     }
     Some(next)
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct Number {
+    pub(super) page: u32,
+    pub(super) size: u8,
+}
+
+impl Number {
+    pub fn new(page: u32, size: u8) -> Result<Self, Error> {
+        if page == 0 || !(1..=100).contains(&size) {
+            return Err(Error::local(Cause::Input));
+        }
+        Ok(Self { page, size })
+    }
+
+    pub(super) fn next(self, link: Option<&str>, count: usize) -> Option<Option<u32>> {
+        if count > usize::from(self.size) {
+            return None;
+        }
+        match link {
+            Some(value) if continuation(value)? => {
+                if count == 0 {
+                    return None;
+                }
+                Some(Some(self.page.checked_add(1)?))
+            }
+            _ => Some(None),
+        }
+    }
+}
