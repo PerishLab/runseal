@@ -172,3 +172,96 @@ fn workflow() {
     assert!(requests[0].contains("/actions/runs/21/attempts/2"));
     assert!(requests[1].contains("/actions/runs/21/attempts/3"));
 }
+
+#[test]
+fn rollup() {
+    use crate::github::{Target, Window, rollup::Context};
+    let first = r#"{"data":{"repository":{
+        "id":"R_fixture","nameWithOwner":"PerishLab/runseal",
+        "pullRequest":{"id":"PR_fixture","number":12,"head":"HEAD","commits":{"nodes":[{"commit":{
+            "oid":"HEAD","statusCheckRollup":{"id":"SR_fixture","list":{
+                "total":2,"rows":[{"__typename":"CheckRun","id":"CR_fixture","name":"Guard",
+                    "status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":null}],
+                "page":{"more":true,"cursor":"next"}
+            }}
+        }}]}}
+    }}}"#
+        .replace("HEAD", HEAD);
+    let mut value: serde_json::Value = serde_json::from_str(&first).unwrap();
+    value["data"]["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["statusCheckRollup"] =
+        serde_json::Value::Null;
+    let absent = value.to_string();
+    let server = serve(vec![
+        reply("200 OK", "", &first),
+        reply("200 OK", "", &absent),
+        reply("200 OK", "", &absent),
+        reply(
+            "200 OK",
+            "",
+            &first.replace("R_fixture", "bad repository id"),
+        ),
+    ]);
+    let target = Target::new("PerishLab", "runseal", 12).unwrap();
+    let window = Window::new(1, None).unwrap();
+    let first = server.client.rollup(&target, HEAD, &window).unwrap().value;
+    let page = first.contexts.unwrap();
+    assert_eq!(page.next.as_deref(), Some("next"));
+    assert!(matches!(&page.rows[0], Context::Run { name, .. } if name == "Guard"));
+    let continued = Window::new(1, page.next.as_deref()).unwrap();
+    assert_eq!(
+        server
+            .client
+            .rollup(&target, HEAD, &continued)
+            .unwrap_err()
+            .cause,
+        Cause::Shape
+    );
+    assert!(
+        server
+            .client
+            .rollup(&target, HEAD, &window)
+            .unwrap()
+            .value
+            .contexts
+            .is_none()
+    );
+    assert_eq!(
+        server
+            .client
+            .rollup(&target, HEAD, &window)
+            .unwrap_err()
+            .cause,
+        Cause::Shape
+    );
+    let sent = server.thread.join().unwrap();
+    assert!(sent[1].contains(r#""after":"next""#));
+}
+
+#[test]
+fn comment() {
+    use crate::github::Target;
+    let data = r#"{
+        "id":19,"node_id":"IC_fixture","body":"Receipt",
+        "html_url":"https://github.com/PerishLab/probe/issues/9#issuecomment-19",
+        "issue_url":"https://api.github.com/repos/PerishLab/probe/issues/9",
+        "user":{"id":3,"login":"fixture","node_id":"U_fixture","type":"User"},
+        "updated_at":"2026-11-24T00:00:00Z"
+    }"#;
+    let server = serve(vec![
+        reply("200 OK", "", data),
+        reply("200 OK", "", &data.replace("User", "Organization")),
+        reply("200 OK", "", &data.replace("/issues/9", "/issues/8")),
+    ]);
+    let target = Target::new("PerishLab", "probe", 9).unwrap();
+    let found = server.client.document(&target, 19).unwrap().value;
+    assert_eq!(found.author.id, 3);
+    assert_eq!(found.author.kind, "User");
+    assert_eq!(found.updated, "2026-11-24T00:00:00Z");
+    for _ in 0..2 {
+        assert_eq!(
+            server.client.document(&target, 19).unwrap_err().cause,
+            Cause::Shape
+        );
+    }
+    assert_eq!(server.thread.join().unwrap().len(), 3);
+}

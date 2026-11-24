@@ -18,6 +18,7 @@ pub use issue::acceptance;
 pub use issue::discussion;
 pub use issue::phase;
 pub use issue::records;
+pub use issue::snapshot;
 pub use issue::{Comment, Draft, Identity, Kind, Label, Link, Related, Relation, Ticket};
 pub use model::{Cause, Error, Evidence, Issue, Outcome, Project, Receipt, Repository, Target};
 pub use page::{Number, Page, Window};
@@ -36,7 +37,7 @@ pub use pull::{
     Origin, Permission, Pointer, Principal, Proposal, Pull, Reference, Revision, Search, Squash,
     State, Tree,
 };
-pub use pull::{lifecycle, tags};
+pub use pull::{lifecycle, rollup, tags};
 
 use crate::custody::Private;
 use serde::de::DeserializeOwned;

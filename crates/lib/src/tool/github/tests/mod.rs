@@ -228,3 +228,43 @@ mod structure;
 mod schema;
 
 mod catalogue;
+
+#[test]
+fn snapshot() {
+    use crate::github::{Target, snapshot::Cursors};
+    let empty = r#"{"totalCount":0,"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}"#;
+    let valid = r#"{"data":{"repository":{"id":"R_fixture","nameWithOwner":"PerishLab/runseal",
+        "issue":{"id":"I_fixture","number":9,"url":"https://github.com/PerishLab/runseal/issues/9",
+            "title":"Issue","body":"Proof","state":"OPEN","updatedAt":"2026-11-24T08:00:00Z",
+            "issueType":{"name":"Task"},"repository":{"nameWithOwner":"PerishLab/runseal"},
+            "parent":null,"subIssues":EMPTY,"subIssuesSummary":{"total":0,"completed":0,"percentCompleted":0},
+            "blockedBy":EMPTY,"blocking":EMPTY,"timelineItems":EMPTY,"comments":EMPTY}
+    }}}"#.replace("EMPTY", empty);
+    let mut stalled: serde_json::Value = serde_json::from_str(&valid).unwrap();
+    stalled["data"]["repository"]["issue"]["blocking"]["pageInfo"]["hasNextPage"] = true.into();
+    stalled["data"]["repository"]["issue"]["blocking"]["pageInfo"]["endCursor"] =
+        "no-progress".into();
+    let server = serve(vec![
+        reply("200 OK", "", &valid),
+        reply("200 OK", "", &stalled.to_string()),
+        reply("200 OK", "", &valid.replace("/issues/9", "/issues/10")),
+    ]);
+    let target = Target::new("PerishLab", "runseal", 9).unwrap();
+    let cursors = Cursors::default();
+    let receipt = server.client.snapshot(&target, 5, &cursors).unwrap();
+    assert_eq!(receipt.value.kind.unwrap().name, "Task");
+    assert_eq!(receipt.value.blocking.total, 0);
+    assert!(receipt.value.references.nodes.is_empty());
+    for _ in 0..2 {
+        assert_eq!(
+            server
+                .client
+                .snapshot(&target, 5, &cursors)
+                .unwrap_err()
+                .cause,
+            Cause::Shape
+        );
+    }
+    let sent = server.thread.join().unwrap();
+    assert!(sent[0].contains("CROSS_REFERENCED_EVENT"));
+}

@@ -4,6 +4,7 @@ mod commit;
 mod edit;
 pub mod lifecycle;
 mod pointer;
+pub mod rollup;
 mod source;
 pub mod tags;
 pub use pointer::{Annotation, Object, Pointer, Reference};

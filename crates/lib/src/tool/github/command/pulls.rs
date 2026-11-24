@@ -1,6 +1,6 @@
 use super::{Spot, read};
 use crate::github::{Cause, Client, Compare, Edit, Error, Proposal, Search, State};
-use crate::github::{Number, lifecycle};
+use crate::github::{Number, Window, lifecycle};
 use clap::{Args, Subcommand};
 use serde::Serialize;
 use serde_json::Value;
@@ -89,6 +89,17 @@ pub(super) struct Lifecycle {
 enum Deed {
     #[command(about = "Read merge readiness with the exact pull head SHA")]
     Readiness(Spot),
+    #[command(about = "Read a page of checks and status contexts for an exact pull head")]
+    Rollup {
+        #[command(flatten)]
+        place: Spot,
+        #[arg(long)]
+        head: String,
+        #[arg(long, default_value_t = 30)]
+        size: u8,
+        #[arg(long)]
+        after: Option<String>,
+    },
     #[command(about = "Replace only the body of an exact pull")]
     Body {
         #[command(flatten)]
@@ -119,6 +130,15 @@ impl Lifecycle {
     pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
         match self.deed {
             Deed::Readiness(place) => encode(client.readiness(&place.target()?)?),
+            Deed::Rollup {
+                place,
+                head,
+                size,
+                after,
+            } => {
+                let window = Window::new(size, after.as_deref())?;
+                encode(client.rollup(&place.target()?, &head, &window)?)
+            }
             Deed::Body { place, body } => {
                 let update = lifecycle::Update::Body(read(body)?);
                 encode(client.revise(&place.target()?, &update)?)

@@ -25,6 +25,14 @@ enum Action {
     },
     #[command(about = "Read an exact Issue with its native author and labels")]
     Show(super::delivery::Spot),
+    #[command(about = "Read the exact Issue and one page of each related connection")]
+    Snapshot(Snapshot),
+    #[command(about = "Read an exact Issue comment with its author type and update identity")]
+    Document {
+        #[command(flatten)]
+        target: super::delivery::Spot,
+        id: u64,
+    },
     #[command(about = "Read one page of Issue comments with their native authors")]
     Comments {
         #[command(flatten)]
@@ -59,6 +67,8 @@ impl Issues {
                 size,
             } => encode(client.issues(&owner, &name, page, size)?),
             Action::Show(target) => encode(client.ticket(&target.target()?)?),
+            Action::Snapshot(input) => input.execute(client),
+            Action::Document { target, id } => encode(client.document(&target.target()?, id)?),
             Action::Comments { target, page, size } => {
                 encode(client.discussion(&target.target()?, Number::new(page, size)?)?)
             }
@@ -70,4 +80,20 @@ impl Issues {
 
 fn encode(value: impl Serialize) -> Result<Value, Error> {
     serde_json::to_value(value).map_err(|_| Error::local(Cause::Shape))
+}
+
+#[derive(Args)]
+struct Snapshot {
+    #[command(flatten)]
+    target: super::delivery::Spot,
+    #[arg(long, default_value_t = 30)]
+    size: u8,
+    #[command(flatten)]
+    cursors: crate::github::snapshot::Cursors,
+}
+
+impl Snapshot {
+    fn execute(self, client: &Client) -> Result<Value, Error> {
+        encode(client.snapshot(&self.target.target()?, self.size, &self.cursors)?)
+    }
 }
