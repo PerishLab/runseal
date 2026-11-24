@@ -1,5 +1,5 @@
 use super::{Cause, Outcome, reply, serve};
-use crate::github::{Dispatch, Listing};
+use crate::github::{Dispatch, Invocation, Listing};
 use serde_json::json;
 use std::collections::BTreeMap;
 
@@ -147,21 +147,39 @@ fn checks() {
 
 #[test]
 fn workflow() {
-    use crate::github::Invocation;
-
     let repository = json!({"id":8,"full_name":"PerishLab/runseal"});
-    let body = json!({"id":21,"workflow_id":22,"run_attempt":2,"head_sha":CHECK,
+    let mut body = json!({"id":21,"workflow_id":22,"run_attempt":2,"head_sha":CHECK,
         "html_url":"https://github.com/PerishLab/runseal/actions/runs/21","event":"pull_request",
         "path":".github/workflows/guard.yml","status":"completed","conclusion":"success",
-        "repository":repository})
-    .to_string();
-    let server = serve(vec![reply("200 OK", "", &body), reply("200 OK", "", &body)]);
+        "repository":repository});
+    let abbreviated = body.to_string();
+    body["display_title"] = json!("[ship] PerishLab/runseal v0.59.0");
+    body["actor"] = json!({"id": 31, "node_id": "U_original", "login": "original", "type": "User"});
+    body["triggering_actor"] =
+        json!({"id": 32, "node_id": "U_trigger", "login": "trigger", "type": "User"});
+    let full = body.to_string();
+    let server = serve(vec![
+        reply("200 OK", "", &full),
+        reply("200 OK", "", &abbreviated),
+        reply("200 OK", "", &full),
+    ]);
     let request = Invocation::new(21, Some(2)).unwrap();
     let result = server
         .client
         .workflow("PerishLab", "runseal", request)
         .unwrap();
     assert_eq!(result.value.attempt, 2);
+    let value = serde_json::to_value(result.value).unwrap();
+    assert_eq!(value["display_title"], body["display_title"]);
+    assert_eq!(value["actor"], body["actor"]);
+    assert_eq!(value["triggering_actor"], body["triggering_actor"]);
+    let abbreviated = server
+        .client
+        .workflow("PerishLab", "runseal", request)
+        .unwrap();
+    assert!(abbreviated.value.title.is_none());
+    assert!(abbreviated.value.actor.is_none());
+    assert!(abbreviated.value.initiator.is_none());
     let wrong = Invocation::new(21, Some(3)).unwrap();
     let error = server
         .client
@@ -170,7 +188,8 @@ fn workflow() {
     assert_eq!(error.cause, Cause::Shape);
     let requests = server.thread.join().unwrap();
     assert!(requests[0].contains("/actions/runs/21/attempts/2"));
-    assert!(requests[1].contains("/actions/runs/21/attempts/3"));
+    assert!(requests[1].contains("/actions/runs/21/attempts/2"));
+    assert!(requests[2].contains("/actions/runs/21/attempts/3"));
 }
 
 #[test]
