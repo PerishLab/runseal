@@ -5,6 +5,7 @@ use display::execute;
 pub(crate) use display::run;
 mod planning;
 mod pulls;
+mod records;
 mod source;
 use super::actions::command as actions;
 use super::{Cause, Client, Error, Filter, Invocation, Relation, Squash};
@@ -34,10 +35,7 @@ struct Input {
 }
 #[derive(Subcommand)]
 enum Deed {
-    Repository {
-        owner: String,
-        name: String,
-    },
+    Repository(source::Repository),
     Project {
         owner: String,
         number: u32,
@@ -145,6 +143,7 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     Jobs(actions::Catalog),
     #[command(about = "Read one exact issue and its repository identity")]
     Issue(Spot),
+    Issues(records::Issues),
     #[command(
         name = "create-issue",
         about = "Create one issue in an exact repository node with an optional issue type"
@@ -205,7 +204,7 @@ pub(crate) fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<R
 }
 fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
     let value = match deed {
-        Deed::Repository { owner, name } => serde_json::to_value(client.repository(&owner, &name)?),
+        Deed::Repository(repository) => return repository.execute(client),
         Deed::Project { owner, number } => serde_json::to_value(client.project(&owner, number)?),
         Deed::Projects(projects) => return projects.projects(client),
         Deed::Tags(tags) => return tags.execute(client),
@@ -262,6 +261,7 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
         } => serde_json::to_value(client.workflow(&owner, &name, Invocation::new(id, attempt)?)?),
         Deed::Dispatch(request) => return request.execute(client),
         Deed::Jobs(catalog) => return catalog.execute(client),
+        Deed::Issues(issues) => return issues.execute(client),
         Deed::Issue(place) => serde_json::to_value(client.issue(&place.target()?)?),
         Deed::Create(creation) => return creation.execute(client),
         Deed::Kinds(kinds) => return kinds.execute(client),

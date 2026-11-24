@@ -68,3 +68,23 @@ fn advance(value: String, window: &Window, count: usize) -> Option<String> {
 fn cursor(value: &str) -> bool {
     !value.is_empty() && value.len() <= 4096 && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
+
+pub(super) fn continuation(value: &str) -> Option<bool> {
+    let mut next = false;
+    for link in value.split(',') {
+        let (uri, parameters) = link.trim().split_once('>')?;
+        if !uri.starts_with('<') || uri.len() < 2 {
+            return None;
+        }
+        match parameters
+            .trim()
+            .strip_prefix("; rel=\"")?
+            .strip_suffix('"')?
+        {
+            "next" if !next => next = true,
+            "prev" | "first" | "last" => {}
+            _ => return None,
+        }
+    }
+    Some(next)
+}

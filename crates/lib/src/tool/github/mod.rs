@@ -16,6 +16,7 @@ pub use actions::{
 pub(crate) use command::{call, run};
 pub use issue::acceptance;
 pub use issue::phase;
+pub use issue::records;
 pub use issue::{Comment, Draft, Identity, Kind, Label, Link, Related, Relation, Ticket};
 pub use model::{Cause, Error, Evidence, Issue, Outcome, Project, Receipt, Repository, Target};
 pub use page::{Page, Window};

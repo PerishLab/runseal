@@ -135,3 +135,86 @@ fn artifacts() {
     assert!(calls[0].contains("/actions/runs/17/artifacts?per_page=20&page=1&name=guard"));
     assert!(calls[2].contains("/actions/artifacts/71 HTTP/1.1"));
 }
+
+fn issue(number: u32) -> Value {
+    json!({
+        "node_id":format!("I_{number}"),"number":number,"title":"Follow",
+        "html_url":format!("https://github.com/PerishLab/probe/issues/{number}"),
+        "repository_url":"https://api.github.com/repos/PerishLab/probe",
+        "body":null,"updated_at":"2026-11-24T00:00:00Z","state":"open",
+        "state_reason":null,"type":{"name":"Auto"},"labels":[],
+        "user":{"id":19,"login":"fixture[bot]"},
+    })
+}
+
+#[test]
+fn inventory() {
+    let first = json!([{"number":8,"pull_request":{"url":"https://api.github.com/repos/PerishLab/probe/pulls/8"}}]);
+    let second = json!([issue(9)]);
+    let more = "Link: <https://api.github.com/repositories/52/issues?page=2>; rel=\"next\"\r\n";
+    let server = serve(vec![
+        reply("200 OK", more, &first.to_string()),
+        reply("200 OK", "", &second.to_string()),
+    ]);
+    let first = server
+        .client
+        .issues("PerishLab", "probe", 1, 1)
+        .unwrap()
+        .value;
+    assert!(first.rows.is_empty());
+    let next = first.next.unwrap();
+    assert_eq!(next, 2);
+    let second = server
+        .client
+        .issues("PerishLab", "probe", next, 1)
+        .unwrap()
+        .value;
+    assert!(second.next.is_none());
+    assert_eq!(second.rows[0].kind.as_ref().unwrap().name, "Auto");
+    assert!(second.rows[0].body.is_none());
+    let requests = server.thread.join().unwrap();
+    assert!(
+        requests[1].starts_with("GET /repos/PerishLab/probe/issues?state=open&per_page=1&page=2 ")
+    );
+}
+
+#[test]
+fn record() {
+    let mut unknown = issue(9);
+    unknown.as_object_mut().unwrap().remove("type");
+    let mut foreign = issue(9);
+    foreign["repository_url"] = json!("https://api.github.com/repos/Other/probe");
+    let mut pull = issue(9);
+    pull["pull_request"] = json!({});
+    let replies =
+        [issue(9), foreign, unknown, pull].map(|value| reply("200 OK", "", &value.to_string()));
+    let server = serve(replies.into());
+    let target = crate::github::Target::new("PerishLab", "probe", 9).unwrap();
+    let record = server.client.ticket(&target).unwrap().value;
+    assert_eq!(record.user.unwrap().id, 19);
+    for _ in 0..3 {
+        assert_eq!(
+            server.client.ticket(&target).unwrap_err().cause,
+            Cause::Shape
+        );
+    }
+    assert_eq!(server.thread.join().unwrap().len(), 4);
+}
+
+#[test]
+fn viewer() {
+    let actor = json!({"id":"U_bot","login":"fixture[bot]","databaseId":19});
+    let data = json!({"viewer":actor});
+    let exact = json!({"data":data});
+    let partial = json!({"data":data,"errors":[{"message":"partial"}]});
+    let absent = json!({"data":{"viewer":null}});
+    let replies = [exact, partial, absent].map(|value| reply("200 OK", "", &value.to_string()));
+    let server = serve(replies.into());
+    let viewer = server.client.viewer().unwrap().value;
+    assert_eq!(viewer.number, 19);
+    for cause in [Cause::Graphql, Cause::Shape] {
+        assert_eq!(server.client.viewer().unwrap_err().cause, cause);
+    }
+    let requests = server.thread.join().unwrap();
+    assert!(requests[0].contains("viewer { id databaseId login }"));
+}
