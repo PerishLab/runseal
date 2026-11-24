@@ -6,18 +6,15 @@ pub(crate) use display::run;
 mod planning;
 mod pulls;
 mod source;
-use delivery::{Span, Spot};
-
 use super::actions::command as actions;
-pub(super) use delivery::read;
-
 use super::{Cause, Client, Error, Filter, Invocation, Relation, Squash};
 use crate::tool::Reply;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+pub(super) use delivery::read;
+use delivery::{Span, Spot};
 use serde_json::Value;
 use std::{collections::BTreeMap, path::PathBuf};
-
 #[derive(Parser)]
 #[command(
     name = "@github",
@@ -35,7 +32,6 @@ struct Input {
     #[command(subcommand)]
     deed: Deed,
 }
-
 #[derive(Subcommand)]
 enum Deed {
     Repository {
@@ -46,6 +42,8 @@ enum Deed {
         owner: String,
         number: u32,
     },
+    #[command(about = "List one page of visible Projects owned by an organization")]
+    Projects(delivery::Organization),
     #[command(about = "Read one page of an organization Project’s items")]
     Items(delivery::Items),
     #[command(about = "Read one page of field definitions for an organization Project")]
@@ -79,6 +77,8 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     Change(delivery::Change),
     #[command(name = "ref", about = "Read one exact Git branch or tag reference")]
     Pointer(source::Pointer),
+    #[command(about = "Read one page of repository tags and their commits")]
+    Tags(source::Tags),
     #[command(about = "Read one annotated Git tag object by complete SHA")]
     Annotation(source::Annotation),
     #[command(about = "Read one exact Git tree, optionally including descendants")]
@@ -151,7 +151,7 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     )]
     Create(delivery::Creation),
     #[command(about = "List one page of issue types defined by an organization")]
-    Kinds(delivery::Kinds),
+    Kinds(delivery::Organization),
     #[command(about = "Read one page of organization Issue field definitions")]
     Definitions(planning::Definitions),
     #[command(about = "Read one page of field values on an exact Issue")]
@@ -203,11 +203,12 @@ pub(crate) fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<R
         Input::try_parse_from(std::iter::once("@github").chain(argv.iter().map(String::as_str)))?;
     Ok(Reply::plain("github", execute(input, vars)?))
 }
-
 fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
     let value = match deed {
         Deed::Repository { owner, name } => serde_json::to_value(client.repository(&owner, &name)?),
         Deed::Project { owner, number } => serde_json::to_value(client.project(&owner, number)?),
+        Deed::Projects(projects) => return projects.projects(client),
+        Deed::Tags(tags) => return tags.execute(client),
         Deed::Items(items) => return items.execute(client),
         Deed::Fields(fields) => return fields.fields(client),
         Deed::Overview(overview) => return overview.execute(client),
@@ -295,6 +296,5 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
     };
     value.map_err(|_| Error::local(Cause::Shape))
 }
-
 #[cfg(test)]
 mod tests;

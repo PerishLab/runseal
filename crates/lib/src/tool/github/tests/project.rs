@@ -1,5 +1,6 @@
 use super::{reply, serve};
-use crate::github::{Cause, Window};
+use crate::github::{Cause, Outcome, Window};
+use serde_json::{Value, json};
 
 const ITEM: &str = r#"{"id":"PVTI_fixture","kind":"ISSUE","archived":false,"updated":"2026-11-23T00:00:00Z","project":{"id":"PVT_example"},"content":{"id":"I_anchor","kind":"Issue","number":229,"title":"Delivery","url":"https://github.com/PerishLab/runseal/issues/229","repository":{"id":"R_example","name":"PerishLab/runseal"}}}"#;
 
@@ -164,4 +165,69 @@ fn fields() {
         Cause::Shape
     );
     assert!(server.thread.join().unwrap()[0].contains("fields(first:$size,after:$after)"));
+}
+
+fn summary(number: u32) -> Value {
+    json!({
+        "id":format!("PVT_{number}"),"kind":"ProjectV2","number":number,
+        "title":"Delivery","url":format!("https://github.com/orgs/PerishLab/projects/{number}"),
+        "public":false,"updated":"2026-11-24T00:00:00Z",
+        "owner":{"id":"O_perish","kind":"Organization","login":"PerishLab"},
+    })
+}
+
+fn projects(rows: Vec<Value>, total: u32, next: Option<&str>) -> String {
+    let list = json!({"total":total,"rows":rows,"page":{"more":next.is_some(),"cursor":next}});
+    let organization = json!({
+        "id":"O_perish","login":"PerishLab","kind":"Organization",
+        "url":"https://github.com/PerishLab","list":list,
+    });
+    json!({"data":{"organization":organization}}).to_string()
+}
+
+#[test]
+fn inventory() {
+    let target = serve(vec![
+        reply("200 OK", "", &projects(vec![summary(6)], 2, Some("next"))),
+        reply("200 OK", "", &projects(vec![summary(1)], 2, None)),
+    ]);
+    let first = target
+        .client
+        .projects("perishlab", &Window::new(1, None).unwrap())
+        .unwrap();
+    assert_eq!(first.outcome, Outcome::Observed);
+    assert_eq!(first.value.owner.id, first.value.projects.target);
+    assert_eq!(first.value.projects.rows[0].number, 6);
+    let window = Window::new(1, first.value.projects.next.as_deref()).unwrap();
+    let second = target.client.projects("perishlab", &window).unwrap();
+    assert_eq!(second.value.projects.rows[0].number, 1);
+    assert!(second.value.projects.next.is_none());
+    let requests = target.thread.join().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0].contains("list:projectsV2(first:$size,after:$after)"));
+    assert!(requests[1].contains(r#""after":"next""#));
+}
+
+#[test]
+fn incomplete() {
+    let mut foreign = summary(1);
+    foreign["owner"]["id"] = json!("O_foreign");
+    let target = serve(vec![
+        reply("200 OK", "", &projects(vec![foreign], 1, None)),
+        reply(
+            "200 OK",
+            "",
+            &projects(vec![summary(1), summary(1)], 2, None),
+        ),
+        reply("200 OK", "", &projects(vec![], 1, None)),
+        reply("200 OK", "", &projects(vec![summary(1)], 2, Some("same"))),
+    ]);
+    for after in [None, None, None, Some("same")] {
+        let error = target
+            .client
+            .projects("PerishLab", &Window::new(2, after).unwrap())
+            .unwrap_err();
+        assert_eq!(error.cause, Cause::Shape);
+    }
+    assert_eq!(target.thread.join().unwrap().len(), 4);
 }

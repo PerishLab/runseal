@@ -4,6 +4,7 @@ mod commit;
 mod edit;
 mod pointer;
 mod source;
+pub mod tags;
 pub use pointer::{Annotation, Object, Pointer, Reference};
 pub use source::{Blob, Directory, File, Member};
 
