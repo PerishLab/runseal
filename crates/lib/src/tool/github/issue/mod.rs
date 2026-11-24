@@ -1,5 +1,6 @@
 pub mod acceptance;
 pub mod phase;
+pub mod records;
 
 use super::{
     Call, Cause, Client, Error, Page, Receipt, Target, Window, field, graph, node, page, valid,

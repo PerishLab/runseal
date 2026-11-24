@@ -201,3 +201,15 @@ impl Releases {
         }
     }
 }
+
+#[derive(Args)]
+pub(super) struct Repository {
+    owner: String,
+    name: String,
+}
+
+impl Repository {
+    pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
+        encode(client.repository(&self.owner, &self.name)?)
+    }
+}

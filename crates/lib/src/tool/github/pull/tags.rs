@@ -42,7 +42,7 @@ impl Client {
                     return None;
                 }
                 let more = match response.headers.get("link") {
-                    Some(value) => continuation(value)?,
+                    Some(value) => crate::github::page::continuation(value)?,
                     None => false,
                 };
                 let next = if more {
@@ -72,24 +72,4 @@ fn tags(rows: &[Tag], repository: &str) -> bool {
         let commit = super::sha(sha) && row.commit.url.eq_ignore_ascii_case(&expected);
         name && commit && names.insert(&row.name)
     })
-}
-
-fn continuation(value: &str) -> Option<bool> {
-    let mut next = false;
-    for link in value.split(',') {
-        let (uri, parameters) = link.trim().split_once('>')?;
-        if !uri.starts_with('<') || uri.len() < 2 {
-            return None;
-        }
-        match parameters
-            .trim()
-            .strip_prefix("; rel=\"")?
-            .strip_suffix('"')?
-        {
-            "next" if !next => next = true,
-            "prev" | "first" | "last" => {}
-            _ => return None,
-        }
-    }
-    Some(next)
 }
