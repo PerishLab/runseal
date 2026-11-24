@@ -1,0 +1,53 @@
+use super::Input;
+use crate::github::{Cause, Client, Error};
+use crate::parse;
+use anyhow::Result;
+use clap::{Parser, error::ErrorKind};
+use serde_json::Value;
+use std::collections::BTreeMap;
+
+pub(crate) fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
+    let input = match Input::try_parse_from(
+        std::iter::once("@github").chain(argv.iter().map(String::as_str)),
+    ) {
+        Ok(input) => input,
+        Err(error) if error.kind() == ErrorKind::DisplayHelp => {
+            error.print()?;
+            return Ok(());
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let json = input.json;
+    match execute(input, vars) {
+        Ok(value) => display(json, &value),
+        Err(error) => {
+            if json {
+                println!("{}", parse::dump("error", &serde_json::to_value(&error)?)?);
+            }
+            Err(error.into())
+        }
+    }
+}
+
+fn display(json: bool, value: &Value) -> Result<()> {
+    if json {
+        println!("{}", parse::dump("github", value)?);
+    } else {
+        parse::show(value);
+    }
+    Ok(())
+}
+
+pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value, Error> {
+    let file = input
+        .file
+        .or_else(|| vars.get("GITHUB_TOKEN_FILE").map(Into::into));
+    let client = match file {
+        Some(file) => Client::open(&file)?,
+        None => Client::token(
+            vars.get("GITHUB_TOKEN")
+                .ok_or_else(|| Error::local(Cause::Custody))?,
+        )?,
+    };
+    super::apply(&client, input.deed)
+}

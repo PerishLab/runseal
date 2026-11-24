@@ -1,0 +1,137 @@
+use super::{reply, serve};
+use crate::github::{Cause, Draft, Filter, Inventory, Outcome, Signal, Verdict};
+use serde_json::{Value, json};
+
+const HEAD: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+#[test]
+fn creation() {
+    let created = r#"{"data":{"createIssue":{"issue":{"id":"I_new","number":42,"title":"Delivery","body":"Body","url":"https://github.com/PerishLab/runseal/issues/42","state":"OPEN","updated":"2026-11-23T00:00:00Z","repository":{"id":"R_runseal"},"kind":{"id":"IT_task","name":"Task"}}}}}"#;
+    let wrong = created.replace("IT_task", "IT_other");
+    let server = serve(vec![
+        reply("200 OK", "", created),
+        reply("200 OK", "", &wrong),
+        None,
+    ]);
+    let draft = Draft::new("R_runseal", "Delivery", "Body", Some("IT_task")).unwrap();
+    let receipt = server.client.create(&draft).unwrap();
+    assert_eq!(receipt.value.number, 42);
+    assert_eq!(receipt.value.kind.unwrap().name, "Task");
+    for cause in [Cause::Shape, Cause::Network] {
+        let error = server.client.create(&draft).unwrap_err();
+        assert_eq!(error.cause, cause);
+        assert_eq!(error.outcome, Outcome::Unknown);
+        assert_eq!(error.evidence.attempts, 1);
+    }
+    let calls = server.thread.join().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0].starts_with("POST /graphql "));
+    assert!(calls[0].contains("\"issueTypeId\":\"IT_task\""));
+    assert!(calls[0].contains("\"repositoryId\":\"R_runseal\""));
+}
+
+fn status() -> Value {
+    json!({
+        "url":format!("https://api.github.com/repos/PerishLab/runseal/statuses/{HEAD}"),
+        "id":51,"state":"success","context":"guard / guard (pull_request)",
+        "description":"Proof admitted","target_url":"https://github.com/PerishLab/runseal/actions/runs/3",
+    })
+}
+
+#[test]
+fn marks() {
+    let row = status();
+    let changed = row.to_string().replace(HEAD, &"b".repeat(40));
+    let server = serve(vec![
+        reply("201 Created", "", &row.to_string()),
+        reply("201 Created", "", &changed),
+        None,
+    ]);
+    let signal = Signal::new(
+        Verdict::Success,
+        row["context"].as_str().unwrap(),
+        row["description"].as_str(),
+        row["target_url"].as_str(),
+    )
+    .unwrap();
+    let receipt = server
+        .client
+        .mark("PerishLab", "runseal", HEAD, &signal)
+        .unwrap();
+    assert_eq!(receipt.value.id, 51);
+    for cause in [Cause::Shape, Cause::Network] {
+        let error = server
+            .client
+            .mark("PerishLab", "runseal", HEAD, &signal)
+            .unwrap_err();
+        assert_eq!(error.cause, cause);
+        assert_eq!(error.outcome, Outcome::Unknown);
+        assert_eq!(error.evidence.attempts, 1);
+    }
+    let calls = server.thread.join().unwrap();
+    assert!(calls[0].starts_with(&format!("POST /repos/PerishLab/runseal/statuses/{HEAD} ")));
+    assert!(calls[0].contains("\"state\":\"success\""));
+}
+
+#[test]
+fn statuses() {
+    let page =
+        json!({"state":"success","sha":HEAD,"total_count":1,"statuses":[status()],"repository":{"id":19,"full_name":"PerishLab/runseal"}}).to_string();
+    let changed = page.replace(HEAD, &"b".repeat(40));
+    let server = serve(vec![
+        reply("200 OK", "", &page),
+        reply("200 OK", "", &changed),
+    ]);
+    let query = Filter::new(HEAD, 1, 20).unwrap();
+    let receipt = server
+        .client
+        .statuses("PerishLab", "runseal", &query)
+        .unwrap();
+    assert_eq!(
+        receipt.value.rows[0].context,
+        "guard / guard (pull_request)"
+    );
+    let error = server
+        .client
+        .statuses("PerishLab", "runseal", &query)
+        .unwrap_err();
+    assert_eq!(error.cause, Cause::Shape);
+    let calls = server.thread.join().unwrap();
+    assert!(calls[0].contains(&format!("/commits/{HEAD}/status?per_page=20&page=1")));
+}
+
+#[test]
+fn artifacts() {
+    let row = json!({
+        "id":71,"name":"guard","size_in_bytes":800,"expired":false,
+        "digest":format!("sha256:{}", "a".repeat(64)),
+        "url":"https://api.github.com/repos/PerishLab/runseal/actions/artifacts/71",
+        "workflow_run":{"id":17,"repository_id":19,"head_sha":HEAD},
+    });
+    let page = json!({"total_count":1,"artifacts":[row]}).to_string();
+    let changed = page.replace("\"id\":17", "\"id\":18");
+    let server = serve(vec![
+        reply("200 OK", "", &page),
+        reply("200 OK", "", &changed),
+        reply("200 OK", "", &row.to_string()),
+    ]);
+    let query = Inventory::new(Some(17), 1, 20)
+        .unwrap()
+        .named("guard")
+        .unwrap();
+    let receipt = server
+        .client
+        .artifacts("PerishLab", "runseal", query.clone())
+        .unwrap();
+    assert_eq!(receipt.value.rows[0].id, 71);
+    let error = server
+        .client
+        .artifacts("PerishLab", "runseal", query)
+        .unwrap_err();
+    assert_eq!(error.cause, Cause::Shape);
+    let receipt = server.client.artifact("PerishLab", "runseal", 71).unwrap();
+    assert_eq!(receipt.value.run.unwrap().head, HEAD);
+    let calls = server.thread.join().unwrap();
+    assert!(calls[0].contains("/actions/runs/17/artifacts?per_page=20&page=1&name=guard"));
+    assert!(calls[2].contains("/actions/artifacts/71 HTTP/1.1"));
+}
