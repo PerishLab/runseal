@@ -2,6 +2,7 @@ pub mod acceptance;
 pub mod discussion;
 pub mod phase;
 pub mod records;
+pub mod snapshot;
 
 use super::{
     Call, Cause, Client, Error, Page, Receipt, Target, Window, field, graph, node, page, valid,

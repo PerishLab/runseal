@@ -1,6 +1,6 @@
 use super::records::{Author, login, nullable};
 use crate::github::{
-    Call, Cause, Client, Error, Identity, Number, Receipt, Target, field, graph, node,
+    Call, Cause, Client, Error, Identity, Number, Principal, Receipt, Target, field, graph, node,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -20,6 +20,15 @@ pub struct Entry {
     pub issue: String,
     #[serde(deserialize_with = "nullable")]
     pub user: Option<Author>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Document {
+    #[serde(flatten)]
+    pub entry: Entry,
+    pub author: Principal,
+    #[serde(rename = "updated_at")]
+    pub updated: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -69,14 +78,45 @@ impl Client {
     }
 
     pub fn entry(&self, target: &Target, id: u64) -> Result<Receipt<Entry>, Error> {
+        self.remark(target, id, |row, _| Some(row))
+    }
+
+    pub fn document(&self, target: &Target, id: u64) -> Result<Receipt<Document>, Error> {
+        self.remark(target, id, |entry, value| {
+            let user = entry.user.as_ref()?;
+            let author: Principal = field(value, "/user")?;
+            let updated = value.get("updated_at")?.as_str()?;
+            if user.id != author.id || !author.matches(&user.login) {
+                return None;
+            }
+            if !matches!(author.kind.as_str(), "User" | "Bot") || updated.is_empty() {
+                return None;
+            }
+            Some(Document {
+                entry,
+                author,
+                updated: updated.into(),
+            })
+        })
+    }
+
+    fn remark<T>(
+        &self,
+        target: &Target,
+        id: u64,
+        verify: impl Fn(Entry, &serde_json::Value) -> Option<T>,
+    ) -> Result<Receipt<T>, Error> {
         if id == 0 {
             return Err(Error::local(Cause::Input));
         }
         let path = format!("/repos/{}/issues/comments/{id}", target.name());
         let scope = format!("/repos/{}/issues/{}", target.name(), target.number());
         self.wire.send(&self.bearer, Call::Rest(&path), |value| {
-            let row: Entry = serde_json::from_value(value).ok()?;
-            (row.id == id && row.matches(target, &scope)).then_some(row)
+            let row = Entry::deserialize(&value).ok()?;
+            if row.id != id || !row.matches(target, &scope) {
+                return None;
+            }
+            verify(row, &value)
         })
     }
 
