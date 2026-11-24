@@ -95,6 +95,8 @@ pub struct Run {
     pub status: String,
     pub conclusion: Option<String>,
     pub repository: Origin,
+    #[serde(rename = "head_repository", skip_serializing_if = "Option::is_none")]
+    pub source: Option<Origin>,
 }
 
 impl Client {

@@ -249,6 +249,12 @@ fn comment() {
     }"#;
     let server = serve(vec![
         reply("200 OK", "", data),
+        reply("200 OK", "", data),
+        reply(
+            "200 OK",
+            "",
+            &data.replace("/PerishLab/probe/", "/Other/probe/"),
+        ),
         reply("200 OK", "", &data.replace("User", "Organization")),
         reply("200 OK", "", &data.replace("/issues/9", "/issues/8")),
     ]);
@@ -257,11 +263,19 @@ fn comment() {
     assert_eq!(found.author.id, 3);
     assert_eq!(found.author.kind, "User");
     assert_eq!(found.updated, "2026-11-24T00:00:00Z");
+    let located = server
+        .client
+        .lookup("PerishLab", "probe", 19)
+        .unwrap()
+        .value;
+    assert_eq!(located.entry.issue, found.entry.issue);
+    let error = server.client.lookup("PerishLab", "probe", 19).unwrap_err();
+    assert_eq!(error.cause, Cause::Shape);
     for _ in 0..2 {
         assert_eq!(
             server.client.document(&target, 19).unwrap_err().cause,
             Cause::Shape
         );
     }
-    assert_eq!(server.thread.join().unwrap().len(), 3);
+    assert_eq!(server.thread.join().unwrap().len(), 5);
 }

@@ -3,6 +3,7 @@ pub use authority::{Branch, Head, Permission, Principal};
 mod commit;
 mod edit;
 pub mod lifecycle;
+pub mod lineage;
 mod pointer;
 pub mod rollup;
 mod source;
@@ -53,6 +54,8 @@ pub struct Revision {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Origin {
     pub id: u64,
+    #[serde(rename = "node_id", skip_serializing_if = "Option::is_none")]
+    pub node: Option<String>,
     #[serde(rename = "full_name")]
     pub name: String,
 }
@@ -284,7 +287,7 @@ fn branch(repo: &str, revision: &Revision) -> bool {
         && sha(&revision.sha)
 }
 
-fn repository(owner: &str, name: &str) -> Result<String, Error> {
+pub(super) fn repository(owner: &str, name: &str) -> Result<String, Error> {
     if !valid(owner, false) || !valid(name, true) {
         return Err(Error::local(Cause::Input));
     }
