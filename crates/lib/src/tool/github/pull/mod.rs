@@ -2,6 +2,7 @@ mod authority;
 pub use authority::{Branch, Head, Permission, Principal};
 mod commit;
 mod edit;
+pub mod lifecycle;
 mod pointer;
 mod source;
 pub mod tags;

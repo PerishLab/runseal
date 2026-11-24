@@ -36,10 +36,7 @@ struct Input {
 #[derive(Subcommand)]
 enum Deed {
     Repository(source::Repository),
-    Project {
-        owner: String,
-        number: u32,
-    },
+    Project(source::Project),
     #[command(about = "List one page of visible Projects owned by an organization")]
     Projects(delivery::Organization),
     #[command(about = "Read one page of an organization Project’s items")]
@@ -104,6 +101,8 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     Propose(pulls::Submission),
     #[command(about = "Update the title and body of one exact pull request")]
     Edit(pulls::Revision),
+    #[command(about = "Read pull readiness, page by head or update a single pull field")]
+    Lifecycle(pulls::Lifecycle),
     #[command(about = "Read the Git tree of a complete commit SHA")]
     Commit(delivery::Commit),
     #[command(about = "Read one pull request and its exact base and head")]
@@ -205,7 +204,7 @@ pub(crate) fn call(argv: &[String], vars: &BTreeMap<String, String>) -> Result<R
 fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
     let value = match deed {
         Deed::Repository(repository) => return repository.execute(client),
-        Deed::Project { owner, number } => serde_json::to_value(client.project(&owner, number)?),
+        Deed::Project(project) => return project.execute(client),
         Deed::Projects(projects) => return projects.projects(client),
         Deed::Tags(tags) => return tags.execute(client),
         Deed::Items(items) => return items.execute(client),
@@ -231,6 +230,7 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
         Deed::Pulls(selection) => return selection.execute(client),
         Deed::Propose(submission) => return submission.execute(client),
         Deed::Edit(edit) => return edit.execute(client),
+        Deed::Lifecycle(lifecycle) => return lifecycle.execute(client),
         Deed::Commit(commit) => return commit.execute(client),
         Deed::Pull(place) => serde_json::to_value(client.pull(&place.target()?)?),
         Deed::Squash {

@@ -66,60 +66,6 @@ fn conflict() {
     assert_eq!(server.thread.join().unwrap().len(), 2);
 }
 
-#[test]
-fn checks() {
-    use crate::github::Filter;
-
-    let first = json!({"id":2,"name":"Guard","head_sha":HEAD,"status":"completed","conclusion":"success",
-        "details_url":"https://github.com/PerishLab/runseal/actions/runs/21","app":{"id":4,"slug":"github-actions"}});
-    let one = json!({"total_count":2,"check_runs":[first]}).to_string();
-    let wrong =
-        json!({"id":3,"name":"Guard","head_sha":MERGE,"status":"completed","conclusion":"success"});
-    let two = json!({"total_count":2,"check_runs":[wrong]}).to_string();
-    let server = serve(vec![reply("200 OK", "", &one), reply("200 OK", "", &two)]);
-    let filter = Filter::new(HEAD, 2, 1).unwrap();
-    let result = server
-        .client
-        .checks("PerishLab", "runseal", &filter)
-        .unwrap();
-    assert_eq!(result.value.total, 2);
-    assert_eq!(result.value.rows[0].app.as_ref().unwrap().id, 4);
-    let error = server
-        .client
-        .checks("PerishLab", "runseal", &filter)
-        .unwrap_err();
-    assert_eq!(error.cause, Cause::Shape);
-    assert!(server.thread.join().unwrap()[0].contains("/check-runs?per_page=1&page=2"));
-}
-
-#[test]
-fn workflow() {
-    use crate::github::Invocation;
-
-    let repository = json!({"id":8,"full_name":"PerishLab/runseal"});
-    let body = json!({"id":21,"workflow_id":22,"run_attempt":2,"head_sha":HEAD,
-        "html_url":"https://github.com/PerishLab/runseal/actions/runs/21","event":"pull_request",
-        "path":".github/workflows/guard.yml","status":"completed","conclusion":"success",
-        "repository":repository})
-    .to_string();
-    let server = serve(vec![reply("200 OK", "", &body), reply("200 OK", "", &body)]);
-    let request = Invocation::new(21, Some(2)).unwrap();
-    let result = server
-        .client
-        .workflow("PerishLab", "runseal", request)
-        .unwrap();
-    assert_eq!(result.value.attempt, 2);
-    let wrong = Invocation::new(21, Some(3)).unwrap();
-    let error = server
-        .client
-        .workflow("PerishLab", "runseal", wrong)
-        .unwrap_err();
-    assert_eq!(error.cause, Cause::Shape);
-    let requests = server.thread.join().unwrap();
-    assert!(requests[0].contains("/actions/runs/21/attempts/2"));
-    assert!(requests[1].contains("/actions/runs/21/attempts/3"));
-}
-
 fn proposal() -> serde_json::Value {
     let origin = json!({"id":14,"full_name":"PerishLab/runseal"});
     let head = json!({"ref":"land/feature/228","sha":HEAD,"repo":origin});
@@ -269,4 +215,84 @@ fn reference() {
         server.thread.join().unwrap()[0]
             .starts_with("GET /repos/PerishLab/runseal/git/ref/heads/feature/229 ")
     );
+}
+
+#[test]
+fn readiness() {
+    let data = json!({"id":"R_probe","nameWithOwner":"PerishLab/runseal",
+        "pullRequest":{"id":"PR_fixture","number":230,"head":HEAD,"state":"BLOCKED"}});
+    let good = json!({"data":{"repository":data}}).to_string();
+    let bad = good.replace("PerishLab", "Foreign");
+    let server = serve(vec![reply("200 OK", "", &good), reply("200 OK", "", &bad)]);
+    assert_eq!(
+        server.client.readiness(&target()).unwrap().value.state,
+        "BLOCKED"
+    );
+    assert_eq!(
+        server.client.readiness(&target()).unwrap_err().cause,
+        Cause::Shape
+    );
+    assert!(server.thread.join().unwrap()[0].contains("mergeStateStatus"));
+}
+
+#[test]
+fn revise() {
+    use crate::github::lifecycle::Update;
+    let mut edited = proposal();
+    edited["body"] = json!("new");
+    let mut closed = edited.clone();
+    closed["state"] = json!("closed");
+    closed["merged"] = json!(false);
+    let server = serve(vec![
+        reply("200 OK", "", &edited.to_string()),
+        reply("200 OK", "", &closed.to_string()),
+    ]);
+    assert_eq!(
+        server
+            .client
+            .revise(&target(), &Update::Body("new".into()))
+            .unwrap()
+            .value
+            .title,
+        "exact"
+    );
+    assert_eq!(
+        server
+            .client
+            .revise(&target(), &Update::Close)
+            .unwrap()
+            .value
+            .merged,
+        Some(false)
+    );
+    let requests = server.thread.join().unwrap();
+    assert!(requests[0].ends_with(r#"{"body":"new"}"#));
+    assert!(requests[1].ends_with(r#"{"state":"closed"}"#));
+}
+
+#[test]
+fn listings() {
+    use crate::github::{Number, State, lifecycle::Selection};
+    let mut pull = proposal();
+    pull["base"]["ref"] = json!("next");
+    let rows = json!([pull]).to_string();
+    let more = "Link: <https://api.github.com/repositories/12/pulls?page=2>; rel=\"next\"\r\n";
+    let server = serve(vec![
+        reply("200 OK", more, &rows),
+        reply("200 OK", "", &rows),
+    ]);
+    let read = |base| {
+        let search = Selection::new(
+            "land/feature/228",
+            base,
+            State::All,
+            Number::new(1, 1).unwrap(),
+        )
+        .unwrap();
+        server.client.listing("PerishLab", "runseal", &search)
+    };
+    assert_eq!(read(None).unwrap().value.next, Some(2));
+    assert_eq!(read(Some("main")).unwrap_err().cause, Cause::Shape);
+    let requests = server.thread.join().unwrap();
+    assert!(!requests[0].lines().next().unwrap().contains("base="));
 }

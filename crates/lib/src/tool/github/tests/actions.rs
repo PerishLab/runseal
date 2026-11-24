@@ -117,3 +117,58 @@ fn release() {
     assert!(requests[0].starts_with("GET /repos/pnpm/pnpm/releases/tags/v10.1.0 "));
     assert!(requests[2].starts_with("GET /repos/pnpm/pnpm/releases/assets/77 "));
 }
+
+const CHECK: &str = "1234567890123456789012345678901234567890";
+
+#[test]
+fn checks() {
+    use crate::github::Filter;
+
+    let first = json!({"id":2,"name":"Guard","head_sha":CHECK,"status":"completed","conclusion":"success",
+        "details_url":"https://github.com/PerishLab/runseal/actions/runs/21","app":{"id":4,"slug":"github-actions"}});
+    let one = json!({"total_count":2,"check_runs":[first]}).to_string();
+    let wrong = json!({"id":3,"name":"Guard","head_sha":"abcdefabcdefabcdefabcdefabcdefabcdefabcd","status":"completed","conclusion":"success"});
+    let two = json!({"total_count":2,"check_runs":[wrong]}).to_string();
+    let server = serve(vec![reply("200 OK", "", &one), reply("200 OK", "", &two)]);
+    let filter = Filter::new(CHECK, 2, 1).unwrap();
+    let result = server
+        .client
+        .checks("PerishLab", "runseal", &filter)
+        .unwrap();
+    assert_eq!(result.value.total, 2);
+    assert_eq!(result.value.rows[0].app.as_ref().unwrap().id, 4);
+    let error = server
+        .client
+        .checks("PerishLab", "runseal", &filter)
+        .unwrap_err();
+    assert_eq!(error.cause, Cause::Shape);
+    assert!(server.thread.join().unwrap()[0].contains("/check-runs?per_page=1&page=2"));
+}
+
+#[test]
+fn workflow() {
+    use crate::github::Invocation;
+
+    let repository = json!({"id":8,"full_name":"PerishLab/runseal"});
+    let body = json!({"id":21,"workflow_id":22,"run_attempt":2,"head_sha":CHECK,
+        "html_url":"https://github.com/PerishLab/runseal/actions/runs/21","event":"pull_request",
+        "path":".github/workflows/guard.yml","status":"completed","conclusion":"success",
+        "repository":repository})
+    .to_string();
+    let server = serve(vec![reply("200 OK", "", &body), reply("200 OK", "", &body)]);
+    let request = Invocation::new(21, Some(2)).unwrap();
+    let result = server
+        .client
+        .workflow("PerishLab", "runseal", request)
+        .unwrap();
+    assert_eq!(result.value.attempt, 2);
+    let wrong = Invocation::new(21, Some(3)).unwrap();
+    let error = server
+        .client
+        .workflow("PerishLab", "runseal", wrong)
+        .unwrap_err();
+    assert_eq!(error.cause, Cause::Shape);
+    let requests = server.thread.join().unwrap();
+    assert!(requests[0].contains("/actions/runs/21/attempts/2"));
+    assert!(requests[1].contains("/actions/runs/21/attempts/3"));
+}
