@@ -1,4 +1,4 @@
-use crate::github::{Cause, Client, Error, Number};
+use crate::github::{Cause, Client, Error, Number, records::Draft};
 use clap::{Args, Subcommand};
 use serde::Serialize;
 use serde_json::Value;
@@ -22,6 +22,17 @@ enum Action {
         page: u32,
         #[arg(long, default_value_t = 30)]
         size: u8,
+    },
+    #[command(about = "Create an Issue with a named type using repository permissions")]
+    File {
+        owner: String,
+        name: String,
+        #[arg(long)]
+        title: String,
+        #[arg(long = "body-file")]
+        body: PathBuf,
+        #[arg(long)]
+        kind: String,
     },
     #[command(about = "Read an exact Issue with its native author and labels")]
     Show(super::delivery::Spot),
@@ -66,6 +77,16 @@ impl Issues {
                 page,
                 size,
             } => encode(client.issues(&owner, &name, page, size)?),
+            Action::File {
+                owner,
+                name,
+                title,
+                body,
+                kind,
+            } => {
+                let draft = Draft::new(&title, &super::read(body)?, &kind)?;
+                encode(client.file(&owner, &name, &draft)?)
+            }
             Action::Show(target) => encode(client.ticket(&target.target()?)?),
             Action::Snapshot(input) => input.execute(client),
             Action::Document { target, id } => encode(client.document(&target.target()?, id)?),
