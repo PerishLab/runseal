@@ -59,6 +59,12 @@ enum Action {
         target: super::delivery::Spot,
         id: u64,
     },
+    #[command(about = "Update the body of an open Issue without changing its state")]
+    Amend {
+        node: String,
+        #[arg(long = "body-file")]
+        body: PathBuf,
+    },
     #[command(about = "Set the body and close an exact Issue as completed in one update")]
     Complete {
         node: String,
@@ -118,6 +124,7 @@ impl Issues {
                 encode(client.discussion(&target.target()?, Number::new(page, size)?)?)
             }
             Action::Entry { target, id } => encode(client.entry(&target.target()?, id)?),
+            Action::Amend { node, body } => encode(client.amend(&node, &super::read(body)?)?),
             Action::Complete { node, body } => encode(client.complete(&node, &super::read(body)?)?),
             Action::Search { query, size, after } => {
                 let window = Window::new(size, after.as_deref())?;

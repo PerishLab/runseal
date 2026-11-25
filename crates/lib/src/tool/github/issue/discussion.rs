@@ -7,6 +7,7 @@ use serde_json::json;
 use std::collections::BTreeSet;
 
 const COMPLETE: &str = "mutation RunsealComplete($input:UpdateIssueInput!) { updateIssue(input:$input) { issue { id body state reason:stateReason repository { id } } } }";
+const AMEND: &str = "mutation RunsealAmend($input:UpdateIssueInput!) { updateIssue(input:$input) { issue { id body state repository { id } } } }";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Entry {
@@ -44,6 +45,14 @@ pub struct Completion {
     pub body: String,
     pub state: String,
     pub reason: String,
+    pub repository: Identity,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Amendment {
+    pub id: String,
+    pub body: String,
+    pub state: String,
     pub repository: Identity,
 }
 
@@ -142,6 +151,22 @@ impl Client {
             },
         )
     }
+
+    pub fn amend(&self, issue: &str, body: &str) -> Result<Receipt<Amendment>, Error> {
+        if !node(issue) || body.len() > 65_536 {
+            return Err(Error::local(Cause::Input));
+        }
+        let input = json!({"id":issue,"body":body});
+        self.wire.send(
+            &self.bearer,
+            Call::Mutation(graph(AMEND, json!({"input":input}))),
+            |value| {
+                let found: Amendment = field(&value, "/data/updateIssue/issue")?;
+                let identity = found.id == issue && node(&found.repository.id);
+                (identity && found.state == "OPEN" && found.body == body).then_some(found)
+            },
+        )
+    }
 }
 
 impl Entry {
@@ -177,5 +202,44 @@ impl Document {
             author,
             updated: updated.into(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::github::{Cause, Outcome, tests::reply, tests::serve};
+
+    #[test]
+    fn amend() {
+        let good = r#"{"data":{"updateIssue":{"issue":{"id":"I_open","body":"updated","state":"OPEN","repository":{"id":"R_repo"}}}}}"#;
+        let closed = good.replace("OPEN", "CLOSED");
+        let drift = good.replace("updated", "other");
+        let server = serve(vec![
+            reply("200 OK", "", good),
+            reply("200 OK", "", &closed),
+            reply("200 OK", "", &drift),
+        ]);
+        let receipt = server.client.amend("I_open", "updated").unwrap();
+        assert_eq!(receipt.outcome, Outcome::Observed);
+        assert_eq!(receipt.value.id, "I_open");
+        assert_eq!(receipt.value.state, "OPEN");
+        assert_eq!(receipt.value.body, "updated");
+        for _ in 0..2 {
+            let error = server.client.amend("I_open", "updated").unwrap_err();
+            assert_eq!(
+                (error.outcome, error.cause),
+                (Outcome::Unknown, Cause::Shape)
+            );
+        }
+        let oversized = "x".repeat(65_537);
+        let input = server.client.amend("I_open", &oversized).unwrap_err();
+        assert_eq!(
+            (input.outcome, input.cause),
+            (Outcome::Unsent, Cause::Input)
+        );
+        let sent = server.thread.join().unwrap();
+        assert_eq!(sent.len(), 3);
+        assert!(sent[0].contains("mutation RunsealAmend"));
+        assert!(!sent[0].contains("stateInput"));
     }
 }
