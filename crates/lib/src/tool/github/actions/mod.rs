@@ -16,7 +16,7 @@ pub use status::{Combined, Signal, Status, Verdict};
 pub use archive::{Archive, Download};
 pub use artifact::{Artifact, Artifacts, Inventory, Producer};
 pub use jobs::{Job, Jobs, Listing, Step};
-pub use launch::{Dispatch, Launch};
+pub use launch::{Dispatch, Event, Launch, Trigger};
 pub use logs::{INLINE, Log, Transcript};
 
 use serde::{Deserialize, Serialize};

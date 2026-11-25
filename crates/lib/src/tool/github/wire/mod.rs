@@ -188,6 +188,50 @@ impl Wire {
             value: location.clone(),
         })
     }
+
+    pub(super) fn accept(
+        &self,
+        bearer: &str,
+        path: &str,
+        body: Value,
+    ) -> Result<Receipt<()>, Error> {
+        let started = Instant::now();
+        let kind = ("rest", observe::route("post", path));
+        let result = self.post(bearer, path, &body.to_string());
+        observe::capture(self.sink, started, kind, &result);
+        result
+    }
+
+    fn post(&self, bearer: &str, path: &str, body: &str) -> Result<Receipt<()>, Error> {
+        let headers = headers(bearer, "2022-11-28");
+        let url = format!("{}{path}", self.origin);
+        let payload = request(
+            &self.client,
+            Request {
+                method: "POST",
+                url: &url,
+                headers: &headers,
+                body: Some(body.as_bytes()),
+            },
+            1,
+        )?;
+        let evidence = evidence(&payload, 1);
+        if payload.status == 204 && payload.body.is_empty() {
+            return Ok(Receipt {
+                outcome: Outcome::Accepted,
+                evidence,
+                value: (),
+            });
+        }
+        if matches!(payload.status, 200..=299) {
+            return Err(Error {
+                outcome: Outcome::Unknown,
+                cause: Cause::Shape,
+                evidence,
+            });
+        }
+        Err(status(&payload, evidence))
+    }
 }
 
 fn request(client: &Client, request: Request<'_>, attempts: u8) -> Result<Payload, Error> {

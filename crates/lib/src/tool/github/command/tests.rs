@@ -118,4 +118,21 @@ fn stdin() {
             (Outcome::Unsent, Cause::Custody)
         );
     }
+    let triggered = Input::try_parse_from([
+        "@github",
+        "--token-stdin",
+        "--timeout",
+        "5",
+        "--json",
+        "trigger",
+        "PerishLab",
+        "wharf",
+        "--event",
+        "follow-push",
+        "--payload-file",
+        "/fixture/payload.json",
+    ])
+    .unwrap();
+    assert_eq!(triggered.timeout, Some(5));
+    assert!(matches!(triggered.deed, Deed::Trigger(_)));
 }
