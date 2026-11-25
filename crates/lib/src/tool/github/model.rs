@@ -73,6 +73,85 @@ pub struct Receipt<T> {
     pub value: T,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize, clap::ValueEnum)]
+#[serde(rename_all = "lowercase")]
+pub enum Visibility {
+    Public,
+    Private,
+}
+
+impl Visibility {
+    pub(super) fn private(self) -> bool {
+        matches!(self, Self::Private)
+    }
+
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Private => "private",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Creation {
+    name: String,
+    visibility: Visibility,
+    description: Option<String>,
+}
+
+impl Creation {
+    pub fn new(
+        name: &str,
+        visibility: Visibility,
+        description: Option<&str>,
+    ) -> Result<Self, Error> {
+        if !valid(name, true) || description.is_some_and(|text| !summary(text)) {
+            return Err(Error::local(Cause::Input));
+        }
+        Ok(Self {
+            name: name.into(),
+            visibility,
+            description: description.map(Into::into),
+        })
+    }
+
+    pub(super) fn body(&self) -> Value {
+        let mut payload = json!({
+            "name": self.name,
+            "private": self.visibility.private(),
+            "visibility": self.visibility.label(),
+            "auto_init": false,
+        });
+        if let Some(description) = &self.description {
+            payload["description"] = json!(description);
+        }
+        payload
+    }
+
+    pub(super) fn matches(&self, owner: &str, repository: &Repository) -> bool {
+        let expected = format!("{owner}/{}", self.name);
+        let identity = repository.id != 0
+            && repository.node.as_deref().is_some_and(super::node)
+            && repository.name.eq_ignore_ascii_case(&expected);
+        let exposure = repository.private == self.visibility.private()
+            && repository.visibility.as_deref() == Some(self.visibility.label());
+        if !(identity && exposure) {
+            return false;
+        }
+        let active = repository.archived != Some(true) && repository.disabled != Some(true);
+        let owned = repository
+            .owner
+            .as_ref()
+            .is_some_and(|actor| actor.matches(owner) && actor.kind == "Organization");
+        active && owned
+    }
+}
+
+fn summary(value: &str) -> bool {
+    !value.trim().is_empty() && value.chars().count() <= 350 && !value.contains(['\0', '\r', '\n'])
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Repository {
     pub id: u64,

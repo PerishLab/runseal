@@ -142,3 +142,32 @@ fn interfaces() {
     assert!(!output.status.success());
     assert!(!text(&output.stderr).contains("WITHHELD_FIXTURE"));
 }
+
+#[test]
+fn github() {
+    let seat = Seat::new();
+    let top = seat.run(&[":", "@github", "repository", "--help"]);
+    assert!(top.status.success(), "{top:?}");
+    for word in ["create", "show", "<OWNER>", "<NAME>"] {
+        assert!(text(&top.stdout).contains(word), "{}", text(&top.stdout));
+    }
+    let help = seat.run(&[":", "@github", "repository", "create", "--help"]);
+    assert!(help.status.success(), "{help:?}");
+    let rendered = text(&help.stdout);
+    for flag in ["--visibility", "--description", "<OWNER>", "<NAME>"] {
+        assert!(rendered.contains(flag), "{rendered}");
+    }
+    let bad = seat.run(&[
+        ":",
+        "@github",
+        "--token-stdin",
+        "--json",
+        "repository",
+        "create",
+        "PerishLab",
+        "../simplex",
+        "--visibility",
+        "private",
+    ]);
+    assert!(!bad.status.success());
+}

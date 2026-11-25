@@ -1,11 +1,31 @@
+use super::Call;
 use crate::github::{Cause, Error, Evidence, Outcome, Receipt};
 use crate::http::wire::Payload;
 use serde_json::Value;
 
+#[derive(Clone, Copy)]
+pub(super) enum Mode {
+    Rest,
+    Graphql,
+    Accepted,
+}
+
+impl Mode {
+    pub(super) fn select(call: &Call<'_>, accepted: bool) -> Self {
+        if matches!(call, Call::Query(_) | Call::Survey(_) | Call::Mutation(_)) {
+            Self::Graphql
+        } else if accepted {
+            Self::Accepted
+        } else {
+            Self::Rest
+        }
+    }
+}
+
 pub(super) fn decode<T>(
     response: Payload,
     attempts: u8,
-    graphql: bool,
+    mode: Mode,
     parse: impl Fn(Value, &Payload) -> Option<T>,
 ) -> Result<Receipt<T>, Error> {
     let mut evidence = evidence(&response, attempts);
@@ -17,7 +37,7 @@ pub(super) fn decode<T>(
         cause: Cause::Shape,
         evidence: evidence.clone(),
     })?;
-    if graphql
+    if matches!(mode, Mode::Graphql)
         && value
             .get("errors")
             .is_some_and(|errors| !errors.as_array().is_some_and(Vec::is_empty))
@@ -34,8 +54,12 @@ pub(super) fn decode<T>(
         cause: Cause::Shape,
         evidence: evidence.clone(),
     })?;
+    let outcome = match mode {
+        Mode::Accepted => Outcome::Accepted,
+        Mode::Rest | Mode::Graphql => Outcome::Observed,
+    };
     Ok(Receipt {
-        outcome: Outcome::Observed,
+        outcome,
         evidence,
         value,
     })
@@ -79,5 +103,16 @@ pub(super) fn status(response: &Payload, evidence: Evidence) -> Error {
         outcome,
         cause,
         evidence,
+    }
+}
+
+pub(super) fn retry(error: &Error) -> bool {
+    if error.cause == Cause::Limited || error.evidence.wait.is_some() {
+        return false;
+    }
+    match error.evidence.status {
+        Some(502..=504) => error.cause == Cause::Http,
+        None => error.cause == Cause::Network,
+        _ => false,
     }
 }

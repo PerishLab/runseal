@@ -1,5 +1,5 @@
 use super::{reply, serve};
-use crate::github::{Cause, Outcome, Window, columns::Locator, view};
+use crate::github::{Cause, Creation, Outcome, Visibility, Window, columns::Locator, view};
 
 #[test]
 fn columns() {
@@ -190,4 +190,83 @@ fn governance() {
         "PR_7"
     );
     server.thread.join().unwrap();
+}
+
+#[test]
+fn establish() {
+    let oversized = "x".repeat(351);
+    for (name, description) in [
+        ("../simplex", None),
+        (".", None),
+        ("simplex", Some("   ")),
+        ("simplex", Some("first\nsecond")),
+        ("simplex", Some(oversized.as_str())),
+    ] {
+        let error = Creation::new(name, Visibility::Private, description).unwrap_err();
+        assert_eq!(
+            (error.outcome, error.cause),
+            (Outcome::Unsent, Cause::Input)
+        );
+    }
+    let spec = Creation::new("simplex", Visibility::Private, Some("Simplex seed")).unwrap();
+    let public = Creation::new("simplex", Visibility::Public, None).unwrap();
+    let created = r#"{"id":99,"node_id":"R_simplex","full_name":"PerishLab/simplex","private":true,"visibility":"private","archived":false,"disabled":false,"default_branch":"main","owner":{"id":330236468,"login":"PerishLab","node_id":"O_org","type":"Organization"}}"#;
+    let open = created
+        .replace("\"private\":true", "\"private\":false")
+        .replace("\"visibility\":\"private\"", "\"visibility\":\"public\"");
+    let user = created.replace("\"Organization\"", "\"User\"");
+    let server = serve(vec![
+        reply("201 Created", "", created),
+        reply("201 Created", "", &open),
+        reply("200 OK", "", created),
+        reply("201 Created", "", &open),
+        reply("201 Created", "", &user),
+        reply("422 Unprocessable Entity", "", r#"{"message":"exists"}"#),
+        None,
+        reply("201 Created", "", created),
+    ]);
+    assert_eq!(
+        server
+            .client
+            .establish("Perish/Lab", &spec)
+            .unwrap_err()
+            .outcome,
+        Outcome::Unsent
+    );
+    let receipt = server.client.establish("PerishLab", &spec).unwrap();
+    assert_eq!(receipt.outcome, Outcome::Accepted);
+    assert_eq!(receipt.evidence.attempts, 1);
+    assert_eq!(receipt.value.node.as_deref(), Some("R_simplex"));
+    assert_eq!(
+        server
+            .client
+            .establish("PerishLab", &public)
+            .unwrap()
+            .outcome,
+        Outcome::Accepted
+    );
+    for expected in [Cause::Shape, Cause::Shape, Cause::Shape] {
+        let error = server.client.establish("PerishLab", &spec).unwrap_err();
+        assert_eq!(
+            (error.outcome, error.cause, error.evidence.attempts),
+            (Outcome::Unknown, expected, 1)
+        );
+    }
+    let refused = server.client.establish("PerishLab", &spec).unwrap_err();
+    assert_eq!(
+        (refused.outcome, refused.cause, refused.evidence.attempts),
+        (Outcome::Refused, Cause::Http, 1)
+    );
+    let dropped = server.client.establish("PerishLab", &spec).unwrap_err();
+    assert_eq!(
+        (dropped.outcome, dropped.cause, dropped.evidence.attempts),
+        (Outcome::Unknown, Cause::Network, 1)
+    );
+    let calls = server.thread.join().unwrap();
+    assert_eq!(calls.len(), 7);
+    assert!(calls[0].starts_with("POST /orgs/PerishLab/repos HTTP/1.1"));
+    assert!(calls[0].contains("\"auto_init\":false"));
+    assert!(calls[0].contains("\"visibility\":\"private\""));
+    assert!(calls[0].contains("\"description\":\"Simplex seed\""));
+    assert!(!calls[1].contains("\"description\""));
 }

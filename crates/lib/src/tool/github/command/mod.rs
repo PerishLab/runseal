@@ -8,7 +8,7 @@ mod pulls;
 mod records;
 mod source;
 use super::actions::command as actions;
-use super::{Cause, Client, Error, Relation, Squash};
+use super::{Cause, Client, Error, Relation};
 use crate::tool::Reply;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -52,6 +52,7 @@ struct Input {
 }
 #[derive(Subcommand)]
 enum Deed {
+    #[command(about = "Read repository metadata or create an organization repository")]
     Repository(source::Repository),
     Project(source::Project),
     #[command(about = "List one page of visible Projects owned by an organization")]
@@ -127,16 +128,7 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     #[command(about = "Read one pull request and its exact base and head")]
     Pull(Spot),
     #[command(about = "Squash one pull request conditional on its complete head SHA")]
-    Squash {
-        #[command(flatten)]
-        place: Spot,
-        #[arg(long)]
-        head: String,
-        #[arg(long)]
-        title: Option<String>,
-        #[arg(long = "body-file")]
-        body: Option<PathBuf>,
-    },
+    Squash(pulls::Landing),
     #[command(about = "Read one page of check runs for a complete commit SHA")]
     Checks(actions::Checks),
     #[command(about = "Read one workflow run or a specific attempt")]
@@ -239,16 +231,7 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
         Deed::Compare(compare) => return compare.execute(client),
         Deed::Commit(commit) => return commit.execute(client),
         Deed::Pull(place) => serde_json::to_value(client.pull(&place.target()?)?),
-        Deed::Squash {
-            place,
-            head,
-            title,
-            body,
-        } => {
-            let body = body.map(read).transpose()?;
-            let input = Squash::new(&head, title.as_deref(), body.as_deref())?;
-            serde_json::to_value(client.squash(&place.target()?, &input)?)
-        }
+        Deed::Squash(landing) => return landing.execute(client),
         Deed::Checks(checks) => return checks.execute(client),
         Deed::Workflow(workflow) => return workflow.execute(client),
         Deed::Dispatch(request) => return request.execute(client),
