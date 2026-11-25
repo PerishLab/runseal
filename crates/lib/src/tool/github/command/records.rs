@@ -1,4 +1,4 @@
-use crate::github::{Cause, Client, Error, Number, records::Draft};
+use crate::github::{Cause, Client, Error, Number, Window, records::Draft};
 use clap::{Args, Subcommand};
 use serde::Serialize;
 use serde_json::Value;
@@ -65,6 +65,30 @@ enum Action {
         #[arg(long = "body-file")]
         body: PathBuf,
     },
+    #[command(about = "Search GitHub Issues with bounded pagination")]
+    Search {
+        query: String,
+        #[arg(long, default_value_t = 30)]
+        size: u8,
+        #[arg(long)]
+        after: Option<String>,
+    },
+    #[command(about = "Classify repository numbers as open or closed Issues or absent")]
+    Classify {
+        owner: String,
+        name: String,
+        #[arg(required = true)]
+        numbers: Vec<u32>,
+    },
+    #[command(about = "Read one page of REST Issue field values for an exact Issue")]
+    Attached {
+        #[command(flatten)]
+        target: super::delivery::Spot,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        #[arg(long, default_value_t = 100)]
+        size: u8,
+    },
 }
 
 impl Issues {
@@ -95,6 +119,18 @@ impl Issues {
             }
             Action::Entry { target, id } => encode(client.entry(&target.target()?, id)?),
             Action::Complete { node, body } => encode(client.complete(&node, &super::read(body)?)?),
+            Action::Search { query, size, after } => {
+                let window = Window::new(size, after.as_deref())?;
+                encode(client.search(&query, &window)?)
+            }
+            Action::Classify {
+                owner,
+                name,
+                numbers,
+            } => encode(client.classify(&owner, &name, &numbers)?),
+            Action::Attached { target, page, size } => {
+                encode(client.attached(&target.target()?, Number::new(page, size)?)?)
+            }
         }
     }
 }

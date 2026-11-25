@@ -20,18 +20,29 @@ pub(super) enum Call<'a> {
     Patch(&'a str, Value),
     Dispatch(&'a str, Value),
     Query(Value),
+    Raw(Value),
     Survey(Value),
     Mutation(Value),
 }
 
 impl Wire {
     pub(super) fn new(origin: String) -> Self {
+        Self::bounded(origin, 8)
+    }
+
+    pub(super) fn bounded(origin: String, seconds: u64) -> Self {
         Self {
             origin,
-            client: client(1024 * 1024),
-            source: client(4 * 1024 * 1024),
-            survey: client(8 * 1024 * 1024),
+            client: client(1024 * 1024, seconds),
+            source: client(4 * 1024 * 1024, seconds),
+            survey: client(8 * 1024 * 1024, seconds),
         }
+    }
+
+    pub(super) fn timeout(&mut self, seconds: u64) {
+        self.client = client(1024 * 1024, seconds);
+        self.source = client(4 * 1024 * 1024, seconds);
+        self.survey = client(8 * 1024 * 1024, seconds);
     }
 
     pub(super) fn send<T>(
@@ -58,7 +69,7 @@ impl Wire {
             | Call::Recent(path, Some(body)) => ("POST", *path, Some(body.to_string())),
             Call::Patch(path, body) => ("PATCH", *path, Some(body.to_string())),
             Call::Put(path, body) => ("PUT", *path, Some(body.to_string())),
-            Call::Query(body) | Call::Survey(body) | Call::Mutation(body) => {
+            Call::Query(body) | Call::Raw(body) | Call::Survey(body) | Call::Mutation(body) => {
                 ("POST", "/graphql", Some(body.to_string()))
             }
         };
@@ -163,11 +174,11 @@ fn request(client: &Client, request: Request<'_>, attempts: u8) -> Result<Payloa
     })
 }
 
-fn client(limit: u64) -> Client {
+fn client(limit: u64, seconds: u64) -> Client {
     Client::new(Policy {
         redirects: 0,
-        overall: Some(Duration::from_secs(8)),
-        connect: Some(Duration::from_secs(3)),
+        overall: Some(Duration::from_secs(seconds)),
+        connect: Some(Duration::from_secs(seconds.min(3))),
         limit,
     })
 }

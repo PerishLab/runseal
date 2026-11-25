@@ -34,6 +34,8 @@ pub struct Object {
     pub sha: String,
     #[serde(rename = "type")]
     pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -41,6 +43,8 @@ pub struct Annotation {
     pub sha: String,
     pub tag: String,
     pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
     pub object: Object,
 }
 

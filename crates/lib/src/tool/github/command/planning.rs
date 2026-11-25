@@ -125,6 +125,8 @@ enum Action {
     },
     #[command(about = "Remove one exact Project workflow")]
     Retire { project: String, workflow: String },
+    #[command(about = "Read exact organization node and numeric identities")]
+    Account { owner: String },
     #[command(about = "Post one Project status update")]
     Record {
         project: String,
@@ -136,6 +138,7 @@ enum Action {
 impl Project {
     pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
         match self.action {
+            Action::Account { owner } => encode(client.account(&owner)?),
             Action::Views { scope, page } => {
                 encode(client.views(&scope.owner, scope.number, &page.window()?)?)
             }

@@ -15,15 +15,19 @@ pub use actions::{
 };
 pub(crate) use command::{call, run};
 pub use issue::acceptance;
+pub use issue::attached;
+pub use issue::classify;
 pub use issue::discussion;
 pub use issue::phase;
 pub use issue::records;
 pub use issue::review;
+pub use issue::search;
 pub use issue::snapshot;
 pub use issue::{Comment, Draft, Identity, Kind, Label, Link, Related, Relation, Ticket};
 pub use model::{Cause, Error, Evidence, Issue, Outcome, Project, Receipt, Repository, Target};
 pub use page::{Number, Page, Window};
 pub use project::activity;
+pub use project::board;
 pub use project::catalogue;
 pub use project::columns;
 pub use project::inventory;
@@ -34,9 +38,9 @@ pub use project::{
     Schedule, Schema, Seat, Settings, Shape, Structure,
 };
 pub use pull::{
-    Annotation, Blob, Branch, Commit, Compare, Directory, Edit, File, Head, Member, Merge, Object,
-    Origin, Permission, Pointer, Principal, Proposal, Pull, Reference, Revision, Search, Squash,
-    State, Tree,
+    Annotation, Blob, Branch, Closing, Commit, Compare, Directory, Edit, File, Head, Manifest,
+    Member, Merge, Object, Origin, Permission, Pointer, Principal, Proposal, Pull, Reference,
+    Revision, Search, Squash, State, Tree,
 };
 pub use pull::{lifecycle, lineage, rollup, tags};
 
@@ -75,6 +79,23 @@ impl Client {
             wire: Wire::new("https://api.github.com".into()),
             bearer: Zeroizing::new(format!("Bearer {token}")),
         })
+    }
+
+    pub fn loopback(token: &str, address: std::net::SocketAddr) -> Result<Self, Error> {
+        if !address.ip().is_loopback() {
+            return Err(Error::local(Cause::Input));
+        }
+        let mut client = Self::token(token)?;
+        client.wire = Wire::new(format!("http://{address}"));
+        Ok(client)
+    }
+
+    pub fn timeout(mut self, seconds: u64) -> Result<Self, Error> {
+        if !(1..=300).contains(&seconds) {
+            return Err(Error::local(Cause::Input));
+        }
+        self.wire.timeout(seconds);
+        Ok(self)
     }
 
     pub fn repository(&self, owner: &str, name: &str) -> Result<Receipt<Repository>, Error> {
