@@ -135,4 +135,30 @@ fn stdin() {
     .unwrap();
     assert_eq!(triggered.timeout, Some(5));
     assert!(matches!(triggered.deed, Deed::Trigger(_)));
+    for args in [
+        &["@github", "repository", "PerishLab", "runseal"][..],
+        &["@github", "repository", "show", "PerishLab", "runseal"][..],
+        &[
+            "@github",
+            "--json",
+            "repository",
+            "create",
+            "PerishLab",
+            "simplex",
+            "--visibility",
+            "private",
+            "--description",
+            "Simplex programming language",
+        ][..],
+    ] {
+        let parsed = Input::try_parse_from(args).unwrap();
+        assert!(matches!(parsed.deed, Deed::Repository(_)));
+    }
+    for invalid in [
+        &["@github", "repository"][..],
+        &["@github", "repository", "PerishLab"][..],
+        &["@github", "repository", "create", "PerishLab", "simplex"][..],
+    ] {
+        assert!(Input::try_parse_from(invalid).is_err());
+    }
 }

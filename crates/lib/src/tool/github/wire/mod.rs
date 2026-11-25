@@ -3,7 +3,7 @@ mod response;
 
 pub use observe::{Observation, Sink, observe};
 pub(in crate::tool::github) use response::identifier;
-use response::{decode, evidence, status};
+use response::{Mode, decode, evidence, retry, status};
 
 use super::{Cause, Error, Evidence, Outcome, Receipt};
 use crate::http::wire::{Client, Payload, Policy, Request};
@@ -73,9 +73,28 @@ impl Wire {
         call: Call<'_>,
         parse: impl Fn(Value, &Payload) -> Option<T>,
     ) -> Result<Receipt<T>, Error> {
+        self.transact(bearer, call, false, parse)
+    }
+
+    pub(super) fn submit<T>(
+        &self,
+        bearer: &str,
+        call: Call<'_>,
+        parse: impl Fn(Value, &Payload) -> Option<T>,
+    ) -> Result<Receipt<T>, Error> {
+        self.transact(bearer, call, true, parse)
+    }
+
+    fn transact<T>(
+        &self,
+        bearer: &str,
+        call: Call<'_>,
+        accepted: bool,
+        parse: impl Fn(Value, &Payload) -> Option<T>,
+    ) -> Result<Receipt<T>, Error> {
         let started = Instant::now();
         let kind = observe::operation(&call);
-        let result = self.execute(bearer, call, parse);
+        let result = self.execute(bearer, call, accepted, parse);
         observe::capture(self.sink, started, kind, &result);
         result
     }
@@ -84,6 +103,7 @@ impl Wire {
         &self,
         bearer: &str,
         call: Call<'_>,
+        accepted: bool,
         parse: impl Fn(Value, &Payload) -> Option<T>,
     ) -> Result<Receipt<T>, Error> {
         let (method, path, body) = match &call {
@@ -106,7 +126,7 @@ impl Wire {
             "2022-11-28"
         };
         let headers = headers(bearer, version);
-        let graphql = matches!(call, Call::Query(_) | Call::Survey(_) | Call::Mutation(_));
+        let mode = Mode::select(&call, accepted);
         let limit = if matches!(
             call,
             Call::Mutation(_)
@@ -137,7 +157,7 @@ impl Wire {
                 },
                 number,
             )
-            .and_then(|payload| decode(payload, number, graphql, &parse));
+            .and_then(|payload| decode(payload, number, mode, &parse));
             match answer {
                 Err(error) if number < limit && retry(&error) => {
                     std::thread::sleep(Duration::from_millis(120));
@@ -271,13 +291,5 @@ fn headers<'a>(bearer: &'a str, version: &'static str) -> [(&'static str, &'a st
     ]
 }
 
-fn retry(error: &Error) -> bool {
-    if error.cause == Cause::Limited || error.evidence.wait.is_some() {
-        return false;
-    }
-    match error.evidence.status {
-        Some(502..=504) => error.cause == Cause::Http,
-        None => error.cause == Cause::Network,
-        _ => false,
-    }
-}
+#[cfg(test)]
+mod tests;

@@ -24,7 +24,10 @@ pub use issue::review;
 pub use issue::search;
 pub use issue::snapshot;
 pub use issue::{Comment, Draft, Identity, Kind, Label, Link, Related, Relation, Ticket};
-pub use model::{Cause, Error, Evidence, Issue, Outcome, Project, Receipt, Repository, Target};
+pub use model::{
+    Cause, Creation, Error, Evidence, Issue, Outcome, Project, Receipt, Repository, Target,
+    Visibility,
+};
 pub use page::{Number, Page, Window};
 pub use project::activity;
 pub use project::board;
@@ -142,6 +145,22 @@ impl Client {
                     .then_some(repo)
             },
         )
+    }
+
+    pub fn establish(&self, owner: &str, request: &Creation) -> Result<Receipt<Repository>, Error> {
+        if !valid(owner, false) {
+            return Err(Error::local(Cause::Input));
+        }
+        let path = format!("/orgs/{owner}/repos");
+        let body = request.body();
+        self.wire
+            .submit(&self.bearer, Call::Post(&path, body), |value, response| {
+                if response.status != 201 {
+                    return None;
+                }
+                let found: Repository = serde_json::from_value(value).ok()?;
+                request.matches(owner, &found).then_some(found)
+            })
     }
 
     pub fn project(&self, owner: &str, number: u32) -> Result<Receipt<Project>, Error> {

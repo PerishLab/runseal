@@ -1,5 +1,5 @@
 use super::{Spot, read};
-use crate::github::{Cause, Client, Compare, Edit, Error, Proposal, Search, State};
+use crate::github::{Cause, Client, Compare, Edit, Error, Proposal, Search, Squash, State};
 use crate::github::{Number, Window, lifecycle};
 use clap::{Args, Subcommand};
 use serde::Serialize;
@@ -181,6 +181,26 @@ impl Lifecycle {
                 encode(client.listing(&owner, &name, &selection)?)
             }
         }
+    }
+}
+
+#[derive(Args)]
+pub(super) struct Landing {
+    #[command(flatten)]
+    place: Spot,
+    #[arg(long)]
+    head: String,
+    #[arg(long)]
+    title: Option<String>,
+    #[arg(long = "body-file")]
+    body: Option<PathBuf>,
+}
+
+impl Landing {
+    pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
+        let body = self.body.map(read).transpose()?;
+        let input = Squash::new(&self.head, self.title.as_deref(), body.as_deref())?;
+        encode(client.squash(&self.place.target()?, &input)?)
     }
 }
 

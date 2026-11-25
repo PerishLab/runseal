@@ -203,14 +203,51 @@ impl Releases {
 }
 
 #[derive(Args)]
+#[command(args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
 pub(super) struct Repository {
-    owner: String,
-    name: String,
+    #[command(subcommand)]
+    action: Option<Catalog>,
+    #[arg(required = true)]
+    owner: Option<String>,
+    #[arg(required = true)]
+    name: Option<String>,
+}
+
+#[derive(clap::Subcommand)]
+enum Catalog {
+    #[command(about = "Read repository metadata")]
+    Show { owner: String, name: String },
+    #[command(about = "Create one empty organization repository with explicit visibility")]
+    Create {
+        owner: String,
+        name: String,
+        #[arg(long, value_enum)]
+        visibility: crate::github::Visibility,
+        #[arg(long)]
+        description: Option<String>,
+    },
 }
 
 impl Repository {
     pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
-        encode(client.repository(&self.owner, &self.name)?)
+        match self.action {
+            Some(Catalog::Show { owner, name }) => encode(client.repository(&owner, &name)?),
+            Some(Catalog::Create {
+                owner,
+                name,
+                visibility,
+                description,
+            }) => {
+                let request =
+                    crate::github::Creation::new(&name, visibility, description.as_deref())?;
+                encode(client.establish(&owner, &request)?)
+            }
+            None => {
+                let owner = self.owner.ok_or_else(|| Error::local(Cause::Input))?;
+                let name = self.name.ok_or_else(|| Error::local(Cause::Input))?;
+                encode(client.repository(&owner, &name)?)
+            }
+        }
     }
 }
 
