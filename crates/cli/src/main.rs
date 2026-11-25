@@ -92,6 +92,9 @@ fn main() -> Result<()> {
         _ => "control",
     };
     let observation = observation::start(&cwd, command);
+    if observation.is_some() {
+        runseal::github::observe(observation::provider);
+    }
     let result = execute(args, &cwd);
     if let Some(observation) = observation {
         observation.finish(match &result {

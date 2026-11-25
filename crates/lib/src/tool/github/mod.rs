@@ -43,6 +43,7 @@ pub use pull::{
     Revision, Search, Squash, State, Tree,
 };
 pub use pull::{lifecycle, lineage, rollup, tags};
+pub use wire::{Observation, Sink, observe};
 
 use crate::custody::Private;
 use serde::de::DeserializeOwned;
@@ -96,6 +97,11 @@ impl Client {
         }
         self.wire.timeout(seconds);
         Ok(self)
+    }
+
+    pub fn observer(mut self, sink: Sink) -> Self {
+        self.wire.observer(sink);
+        self
     }
 
     pub fn repository(&self, owner: &str, name: &str) -> Result<Receipt<Repository>, Error> {
