@@ -8,7 +8,7 @@ mod pulls;
 mod records;
 mod source;
 use super::actions::command as actions;
-use super::{Cause, Client, Error, Filter, Invocation, Relation, Squash};
+use super::{Cause, Client, Error, Relation, Squash};
 use crate::tool::Reply;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -19,7 +19,15 @@ use std::{collections::BTreeMap, path::PathBuf};
 #[derive(Parser)]
 #[command(
     name = "@github",
-    about = "Native GitHub operations on an explicitly selected credential"
+    about = "Native GitHub operations on an explicitly selected credential",
+    after_help = "\
+Conventions:
+  Credentials: --token-file <PATH>, --token-stdin (one bounded line for profile-less CI),
+               or profile GITHUB_TOKEN_FILE / GITHUB_TOKEN.
+  Arguments:   positional <OWNER> <NAME>; --head/--base take bare branch names (no owner:).
+               Commit comparison is available at top-level `compare` and `lifecycle ancestry`.
+  Receipts:    `dispatch` returns workflow_run_id/run_url/html_url; `issues file` returns
+               html_url; `issues open` returns rows[].url."
 )]
 struct Input {
     #[arg(
@@ -28,6 +36,13 @@ struct Input {
         help = "Absolute private file; otherwise profile GITHUB_TOKEN_FILE or GITHUB_TOKEN"
     )]
     file: Option<PathBuf>,
+    #[arg(
+        long = "token-stdin",
+        global = true,
+        conflicts_with = "file",
+        help = "Read one bounded token line from stdin for profile-less CI"
+    )]
+    stdin: bool,
     #[arg(long, global = true, help = "Write structured provider receipts")]
     json: bool,
     #[command(subcommand)]
@@ -103,6 +118,8 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     Edit(pulls::Revision),
     #[command(about = "Read pull readiness, page by head or update a single pull field")]
     Lifecycle(pulls::Lifecycle),
+    #[command(about = "Compare two complete commit SHAs for ancestry and status")]
+    Compare(pulls::Ancestry),
     #[command(about = "Read the Git tree of a complete commit SHA")]
     Commit(delivery::Commit),
     #[command(about = "Read one pull request and its exact base and head")]
@@ -119,23 +136,9 @@ Operations: add (content), remove (item), move (item, optional after), set (item
         body: Option<PathBuf>,
     },
     #[command(about = "Read one page of check runs for a complete commit SHA")]
-    Checks {
-        owner: String,
-        name: String,
-        head: String,
-        #[arg(long, default_value_t = 1)]
-        page: u32,
-        #[arg(long, default_value_t = 30)]
-        size: u8,
-    },
+    Checks(actions::Checks),
     #[command(about = "Read one workflow run or a specific attempt")]
-    Workflow {
-        owner: String,
-        name: String,
-        id: u64,
-        #[arg(long)]
-        attempt: Option<u32>,
-    },
+    Workflow(actions::Workflow),
     #[command(about = "Dispatch one workflow and return its accepted run identity")]
     Dispatch(actions::Request),
     #[command(about = "Read one page of jobs for an exact workflow run attempt")]
@@ -229,6 +232,7 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
         Deed::Propose(submission) => return submission.execute(client),
         Deed::Edit(edit) => return edit.execute(client),
         Deed::Lifecycle(lifecycle) => return lifecycle.execute(client),
+        Deed::Compare(compare) => return compare.execute(client),
         Deed::Commit(commit) => return commit.execute(client),
         Deed::Pull(place) => serde_json::to_value(client.pull(&place.target()?)?),
         Deed::Squash {
@@ -241,22 +245,8 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
             let input = Squash::new(&head, title.as_deref(), body.as_deref())?;
             serde_json::to_value(client.squash(&place.target()?, &input)?)
         }
-        Deed::Checks {
-            owner,
-            name,
-            head,
-            page,
-            size,
-        } => {
-            let filter = Filter::new(&head, page, size)?;
-            serde_json::to_value(client.checks(&owner, &name, &filter)?)
-        }
-        Deed::Workflow {
-            owner,
-            name,
-            id,
-            attempt,
-        } => serde_json::to_value(client.workflow(&owner, &name, Invocation::new(id, attempt)?)?),
+        Deed::Checks(checks) => return checks.execute(client),
+        Deed::Workflow(workflow) => return workflow.execute(client),
         Deed::Dispatch(request) => return request.execute(client),
         Deed::Jobs(catalog) => return catalog.execute(client),
         Deed::Logs(logs) => return logs.execute(client),

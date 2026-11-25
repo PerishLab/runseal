@@ -68,3 +68,54 @@ fn primitives() {
     assert!(logs.json);
     assert!(matches!(logs.deed, Deed::Logs(_)));
 }
+
+#[test]
+fn stdin() {
+    use crate::github::{Cause, Client, Outcome};
+    let parsed = Input::try_parse_from([
+        "@github",
+        "--token-stdin",
+        "--json",
+        "compare",
+        "PerishLab",
+        "runseal",
+        "1234567890123456789012345678901234567890",
+        "abcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    ])
+    .unwrap();
+    assert!(parsed.stdin);
+    assert!(matches!(parsed.deed, Deed::Compare(_)));
+    assert!(
+        Input::try_parse_from([
+            "@github",
+            "--token-stdin",
+            "--token-file",
+            "/fixture/token",
+            "repository",
+            "PerishLab",
+            "runseal",
+        ])
+        .is_err()
+    );
+    for ok in [
+        "github_pat_fixture",
+        "github_pat_fixture\n",
+        "github_pat_fixture\r\n",
+    ] {
+        assert!(Client::reader(ok.as_bytes()).is_ok());
+    }
+    let oversized = "a".repeat(4097);
+    for bad in [
+        "",
+        "\n",
+        "first\nsecond\n",
+        "first\rsecond",
+        oversized.as_str(),
+    ] {
+        let error = Client::reader(bad.as_bytes()).err().expect("rejected");
+        assert_eq!(
+            (error.outcome, error.cause),
+            (Outcome::Unsent, Cause::Custody)
+        );
+    }
+}

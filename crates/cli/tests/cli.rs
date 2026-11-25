@@ -241,3 +241,44 @@ fn broken() {
         assert!(!stderr.contains("Broken pipe"), "{args:?}: {stderr}");
     }
 }
+
+#[test]
+fn github() {
+    use std::io::Write;
+    use std::process::Stdio;
+    let fx = Fixture::new("");
+    let help = fx.run(&[":", "@github", "--help"]);
+    assert!(help.status.success());
+    let stdout = text(&help.stdout);
+    for expected in ["--token-stdin", "compare", "workflow_run_id", "no owner:"] {
+        assert!(stdout.contains(expected), "{expected}");
+    }
+    let mut child = bin()
+        .current_dir(&fx.root)
+        .args([
+            ":",
+            "@github",
+            "--token-stdin",
+            "--json",
+            "repository",
+            "PerishLab",
+            "runseal",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn");
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"secret_first\nsecret_second\n")
+        .unwrap();
+    let output = child.wait_with_output().expect("finish");
+    assert!(!output.status.success());
+    let out = text(&output.stdout);
+    let err = text(&output.stderr);
+    assert!(out.contains("\"cause\":\"custody\""));
+    assert!(!out.contains("secret_first") && !err.contains("secret_first"));
+}

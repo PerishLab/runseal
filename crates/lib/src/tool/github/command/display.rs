@@ -37,15 +37,18 @@ fn display(json: bool, value: &Value) -> Result<()> {
 }
 
 pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value, Error> {
-    let file = input
+    let client = if input.stdin {
+        Client::reader(std::io::stdin().lock())?
+    } else if let Some(file) = input
         .file
-        .or_else(|| vars.get("GITHUB_TOKEN_FILE").map(Into::into));
-    let client = match file {
-        Some(file) => Client::open(&file)?,
-        None => Client::token(
+        .or_else(|| vars.get("GITHUB_TOKEN_FILE").map(Into::into))
+    {
+        Client::open(&file)?
+    } else {
+        Client::token(
             vars.get("GITHUB_TOKEN")
                 .ok_or_else(|| Error::local(Cause::Custody))?,
-        )?,
+        )?
     };
     super::apply(&client, input.deed)
 }
