@@ -1,5 +1,5 @@
 mod authority;
-pub use authority::{Branch, Head, Permission, Principal};
+pub use authority::{Branch, Closing, Head, Manifest, Permission, Principal};
 mod commit;
 mod edit;
 pub mod lifecycle;

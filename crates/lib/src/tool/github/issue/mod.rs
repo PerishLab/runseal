@@ -1,8 +1,11 @@
 pub mod acceptance;
+pub mod attached;
+pub mod classify;
 pub mod discussion;
 pub mod phase;
 pub mod records;
 pub mod review;
+pub mod search;
 pub mod snapshot;
 
 use super::{

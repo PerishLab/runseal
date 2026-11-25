@@ -121,3 +121,73 @@ fn activity() {
     assert!(calls[0].contains("deleteProjectV2Workflow"));
     assert!(calls[1].contains("createProjectV2StatusUpdate"));
 }
+
+#[test]
+fn governance() {
+    use crate::github::{Target, Window};
+    let phase = r#"{"data":{"repository":{"issue":{"id":"I_9","number":9,"url":"https://github.com/PerishLab/concord/issues/9","repository":{"id":"R_1","nameWithOwner":"PerishLab/concord","owner":{"id":"O_1"}},"issueFieldValues":{"totalCount":0,"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}}"#;
+    let badge =
+        r#"{"data":{"repository":{"id":"R_1","label":{"id":"L_1","name":"acceptance:release"}}}}"#;
+    let minted = r#"{"data":{"created":{"label":{"id":"L_2","name":"acceptance:source"}}}}"#;
+    let relabeled = r#"{"data":{"alter":{"labelable":{"__typename":"Issue","id":"I_9"}}}}"#;
+    let admission = r#"{"data":{"repository":{"id":"R_1","nameWithOwner":"PerishLab/concord","defaultBranchRef":{"name":"main"},"issue":{"id":"I_9","number":9,"url":"https://github.com/PerishLab/concord/issues/9","state":"OPEN","issueType":{"name":"Feature"},"subIssuesSummary":{"total":0},"labels":{"nodes":[],"pageInfo":{"hasNextPage":false}}},"rulesets":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}}"#;
+    let manifest =
+        r#"{"data":{"repository":{"id":"R_1","object":{"oid":"abc","text":"[release]\n"}}}}"#;
+    let closing = r#"{"data":{"repository":{"id":"R_1","pull":{"id":"PR_7","number":7,"url":"https://github.com/PerishLab/concord/pull/7","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","body":"","state":"OPEN","updated":"2026-11-25T00:00:00Z","references":{"total":0,"nodes":[],"page":{"next":false,"cursor":null}}}}}}"#;
+    let server = serve(vec![
+        reply("200 OK", "", phase),
+        reply("200 OK", "", badge),
+        reply("200 OK", "", minted),
+        reply("200 OK", "", relabeled),
+        reply("200 OK", "", admission),
+        reply("200 OK", "", manifest),
+        reply("200 OK", "", closing),
+    ]);
+    let issue = Target::new("PerishLab", "concord", 9).unwrap();
+    let pull = Target::new("PerishLab", "concord", 7).unwrap();
+    assert_eq!(
+        server.client.phase(&issue, false).unwrap().value["id"],
+        "I_9"
+    );
+    assert_eq!(
+        server
+            .client
+            .badge("PerishLab", "concord", "acceptance:release")
+            .unwrap()
+            .value
+            .badge
+            .unwrap()
+            .id,
+        "L_1"
+    );
+    assert_eq!(
+        server
+            .client
+            .mint("R_1", "acceptance:source", "5319e7")
+            .unwrap()
+            .value
+            .id,
+        "L_2"
+    );
+    assert_eq!(
+        server.client.relabel("I_9", "L_2", false).unwrap().outcome,
+        Outcome::Accepted
+    );
+    assert_eq!(server.client.admission(&issue).unwrap().value["id"], "R_1");
+    assert_eq!(
+        server
+            .client
+            .manifest("PerishLab", "concord")
+            .unwrap()
+            .value
+            .oid
+            .as_deref(),
+        Some("abc")
+    );
+    let window = Window::new(100, None).unwrap();
+    assert_eq!(
+        server.client.closing(&pull, &window).unwrap().value.pull["id"],
+        "PR_7"
+    );
+    server.thread.join().unwrap();
+}

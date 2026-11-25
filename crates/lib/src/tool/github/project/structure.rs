@@ -6,7 +6,7 @@ use crate::github::{Outcome, field};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-const METADATA: &str = "id number title url updated:updatedAt closed public writable:viewerCanUpdate description:shortDescription readme owner { kind:__typename ... on Organization { id login } }";
+pub(super) const METADATA: &str = "id number title url updated:updatedAt closed public writable:viewerCanUpdate description:shortDescription readme owner { kind:__typename ... on Organization { id login } }";
 const REPOSITORIES: &str = "query RunsealRepositories($owner:String!,$number:Int!,$size:Int!,$after:String) { organization(login:$owner) { login projectV2(number:$number) { id number list:repositories(first:$size,after:$after) { total:totalCount rows:nodes { id name:nameWithOwner } page:pageInfo { more:hasNextPage cursor:endCursor } } } } }";
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -197,7 +197,7 @@ impl Structure {
 }
 
 impl Overview {
-    fn valid(&self) -> bool {
+    pub(super) fn valid(&self) -> bool {
         if !node(&self.id) || self.number == 0 || self.updated.is_empty() {
             return false;
         }

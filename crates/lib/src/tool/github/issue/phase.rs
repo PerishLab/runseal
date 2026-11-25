@@ -20,6 +20,8 @@ const VALUES: &str = "query RunsealIssueValues($owner:String!,$name:String!,$num
     ... on IssueFieldMultiSelectValue { id multiple:value field { ... on Node { id } } }
 } page:pageInfo { more:hasNextPage cursor:endCursor } } } } }";
 const WRITE: &str = "mutation RunsealIssueFieldValue($input:SetIssueFieldValueInput!) { change:setIssueFieldValue(input:$input) { issue { id } } }";
+const FULL: &str = "query RunsealPhaseFull($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issue(number:$number){id number url body state updatedAt viewerCanUpdate parent{id} subIssues(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id state}} issueType{id name} repository{id nameWithOwner owner{id}} labels(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id name}} blockedBy(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id state}} blocking(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id state}} comments(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{id body updatedAt}} issueFieldValues(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{__typename ... on IssueFieldSingleSelectValue{id optionId name field{... on Node{id}}} ... on IssueFieldTextValue{id value field{... on Node{id}}} ... on IssueFieldNumberValue{id value field{... on Node{id}}} ... on IssueFieldDateValue{id value field{... on Node{id}}} ... on IssueFieldMultiSelectValue{id value field{... on Node{id}}}}}}}}";
+const BRIEF: &str = "query RunsealPhaseBrief($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issue(number:$number){id number url repository{id nameWithOwner owner{id}} issueFieldValues(first:100){totalCount pageInfo{hasNextPage endCursor} nodes{__typename ... on IssueFieldSingleSelectValue{id optionId name field{... on Node{id}}} ... on IssueFieldTextValue{id value field{... on Node{id}}} ... on IssueFieldNumberValue{id value field{... on Node{id}}} ... on IssueFieldDateValue{id value field{... on Node{id}}} ... on IssueFieldMultiSelectValue{id value field{... on Node{id}}}}}}}}";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Definition {
@@ -121,6 +123,29 @@ impl Client {
                 })?;
         receipt.outcome = Outcome::Accepted;
         Ok(receipt)
+    }
+
+    pub fn phase(&self, target: &Target, full: bool) -> Result<Receipt<Value>, Error> {
+        let statement = if full { FULL } else { BRIEF };
+        self.wire.send(
+            &self.bearer,
+            Call::Query(graph(statement, target.variables())),
+            |value| {
+                let issue = value.pointer("/data/repository/issue")?;
+                let id = issue.get("id")?.as_str()?;
+                let number = issue.get("number")?.as_u64()?;
+                let url = issue.get("url")?.as_str()?;
+                let expected = format!(
+                    "https://github.com/{}/issues/{}",
+                    target.name(),
+                    target.number()
+                );
+                if !node(id) || number != u64::from(target.number()) {
+                    return None;
+                }
+                url.eq_ignore_ascii_case(&expected).then(|| issue.clone())
+            },
+        )
     }
 }
 

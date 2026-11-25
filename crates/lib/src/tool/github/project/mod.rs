@@ -1,5 +1,10 @@
 pub mod activity;
 pub mod catalogue;
+pub mod board {
+    pub use super::activity::{Detail, Section, Slice};
+    pub use super::definition::{Catalog, Open, Origins};
+    pub use super::value::{Account, Subject};
+}
 mod change;
 pub mod columns;
 mod definition;
