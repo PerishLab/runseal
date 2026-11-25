@@ -10,10 +10,24 @@ use std::path::PathBuf;
 struct Branches {
     owner: String,
     name: String,
-    #[arg(long)]
+    #[arg(long, help = "Bare branch name without an owner: prefix")]
     head: String,
-    #[arg(long)]
+    #[arg(long, help = "Bare branch name without an owner: prefix")]
     base: String,
+}
+
+#[derive(Args)]
+pub(super) struct Ancestry {
+    owner: String,
+    name: String,
+    base: String,
+    head: String,
+}
+
+impl Ancestry {
+    pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
+        encode(client.ancestry((&self.owner, &self.name), &self.base, &self.head)?)
+    }
 }
 
 impl Branches {
@@ -90,12 +104,7 @@ enum Deed {
     #[command(about = "Read merge readiness with the exact pull head SHA")]
     Readiness(Spot),
     #[command(about = "Read ancestry evidence for two full commit SHAs")]
-    Ancestry {
-        owner: String,
-        name: String,
-        base: String,
-        head: String,
-    },
+    Ancestry(Ancestry),
     #[command(about = "Read a page of checks and status contexts for an exact pull head")]
     Rollup {
         #[command(flatten)]
@@ -120,9 +129,9 @@ enum Deed {
     List {
         owner: String,
         name: String,
-        #[arg(long)]
+        #[arg(long, help = "Bare branch name without an owner: prefix")]
         head: String,
-        #[arg(long)]
+        #[arg(long, help = "Bare branch name without an owner: prefix")]
         base: Option<String>,
         #[arg(long, value_enum, default_value = "all")]
         state: State,
@@ -137,12 +146,7 @@ impl Lifecycle {
     pub(super) fn execute(self, client: &Client) -> Result<Value, Error> {
         match self.deed {
             Deed::Readiness(place) => encode(client.readiness(&place.target()?)?),
-            Deed::Ancestry {
-                owner,
-                name,
-                base,
-                head,
-            } => encode(client.ancestry((&owner, &name), &base, &head)?),
+            Deed::Ancestry(ancestry) => ancestry.execute(client),
             Deed::Rollup {
                 place,
                 head,

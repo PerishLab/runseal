@@ -71,6 +71,25 @@ impl Client {
         Self::token(token)
     }
 
+    pub fn reader(input: impl std::io::Read) -> Result<Self, Error> {
+        use std::io::Read;
+        let mut held = Zeroizing::new(Vec::new());
+        input
+            .take(4097)
+            .read_to_end(&mut held)
+            .map_err(|_| Error::local(Cause::Custody))?;
+        if held.len() > 4096 {
+            return Err(Error::local(Cause::Custody));
+        }
+        let text = std::str::from_utf8(&held).map_err(|_| Error::local(Cause::Custody))?;
+        let line = text.strip_suffix('\n').unwrap_or(text);
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        if line.contains(['\n', '\r']) {
+            return Err(Error::local(Cause::Custody));
+        }
+        Self::token(line)
+    }
+
     pub fn token(token: &str) -> Result<Self, Error> {
         let token = token.trim();
         if token.is_empty() || token.len() > 4096 || !token.bytes().all(credential) {

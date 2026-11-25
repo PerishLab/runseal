@@ -1,11 +1,12 @@
 use super::INLINE;
 use crate::github::command::read;
-use crate::github::{Cause, Client, Dispatch, Error, Listing, Log};
+use crate::github::{Cause, Client, Dispatch, Error, Filter, Invocation, Listing, Log};
 use clap::Args;
 use serde_json::Value;
 use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Args)]
+#[command(after_help = "Receipt fields: workflow_run_id, run_url, html_url.")]
 pub(crate) struct Request {
     owner: String,
     name: String,
@@ -89,5 +90,44 @@ impl Logs {
             }
         };
         value.map_err(|_| Error::local(Cause::Shape))
+    }
+}
+
+#[derive(Args)]
+pub(crate) struct Checks {
+    owner: String,
+    name: String,
+    head: String,
+    #[arg(long, default_value_t = 1)]
+    page: u32,
+    #[arg(long, default_value_t = 30)]
+    size: u8,
+}
+
+impl Checks {
+    pub(crate) fn execute(self, client: &Client) -> Result<Value, Error> {
+        let filter = Filter::new(&self.head, self.page, self.size)?;
+        let receipt = client.checks(&self.owner, &self.name, &filter)?;
+        serde_json::to_value(receipt).map_err(|_| Error::local(Cause::Shape))
+    }
+}
+
+#[derive(Args)]
+pub(crate) struct Workflow {
+    owner: String,
+    name: String,
+    id: u64,
+    #[arg(long)]
+    attempt: Option<u32>,
+}
+
+impl Workflow {
+    pub(crate) fn execute(self, client: &Client) -> Result<Value, Error> {
+        let receipt = client.workflow(
+            &self.owner,
+            &self.name,
+            Invocation::new(self.id, self.attempt)?,
+        )?;
+        serde_json::to_value(receipt).map_err(|_| Error::local(Cause::Shape))
     }
 }
