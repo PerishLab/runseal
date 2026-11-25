@@ -437,9 +437,9 @@ dependencies = [
 
 [[package]]
 name = "ensign-client"
-version = "0.12.0"
+version = "0.13.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "14569f89d28bd6aac8a6194df83b29fbbbfa3dbdab71dda97bd5124b0a8796c1"
+checksum = "ceec8c814bf09b4004d7a858e91c6194cf40cbaa345f38a0a5787a41550f4753"
 dependencies = [
  "radicula-oidc",
  "serde",
@@ -1212,9 +1212,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plumb"
-version = "0.161.0"
+version = "0.163.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "234adb63f2a95eede41a8c910b9391c14b837504885de7ab6e699527638474bc"
+checksum = "26826168d35e6a3fdc618034a1236e1c97085288082f6d00f8e2383fa1e8e7bf"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -1243,9 +1243,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.161.0"
+version = "0.163.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "d3d7a9dfa8226631720369039336092a3b77d856a94a50683d459d95a5fc8d6a"
+checksum = "4d73d5464fff08201bde48c81dcf95f811d728acf6dd8e5e2fe1760407d20b5d"
 dependencies = [
  "proc-macro2",
  "quote",
