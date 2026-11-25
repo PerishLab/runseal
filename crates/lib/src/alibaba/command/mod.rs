@@ -21,8 +21,7 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
             clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
         )
     {
-        print!("{error}");
-        return Ok(());
+        return crate::parse::write(&error.to_string());
     }
     execute(parsed.map_err(|_| invalid())?, vars)
         .map(|value| Reply::plain("alibaba", value))?

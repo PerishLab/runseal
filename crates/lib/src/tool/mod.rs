@@ -72,11 +72,10 @@ impl Reply {
     pub(crate) fn emit(self, argv: &[String]) -> Result<()> {
         let line = crate::parse::Line::take(argv)?;
         if line.json {
-            println!("{}", crate::parse::dump(self.kind, &self.value)?);
+            crate::parse::emit(&crate::parse::dump(self.kind, &self.value)?)
         } else {
-            crate::parse::show(&self.value);
+            crate::parse::show(&self.value)
         }
-        Ok(())
     }
 }
 

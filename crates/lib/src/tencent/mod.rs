@@ -39,8 +39,7 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
             clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
         )
     {
-        print!("{error}");
-        return Ok(());
+        return crate::parse::write(&error.to_string());
     }
     let input = parsed.map_err(|_| anyhow::anyhow!("invalid @tencent command; use --help"))?;
     execute(input, vars)

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::io::{self, Write};
 
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
@@ -67,16 +68,42 @@ pub fn dump(kind: &str, value: &Value) -> Result<String> {
     serde_json::to_string(&json!({"version": 1, kind: value})).context("unable to encode JSON")
 }
 
-pub fn show(value: &Value) {
+pub fn write(text: &str) -> Result<()> {
+    let mut handle = io::stdout().lock();
+    match handle
+        .write_all(text.as_bytes())
+        .and_then(|()| handle.flush())
+    {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+pub fn emit(text: &str) -> Result<()> {
+    let mut handle = io::stdout().lock();
+    let result = handle
+        .write_all(text.as_bytes())
+        .and_then(|()| handle.write_all(b"\n"))
+        .and_then(|()| handle.flush());
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+pub fn show(value: &Value) -> Result<()> {
     match value {
-        Value::Null => println!("ok"),
-        Value::String(text) => print!("{text}"),
+        Value::Null => emit("ok"),
+        Value::String(text) => write(text),
         Value::Array(rows) => {
             for row in rows {
-                println!("{}", line(row));
+                emit(&line(row))?;
             }
+            Ok(())
         }
-        other => println!("{}", line(other)),
+        other => emit(&line(other)),
     }
 }
 

@@ -40,8 +40,7 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
     if let Err(error) = &parsed
         && matches!(error.kind(), clap::error::ErrorKind::DisplayHelp)
     {
-        print!("{error}");
-        return Ok(());
+        return crate::parse::write(&error.to_string());
     }
     let input = parsed.map_err(|_| anyhow::anyhow!("invalid @feishu command; use --help"))?;
     let json = input.json;
@@ -53,19 +52,18 @@ pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
         }
     };
     if json {
-        println!("{}", crate::parse::dump("feishu", &value)?);
+        crate::parse::emit(&crate::parse::dump("feishu", &value)?)
     } else {
-        crate::parse::show(&value);
+        crate::parse::show(&value)
     }
-    Ok(())
 }
 
 fn report(error: &Error, json: bool) -> Result<()> {
     if json {
-        println!(
-            "{}",
-            crate::parse::dump("feishu", &serde_json::json!({"error":error}))?
-        );
+        crate::parse::emit(&crate::parse::dump(
+            "feishu",
+            &serde_json::json!({"error":error}),
+        )?)?;
     }
     Ok(())
 }
