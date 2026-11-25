@@ -68,21 +68,21 @@ impl<'a> Execution<'a> {
 
 pub fn inspect(config: &Config) -> Result<()> {
     let profile = Profile::load(config)?;
-    println!("RUNSEAL_HOME={}", config.home.display());
-    println!("RUNSEAL_PROFILE={}", config.label());
-    println!("RUNSEAL_ROOT={}", config.root.display());
+    crate::parse::emit(&format!("RUNSEAL_HOME={}", config.home.display()))?;
+    crate::parse::emit(&format!("RUNSEAL_PROFILE={}", config.label()))?;
+    crate::parse::emit(&format!("RUNSEAL_ROOT={}", config.root.display()))?;
     if let Some(path) = &config.path {
-        println!("RUNSEAL_PROFILE_PATH={}", path.display());
+        crate::parse::emit(&format!("RUNSEAL_PROFILE_PATH={}", path.display()))?;
     }
-    println!("RUNSEAL_ENV={}", profile.env.vars.len());
-    println!("RUNSEAL_ARGV={}", profile.argv.len());
-    println!("RUNSEAL_SYMLINK={}", profile.symlink.len());
+    crate::parse::emit(&format!("RUNSEAL_ENV={}", profile.env.vars.len()))?;
+    crate::parse::emit(&format!("RUNSEAL_ARGV={}", profile.argv.len()))?;
+    crate::parse::emit(&format!("RUNSEAL_SYMLINK={}", profile.symlink.len()))?;
     Ok(())
 }
 
 pub fn resolve(config: &Config, uris: &[String]) -> Result<()> {
     for uri in uris {
-        println!("{}", profile::resolve(&config.root, uri)?.display());
+        crate::parse::emit(&profile::resolve(&config.root, uri)?.display().to_string())?;
     }
     Ok(())
 }

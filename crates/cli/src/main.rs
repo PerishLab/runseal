@@ -139,7 +139,7 @@ fn control(args: Vec<String>, cwd: &std::path::Path) -> Result<Option<i32>> {
                 ErrorKind::DisplayHelp | ErrorKind::DisplayVersion
             ) =>
         {
-            error.print()?;
+            runseal::parse::write(&error.to_string())?;
             return Ok(None);
         }
         Err(error) => return Err(error.into()),

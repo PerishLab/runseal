@@ -28,8 +28,7 @@ pub fn invoke(
 
 pub fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()> {
     if argv.iter().any(|arg| arg == "--help") {
-        print!("{}", help::TEXT);
-        return Ok(());
+        return parse::write(help::TEXT);
     }
     let seat = Seat::open(argv, vars, None)?;
     let reserved = if seat.deed.secret() {

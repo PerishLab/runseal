@@ -12,8 +12,7 @@ pub(crate) fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()
     ) {
         Ok(input) => input,
         Err(error) if error.kind() == ErrorKind::DisplayHelp => {
-            error.print()?;
-            return Ok(());
+            return parse::write(&error.to_string());
         }
         Err(error) => return Err(error.into()),
     };
@@ -22,7 +21,7 @@ pub(crate) fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()
         Ok(value) => display(json, &value),
         Err(error) => {
             if json {
-                println!("{}", parse::dump("error", &serde_json::to_value(&error)?)?);
+                parse::emit(&parse::dump("error", &serde_json::to_value(&error)?)?)?;
             }
             Err(error.into())
         }
@@ -31,11 +30,10 @@ pub(crate) fn run(argv: &[String], vars: &BTreeMap<String, String>) -> Result<()
 
 fn display(json: bool, value: &Value) -> Result<()> {
     if json {
-        println!("{}", parse::dump("github", value)?);
+        parse::emit(&parse::dump("github", value)?)
     } else {
-        parse::show(value);
+        parse::show(value)
     }
-    Ok(())
 }
 
 pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<Value, Error> {

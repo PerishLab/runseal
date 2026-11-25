@@ -208,3 +208,36 @@ fn probe(root: &Path, marker: &str, bytes: &[u8]) {
         format!("runseal {marker}")
     );
 }
+
+#[test]
+#[cfg(unix)]
+fn broken() {
+    use std::process::Stdio;
+    let fx = Fixture::new("[env.vars]\nPICKED = \"profile\"\n");
+    for args in [
+        &["--help"][..],
+        &["profile"][..],
+        &[":", "@github", "--help"][..],
+        &[":", "@cloudflare", "--help"][..],
+    ] {
+        let mut sink = Command::new("true")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("sink should spawn");
+        let pipe = sink.stdin.take().expect("pipe should open");
+        assert!(sink.wait().expect("sink should exit").success());
+        let output = bin()
+            .current_dir(&fx.root)
+            .args(args)
+            .stdout(Stdio::from(pipe))
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Runseal should spawn")
+            .wait_with_output()
+            .expect("Runseal should finish");
+        let stderr = text(&output.stderr);
+        assert!(output.status.success(), "{args:?}: {stderr}");
+        assert!(!stderr.contains("panicked"), "{args:?}: {stderr}");
+        assert!(!stderr.contains("Broken pipe"), "{args:?}: {stderr}");
+    }
+}
