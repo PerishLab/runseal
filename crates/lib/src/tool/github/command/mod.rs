@@ -43,6 +43,8 @@ struct Input {
         help = "Read one bounded token line from stdin for profile-less CI"
     )]
     stdin: bool,
+    #[arg(long, global = true, help = "Per-request timeout in seconds (1..=300)")]
+    timeout: Option<u64>,
     #[arg(long, global = true, help = "Write structured provider receipts")]
     json: bool,
     #[command(subcommand)]
@@ -141,6 +143,8 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     Workflow(actions::Workflow),
     #[command(about = "Dispatch one workflow and return its accepted run identity")]
     Dispatch(actions::Request),
+    #[command(about = "Send a repository_dispatch event and verify 204 acceptance")]
+    Trigger(actions::Trigger),
     #[command(about = "Read one page of jobs for an exact workflow run attempt")]
     Jobs(actions::Catalog),
     #[command(about = "Read bounded logs for an exact Actions job")]
@@ -248,6 +252,7 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
         Deed::Checks(checks) => return checks.execute(client),
         Deed::Workflow(workflow) => return workflow.execute(client),
         Deed::Dispatch(request) => return request.execute(client),
+        Deed::Trigger(trigger) => return trigger.execute(client),
         Deed::Jobs(catalog) => return catalog.execute(client),
         Deed::Logs(logs) => return logs.execute(client),
         Deed::Issues(issues) => return issues.execute(client),

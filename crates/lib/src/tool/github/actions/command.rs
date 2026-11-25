@@ -1,6 +1,6 @@
 use super::INLINE;
 use crate::github::command::read;
-use crate::github::{Cause, Client, Dispatch, Error, Filter, Invocation, Listing, Log};
+use crate::github::{Cause, Client, Dispatch, Error, Event, Filter, Invocation, Listing, Log};
 use clap::Args;
 use serde_json::Value;
 use std::{collections::BTreeMap, path::PathBuf};
@@ -128,6 +128,31 @@ impl Workflow {
             &self.name,
             Invocation::new(self.id, self.attempt)?,
         )?;
+        serde_json::to_value(receipt).map_err(|_| Error::local(Cause::Shape))
+    }
+}
+
+#[derive(Args)]
+pub(crate) struct Trigger {
+    owner: String,
+    name: String,
+    #[arg(long)]
+    event: String,
+    #[arg(
+        long = "payload-file",
+        help = "Read a bounded JSON object payload from this file"
+    )]
+    payload: Option<PathBuf>,
+}
+
+impl Trigger {
+    pub(crate) fn execute(self, client: &Client) -> Result<Value, Error> {
+        let payload = self
+            .payload
+            .map(|path| serde_json::from_str(&read(path)?).map_err(|_| Error::local(Cause::Input)))
+            .transpose()?;
+        let event = Event::new(&self.event, payload)?;
+        let receipt = client.trigger(&self.owner, &self.name, &event)?;
         serde_json::to_value(receipt).map_err(|_| Error::local(Cause::Shape))
     }
 }
