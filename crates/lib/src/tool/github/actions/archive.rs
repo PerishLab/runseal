@@ -113,7 +113,7 @@ pub(super) fn stage(target: &Path) -> Result<NamedTempFile, Error> {
     NamedTempFile::new_in(directory).map_err(|_| Error::local(Cause::Output))
 }
 
-fn allowed(value: &str) -> bool {
+pub(super) fn allowed(value: &str) -> bool {
     location(value)
         .and_then(|url| url.domain().map(host))
         .unwrap_or(false)

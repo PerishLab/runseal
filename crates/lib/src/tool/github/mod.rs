@@ -10,8 +10,8 @@ mod wire;
 pub use actions::release;
 pub use actions::{
     App, Archive, Artifact, Artifacts, Check, Checks, Combined, Dispatch, Download, Filter,
-    Inventory, Invocation, Job, Jobs, Launch, Listing, Producer, Run, Signal, Status, Step,
-    Verdict,
+    Inventory, Invocation, Job, Jobs, Launch, Listing, Log, Producer, Run, Signal, Status, Step,
+    Transcript, Verdict,
 };
 pub(crate) use command::{call, run};
 pub use issue::acceptance;

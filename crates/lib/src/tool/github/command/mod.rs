@@ -140,6 +140,8 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     Dispatch(actions::Request),
     #[command(about = "Read one page of jobs for an exact workflow run attempt")]
     Jobs(actions::Catalog),
+    #[command(about = "Read bounded logs for an exact Actions job")]
+    Logs(actions::Logs),
     #[command(about = "Read one exact issue and its repository identity")]
     Issue(Spot),
     Issues(records::Issues),
@@ -165,11 +167,7 @@ Operations: add (content), remove (item), move (item, optional after), set (item
     #[command(about = "Download a verified Actions artifact ZIP into a new file")]
     Download(delivery::Download),
     #[command(about = "Read one exact Actions artifact's metadata")]
-    Artifact {
-        owner: String,
-        name: String,
-        id: u64,
-    },
+    Artifact(actions::Artifact),
     #[command(about = "Read one page of comments")]
     Comments(Span),
     #[command(about = "Read one page of labels")]
@@ -261,6 +259,7 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
         } => serde_json::to_value(client.workflow(&owner, &name, Invocation::new(id, attempt)?)?),
         Deed::Dispatch(request) => return request.execute(client),
         Deed::Jobs(catalog) => return catalog.execute(client),
+        Deed::Logs(logs) => return logs.execute(client),
         Deed::Issues(issues) => return issues.execute(client),
         Deed::Issue(place) => serde_json::to_value(client.issue(&place.target()?)?),
         Deed::Create(creation) => return creation.execute(client),
@@ -272,9 +271,7 @@ fn apply(client: &Client, deed: Deed) -> Result<Value, Error> {
         Deed::Mark(mark) => return mark.execute(client),
         Deed::Artifacts(artifacts) => return artifacts.execute(client),
         Deed::Download(download) => return download.execute(client),
-        Deed::Artifact { owner, name, id } => {
-            serde_json::to_value(client.artifact(&owner, &name, id)?)
-        }
+        Deed::Artifact(artifact) => return artifact.execute(client),
         Deed::Comments(span) => {
             let (target, window) = span.parts()?;
             serde_json::to_value(client.comments(&target, &window)?)

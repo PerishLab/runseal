@@ -8,6 +8,7 @@ mod artifact;
 pub(super) mod command;
 mod jobs;
 mod launch;
+mod logs;
 pub mod release;
 mod status;
 pub use status::{Combined, Signal, Status, Verdict};
@@ -16,6 +17,7 @@ pub use archive::{Archive, Download};
 pub use artifact::{Artifact, Artifacts, Inventory, Producer};
 pub use jobs::{Job, Jobs, Listing, Step};
 pub use launch::{Dispatch, Launch};
+pub use logs::{INLINE, Log, Transcript};
 
 use serde::{Deserialize, Serialize};
 
