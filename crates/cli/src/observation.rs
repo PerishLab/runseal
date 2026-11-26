@@ -1,4 +1,4 @@
-use locus::{Candidate, Context, Engine, Role};
+use locus::{Candidate, Context, Key, Role};
 use plumb::observation::{Declaration, Run, view};
 use serde_json::json;
 use std::ffi::{OsStr, OsString};
@@ -36,16 +36,18 @@ pub(crate) fn parent(frame: Option<&Context>) -> Vec<(OsString, Option<OsString>
         .collect()
 }
 
-pub(crate) fn prepared(argv: &[String]) {
-    let Some((engine, context)) = view() else {
+pub(crate) fn prepared(frame: &Context, argv: &[String], member: Option<&str>) {
+    let Some((engine, _)) = view() else {
         return;
     };
-    if let Err(error) = record(engine, context, argv) {
+    if let Err(error) =
+        preparation(argv, member).and_then(|candidate| engine.append(frame, candidate))
+    {
         eprintln!("runseal locus: {error}");
     }
 }
 
-fn record(engine: &Engine, context: &Context, argv: &[String]) -> Result<(), String> {
+fn preparation(argv: &[String], member: Option<&str>) -> Result<Candidate, locus::Error> {
     let shape = command::Shape::read(argv);
     let mut candidate = Candidate::event(json!([
         shape.overrides,
@@ -59,15 +61,15 @@ fn record(engine: &Engine, context: &Context, argv: &[String]) -> Result<(), Str
         ("runseal.target", shape.target),
         ("runseal.wrapper", shape.wrapper),
     ] {
-        candidate = candidate.explicit(
-            Role::new(role).map_err(|error| error.to_string())?,
-            locus::Key::new(key).map_err(|error| error.to_string())?,
-        );
+        candidate = candidate.explicit(Role::new(role)?, Key::new(key)?);
     }
-    engine
-        .append(context, candidate)
-        .map_err(|error| error.to_string())?;
-    Ok(())
+    if let Some(key) = member
+        .filter(|name| name.len() <= 64)
+        .and_then(|name| Key::new(name).ok())
+    {
+        candidate = candidate.explicit(Role::new("runseal.member")?, key);
+    }
+    Ok(candidate)
 }
 
 pub(crate) fn provider(observation: &runseal::github::Observation) {

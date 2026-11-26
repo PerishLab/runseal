@@ -42,6 +42,8 @@ Optional Locus observation:
   It classifies gh/concord/plumb, simple env assignments and public verbs;
   only GODEBUG=http2client=0 is retained as an explicit assignment value.
   Other input is classified without retaining arguments, paths or environment.
+  profile.run preparation can also carry runseal.member from the profile's
+  declared GROK_BOT_IDENTITY. This display label is self-declared.
   This records preparation, not child startup or the effective environment.
 
 Repository: https://github.com/PerishLab/runseal"
@@ -125,8 +127,8 @@ fn profile(
     ready()?;
     let config = Config::build(name, command, cwd)?;
     let mut execution = Execution::prepare(&config)?;
-    if let Some(argv) = execution.argv() {
-        observation::prepared(argv);
+    if let (Some(argv), Some(frame)) = (execution.argv(), frame.as_ref()) {
+        observation::prepared(frame, argv, execution.variable("GROK_BOT_IDENTITY"));
     }
     execution.handoff(observation::parent(frame.as_ref()));
     Ok(execution.run()?.code)
