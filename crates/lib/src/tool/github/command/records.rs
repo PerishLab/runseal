@@ -71,7 +71,9 @@ enum Action {
         #[arg(long = "body-file")]
         body: PathBuf,
     },
-    #[command(about = "Search GitHub Issues with bounded pagination")]
+    #[command(
+        about = "Search GitHub Issues with bounded pagination. Use is:issue to exclude pull requests."
+    )]
     Search {
         query: String,
         #[arg(long, default_value_t = 30)]

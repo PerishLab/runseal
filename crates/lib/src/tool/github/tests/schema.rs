@@ -84,18 +84,42 @@ fn loopback() {
 #[test]
 fn search() {
     use crate::github::Window;
-    let body = r#"{"data":{"search":{"total":2,"page":{"more":true,"cursor":"c1"},"rows":[{"id":"I_1","number":12,"url":"https://github.com/PerishLab/concord/issues/12","title":"Title","body":"Body","state":"OPEN","updated":"2026-11-25T00:00:00Z","kind":{"name":"Feature"},"repository":{"name":"PerishLab/concord"}}]}}}"#;
-    let server = serve(vec![reply("200 OK", "", body)]);
+    let body = r#"{"data":{"search":{"total":2,"page":{"more":true,"cursor":"c1"},"rows":[{"__typename":"Issue","id":"I_1","number":12,"url":"https://github.com/PerishLab/concord/issues/12","title":"Title","body":"Body","state":"OPEN","updated":"2026-11-25T00:00:00Z","kind":{"name":"Feature"},"repository":{"name":"PerishLab/concord"}}]}}}"#;
+    let mixed = body.replace(r#""rows":["#, r#""rows":[{"__typename":"PullRequest"},"#);
+    let malformed = mixed.replace(r#""number":12"#, r#""number":0"#);
+    let repeated = body.replace(r#""cursor":"c1""#, r#""cursor":"c2""#);
+    let server = serve(vec![
+        reply("200 OK", "", &mixed),
+        reply("200 OK", "", body),
+        reply("200 OK", "", &malformed),
+        reply("200 OK", "", &repeated),
+    ]);
     let window = Window::new(10, None).unwrap();
-    let found = server
+    let refusal = server
         .client
         .search("repo:PerishLab/concord", &window)
-        .unwrap();
+        .unwrap_err();
+    assert_eq!(refusal.outcome, Outcome::Refused);
+    assert_eq!(refusal.cause, Cause::Mixed);
+    assert_eq!(refusal.evidence.status, Some(200));
+    assert!(refusal.to_string().contains("Add is:issue"));
+    let query = "repo:PerishLab/concord is:issue";
+    let found = server.client.search(query, &window).unwrap();
     assert_eq!(found.outcome, Outcome::Observed);
     assert_eq!(found.value.total, 2);
     assert_eq!(found.value.next.as_deref(), Some("c1"));
     assert_eq!(found.value.rows[0].number, 12);
-    server.thread.join().unwrap();
+    let window = Window::new(10, Some("c2")).unwrap();
+    for _ in 0..2 {
+        let error = server.client.search(query, &window).unwrap_err();
+        assert_eq!(
+            (error.outcome, error.cause),
+            (Outcome::Unknown, Cause::Shape)
+        );
+    }
+    let requests = server.thread.join().unwrap();
+    assert!(requests[0].contains("__typename"));
+    assert!(requests[2].contains(r#""after":"c2""#));
 }
 
 #[test]
