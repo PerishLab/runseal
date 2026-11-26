@@ -34,7 +34,9 @@ enum Action {
         #[arg(long)]
         kind: String,
     },
-    #[command(about = "Read an exact Issue with its native author and labels")]
+    #[command(
+        about = "Read an exact Issue with its native author and labels, or report where it moved"
+    )]
     Show(super::delivery::Spot),
     #[command(about = "Read the exact Issue and one page of each related connection")]
     Snapshot(Snapshot),
@@ -119,7 +121,7 @@ impl Issues {
                 let draft = Draft::new(&title, &super::read(body)?, &kind)?;
                 encode(client.file(&owner, &name, &draft)?)
             }
-            Action::Show(target) => encode(client.ticket(&target.target()?)?),
+            Action::Show(target) => encode(client.locate(&target.target()?)?),
             Action::Snapshot(input) => input.execute(client),
             Action::Document { target, id } => encode(client.document(&target.target()?, id)?),
             Action::Comments { target, page, size } => {

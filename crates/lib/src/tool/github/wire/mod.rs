@@ -21,6 +21,7 @@ pub(super) struct Wire {
 
 pub(super) enum Call<'a> {
     Rest(&'a str),
+    Issue(&'a str),
     Recent(&'a str, Option<Value>),
     Source(&'a str),
     Put(&'a str, Value),
@@ -107,9 +108,10 @@ impl Wire {
         parse: impl Fn(Value, &Payload) -> Option<T>,
     ) -> Result<Receipt<T>, Error> {
         let (method, path, body) = match &call {
-            Call::Rest(path) | Call::Source(path) | Call::Recent(path, None) => {
-                ("GET", *path, None)
-            }
+            Call::Rest(path)
+            | Call::Issue(path)
+            | Call::Source(path)
+            | Call::Recent(path, None) => ("GET", *path, None),
             Call::Dispatch(path, body)
             | Call::Post(path, body)
             | Call::Recent(path, Some(body)) => ("POST", *path, Some(body.to_string())),
