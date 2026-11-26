@@ -724,3 +724,17 @@ Source/fixture checks do not qualify Alibaba acceptance of Ensign's access-token
 shape or ES256 keys, production issuer reachability, real RAM trust or permission.
 Seatrial #132 owns distributed interoperability; Runseal #207 owns real-account
 qualification. Hardrig owns supplier resources, policy, durable intent and recovery.
+
+## GitHub Issue moves
+
+Issue #275 adds an exact REST Issue observation to `@github issues show` and
+`github::Client::locate`. An ordinary Issue keeps the existing record
+shape and exact identity checks. A 301 qualifies only with an absolute
+`https://api.github.com/repos/{owner}/{name}/issues/{number}` Location naming
+a different coordinate. The receipt records the original and destination
+coordinates under `value.moved`. Malformed locations yield an unknown shape
+failure. Missing and denied results retain distinguishable HTTP status in the
+SDK error and the CLI's `--json` error. Runseal never
+follows the Location or projects its raw text or redirect body. The receipt
+establishes neither destination access nor node identity. `Client::ticket`
+retains its existing exact-record contract.

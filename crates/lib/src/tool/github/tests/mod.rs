@@ -268,3 +268,14 @@ fn snapshot() {
     let sent = server.thread.join().unwrap();
     assert!(sent[0].contains("CROSS_REFERENCED_EVENT"));
 }
+
+pub(super) fn record(number: u32) -> serde_json::Value {
+    serde_json::json!({
+        "node_id":format!("I_{number}"),"number":number,"title":"Follow",
+        "html_url":format!("https://github.com/PerishLab/probe/issues/{number}"),
+        "repository_url":"https://api.github.com/repos/PerishLab/probe",
+        "body":null,"updated_at":"2026-11-24T00:00:00Z","state":"open",
+        "state_reason":null,"type":{"name":"Auto"},"labels":[],
+        "user":{"id":19,"login":"fixture[bot]"},
+    })
+}

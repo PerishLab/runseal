@@ -193,7 +193,7 @@ pub struct Issue {
     pub repository: Identity,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Target {
     owner: String,
     name: String,
@@ -219,7 +219,15 @@ impl Target {
         format!("{}/{}", self.owner, self.name)
     }
 
-    pub(super) fn number(&self) -> u32 {
+    pub fn owner(&self) -> &str {
+        &self.owner
+    }
+
+    pub fn repository(&self) -> &str {
+        &self.name
+    }
+
+    pub fn number(&self) -> u32 {
         self.number
     }
 

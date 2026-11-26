@@ -1,4 +1,4 @@
-use super::{reply, serve};
+use super::{record as issue, reply, serve};
 use crate::github::{Cause, Draft, Filter, Inventory, Outcome, Signal, Verdict};
 use serde_json::{Value, json};
 
@@ -134,17 +134,6 @@ fn artifacts() {
     let calls = server.thread.join().unwrap();
     assert!(calls[0].contains("/actions/runs/17/artifacts?per_page=20&page=1&name=guard"));
     assert!(calls[2].contains("/actions/artifacts/71 HTTP/1.1"));
-}
-
-fn issue(number: u32) -> Value {
-    json!({
-        "node_id":format!("I_{number}"),"number":number,"title":"Follow",
-        "html_url":format!("https://github.com/PerishLab/probe/issues/{number}"),
-        "repository_url":"https://api.github.com/repos/PerishLab/probe",
-        "body":null,"updated_at":"2026-11-24T00:00:00Z","state":"open",
-        "state_reason":null,"type":{"name":"Auto"},"labels":[],
-        "user":{"id":19,"login":"fixture[bot]"},
-    })
 }
 
 #[test]

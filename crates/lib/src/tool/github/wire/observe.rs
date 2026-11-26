@@ -59,7 +59,7 @@ pub(super) fn capture<T>(
 
 pub(super) fn operation(call: &Call<'_>) -> (&'static str, String) {
     match call {
-        Call::Rest(path) | Call::Source(path) | Call::Recent(path, None) => {
+        Call::Rest(path) | Call::Issue(path) | Call::Source(path) | Call::Recent(path, None) => {
             ("rest", route("get", path))
         }
         Call::Dispatch(path, _) | Call::Post(path, _) | Call::Recent(path, Some(_)) => {

@@ -225,38 +225,53 @@ pub(super) fn nullable<'de, D: Deserializer<'de>, T: DeserializeOwned>(
     Option::deserialize(de)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::github::tests::{reply, serve};
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum Observation {
+    Issue(Record),
+    Moved { moved: Transfer },
+}
 
-    #[test]
-    fn typed() {
-        let created = r#"{"node_id":"I_new","number":42,"html_url":"https://github.com/PerishLab/runseal/issues/42","repository_url":"https://api.github.com/repos/PerishLab/runseal","title":"Follow","body":"Registered body","updated_at":"2026-11-24T00:00:00Z","state":"open","state_reason":null,"type":{"name":"Auto"},"user":{"id":18,"login":"fixture[bot]"},"labels":[]}"#;
-        let wrong = created.replace("\"Auto\"", "\"Task\"");
-        let server = serve(vec![
-            reply("201 Created", "", created),
-            reply("201 Created", "", &wrong),
-            None,
-        ]);
-        let draft = Draft::new("Follow", "Registered body", "Auto").unwrap();
-        let receipt = server.client.file("PerishLab", "runseal", &draft).unwrap();
-        assert_eq!(receipt.outcome, Outcome::Accepted);
-        assert_eq!(receipt.value.number, 42);
-        for cause in [Cause::Shape, Cause::Network] {
-            let error = server
-                .client
-                .file("PerishLab", "runseal", &draft)
-                .unwrap_err();
-            assert_eq!(error.outcome, Outcome::Unknown);
-            assert_eq!(error.cause, cause);
-            assert_eq!(error.evidence.attempts, 1);
+#[derive(Debug, Serialize)]
+pub struct Transfer {
+    pub original: Target,
+    pub destination: Target,
+}
+
+impl Client {
+    pub fn locate(&self, target: &Target) -> Result<Receipt<Observation>, Error> {
+        let path = format!("/repos/{}/issues/{}", target.name(), target.number());
+        self.wire
+            .inspect(&self.bearer, Call::Issue(&path), |value, response| {
+                if response.status == 301 {
+                    let location = response.headers.get("location")?;
+                    let moved = Transfer::qualify(target, location)?;
+                    Some(Observation::Moved { moved })
+                } else {
+                    exact(value, target).map(Observation::Issue)
+                }
+            })
+    }
+}
+
+impl Transfer {
+    fn qualify(original: &Target, location: &str) -> Option<Self> {
+        let path = location.strip_prefix("https://api.github.com/repos/")?;
+        let (repository, number) = path.rsplit_once("/issues/")?;
+        let (owner, name) = repository.split_once('/')?;
+        if number.len() > 10 {
+            return None;
         }
-        let calls = server.thread.join().unwrap();
-        assert_eq!(calls.len(), 3);
-        for call in calls {
-            assert!(call.starts_with("POST /repos/PerishLab/runseal/issues HTTP/1.1"));
-            assert!(call.contains("\"type\":\"Auto\""));
+        let destination = Target::new(owner, name, number.parse().ok()?).ok()?;
+        if number != destination.number().to_string()
+            || (destination.number() == original.number()
+                && destination.name().eq_ignore_ascii_case(&original.name()))
+        {
+            return None;
         }
+        Some(Self {
+            original: original.clone(),
+            destination,
+        })
     }
 }

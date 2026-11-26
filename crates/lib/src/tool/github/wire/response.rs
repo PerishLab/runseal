@@ -6,6 +6,7 @@ use serde_json::Value;
 #[derive(Clone, Copy)]
 pub(super) enum Mode {
     Rest,
+    Issue,
     Graphql,
     Accepted,
 }
@@ -14,6 +15,8 @@ impl Mode {
     pub(super) fn select(call: &Call<'_>, accepted: bool) -> Self {
         if matches!(call, Call::Query(_) | Call::Survey(_) | Call::Mutation(_)) {
             Self::Graphql
+        } else if matches!(call, Call::Issue(_)) {
+            Self::Issue
         } else if accepted {
             Self::Accepted
         } else {
@@ -29,14 +32,19 @@ pub(super) fn decode<T>(
     parse: impl Fn(Value, &Payload) -> Option<T>,
 ) -> Result<Receipt<T>, Error> {
     let mut evidence = evidence(&response, attempts);
-    if !matches!(response.status, 200..=299) {
+    let moved = matches!(mode, Mode::Issue) && response.status == 301;
+    if !moved && !matches!(response.status, 200..=299) {
         return Err(status(&response, evidence));
     }
-    let value: Value = serde_json::from_slice(&response.body).map_err(|_| Error {
-        outcome: Outcome::Unknown,
-        cause: Cause::Shape,
-        evidence: evidence.clone(),
-    })?;
+    let value = if moved {
+        Value::Null
+    } else {
+        serde_json::from_slice(&response.body).map_err(|_| Error {
+            outcome: Outcome::Unknown,
+            cause: Cause::Shape,
+            evidence: evidence.clone(),
+        })?
+    };
     if matches!(mode, Mode::Graphql)
         && value
             .get("errors")
@@ -56,7 +64,7 @@ pub(super) fn decode<T>(
     })?;
     let outcome = match mode {
         Mode::Accepted => Outcome::Accepted,
-        Mode::Rest | Mode::Graphql => Outcome::Observed,
+        Mode::Rest | Mode::Issue | Mode::Graphql => Outcome::Observed,
     };
     Ok(Receipt {
         outcome,
