@@ -47,6 +47,14 @@ Observation remains opt-in and cannot alter execution. Inspect with an exact
 execution/wrapper selector in a bounded producer window, then query the records
 before interpreting a repeated prefix. Ordinary repeated calls can also match.
 
+For external profile runs, the preparation Atom carries the profile span and
+optionally binds `runseal.member` to the declared `env.vars.GROK_BOT_IDENTITY`
+display name. The CLI accepts 1 through 64 UTF-8 bytes without control
+characters and omits the role for absent or invalid declarations. It never
+reads the inherited variable for observation. The label is self-declared and
+serves attribution only. Wrapped child observations link through their
+`locus.parent` to the profile span. The label stays on the preparation Atom.
+
 Cloudflare operations expose typed provider resources without
 exposing credentials, raw response secrets, desired-state bundles, or
 orchestration. One invocation owns one provider verb or one child process tree.

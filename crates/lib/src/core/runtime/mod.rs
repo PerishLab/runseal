@@ -51,6 +51,10 @@ impl<'a> Execution<'a> {
         }
     }
 
+    pub fn variable(&self, name: &str) -> Option<&str> {
+        self.profile.env.vars.get(name).map(String::as_str)
+    }
+
     pub fn run(self) -> Result<Outcome> {
         injections::Lifecycle::with(&self.profile, |env| match &self.command {
             Command::External(argv) => {

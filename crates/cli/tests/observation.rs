@@ -6,6 +6,7 @@ fn run(home: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_runseal"))
         .current_dir(home)
         .env("RUNSEAL_HOME", home)
+        .env("GROK_BOT_IDENTITY", "inherited-member-sentinel")
         .args(args)
         .output()
         .expect("command")
@@ -272,25 +273,9 @@ fn parent() {
     assert_eq!(spans(&records(home.path())), vec![written]);
 }
 
-#[test]
-#[cfg(unix)]
-fn nested() {
-    let home = tempfile::tempdir().expect("home");
-    configure(home.path(), ENABLED);
-    let inner = env!("CARGO_BIN_EXE_runseal");
-    let result = run(home.path(), &[":", inner, ":", "sh", "-c", LINK]);
-    assert_eq!(result.status.code(), Some(17));
-    let atoms = records(home.path());
-    let spans = spans(&atoms);
-    assert_eq!(spans.len(), 2);
-    let written = String::from_utf8(result.stdout).unwrap();
-    assert!(spans.contains(&written));
-    let outer = spans.iter().find(|span| **span != written).unwrap();
-    assert!(atoms.iter().any(|atom| {
-        atom["context"]["locus.parent"] == outer.as_str()
-            && atom["choices"][0]["role"] == "locus.parent"
-    }));
-}
-
 #[path = "support/https.rs"]
 mod https;
+
+#[cfg(unix)]
+#[path = "support/member.rs"]
+mod member;
