@@ -38,3 +38,14 @@ skill = true
 [release.cargo]
 registry = "perish"
 packages = ["runseal"]
+
+[[ectropy.grant]]
+paths = [
+    "crates/cli/src/main.rs",
+    "crates/lib/src/core/config.rs",
+]
+syntax = "environment"
+
+[[ectropy.ban]]
+syntax = "lock"
+paths = ["crates/**/*.rs"]
