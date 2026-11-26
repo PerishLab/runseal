@@ -180,6 +180,67 @@ fn usual() {
     ));
 }
 
+#[test]
+fn manifest() {
+    let temp = TempDir::new().expect("temp dir should exist");
+    let home = temp.path().join("held");
+    let root = temp.path().join("repo");
+    let nested = root.join("crates/app");
+    std::fs::create_dir_all(&nested).expect("nested should exist");
+    store(&root.join("plumb.toml"), "[identity]\nns = \"demo\"\n");
+    let output = invoke(&home, &nested, &["profile"]);
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    let stdout = text(&output.stdout);
+    assert!(ends(
+        &read(&stdout, "RUNSEAL_PROFILE_PATH"),
+        "repo/plumb.toml"
+    ));
+    assert!(ends(&read(&stdout, "RUNSEAL_ROOT"), "repo"));
+    assert!(stdout.contains("RUNSEAL_ENV=3"));
+    let resolved = invoke(&home, &nested, &["resolve", "local://secrets/token"]);
+    assert!(resolved.status.success(), "{}", text(&resolved.stderr));
+    assert!(ends(
+        Path::new(text(&resolved.stdout).trim()),
+        "repo/.local/secrets/token",
+    ));
+}
+
+#[test]
+fn conflict() {
+    let temp = TempDir::new().expect("temp dir should exist");
+    let home = temp.path().join("held");
+    let root = temp.path().join("repo");
+    std::fs::create_dir_all(&root).expect("repo should exist");
+    store(&root.join("plumb.toml"), "[runseal.env.vars]\nA = \"1\"\n");
+    store(&root.join("runseal.toml"), "[env.vars]\nB = \"2\"\n");
+    let output = invoke(&home, &root, &["profile"]);
+    assert!(!output.status.success());
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("plumb.toml"), "{stderr}");
+    assert!(stderr.contains("runseal.toml"), "{stderr}");
+    assert!(!stderr.contains("runseal locus:"), "{stderr}");
+}
+
+#[test]
+fn named() {
+    let temp = TempDir::new().expect("temp dir should exist");
+    let home = temp.path().join("held");
+    let cwd = temp.path().join("work");
+    std::fs::create_dir_all(&cwd).expect("work should exist");
+    store(
+        &home.join("profiles/plumb.toml"),
+        "[env.vars]\nPICKED = \"named\"\n",
+    );
+    let output = invoke(&home, &cwd, &["profile", "plumb"]);
+    assert!(output.status.success(), "{}", text(&output.stderr));
+    let stdout = text(&output.stdout);
+    assert!(ends(
+        &read(&stdout, "RUNSEAL_PROFILE_PATH"),
+        "profiles/plumb.toml",
+    ));
+    assert!(stdout.contains("RUNSEAL_ENV=1"));
+}
+
 fn read(text: &str, key: &str) -> PathBuf {
     text.lines()
         .find_map(|line| line.strip_prefix(&format!("{key}=")))
