@@ -25,6 +25,7 @@ pub enum Cause {
     Limited,
     Graphql,
     Shape,
+    Mixed,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
@@ -60,7 +61,12 @@ impl fmt::Display for Error {
             format,
             "GitHub request {:?} ({:?})",
             self.outcome, self.cause
-        )
+        )?;
+        if self.cause == Cause::Mixed {
+            format
+                .write_str(". Add is:issue to the query and search again from the first page.")?;
+        }
+        Ok(())
     }
 }
 

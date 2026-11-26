@@ -1,9 +1,10 @@
 use super::{Call, Cause, Client, Error, Label, Receipt, Window, field, graph, node, valid};
+use crate::github::Outcome;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
-const QUERY: &str = "query RunsealSearch($query:String!,$size:Int!,$after:String) { search(query:$query,type:ISSUE,first:$size,after:$after) { total:issueCount page:pageInfo { more:hasNextPage cursor:endCursor } rows:nodes { ... on Issue { id number url title body state updated:updatedAt kind:issueType { name } repository { name:nameWithOwner } } } } }";
+const QUERY: &str = "query RunsealSearch($query:String!,$size:Int!,$after:String) { search(query:$query,type:ISSUE,first:$size,after:$after) { total:issueCount page:pageInfo { more:hasNextPage cursor:endCursor } rows:nodes { __typename ... on Issue { id number url title body state updated:updatedAt kind:issueType { name } repository { name:nameWithOwner } } } } }";
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Search {
@@ -43,15 +44,27 @@ impl Client {
             return Err(Error::local(Cause::Input));
         }
         let variables = json!({"query":query,"size":window.size,"after":window.after});
-        self.wire.send(
+        let receipt = self.wire.send(
             &self.bearer,
             Call::Query(graph(QUERY, variables)),
             |value| decode(&value, window),
-        )
+        )?;
+        match receipt.value {
+            Ok(value) => Ok(Receipt {
+                value,
+                outcome: receipt.outcome,
+                evidence: receipt.evidence,
+            }),
+            Err(cause) => Err(Error {
+                cause,
+                outcome: Outcome::Refused,
+                evidence: receipt.evidence,
+            }),
+        }
     }
 }
 
-fn decode(value: &Value, window: &Window) -> Option<Search> {
+fn decode(value: &Value, window: &Window) -> Option<Result<Search, Cause>> {
     let scope = value.pointer("/data/search")?;
     let total: u32 = field(scope, "/total")?;
     let info: Info = field(scope, "/page")?;
@@ -61,7 +74,16 @@ fn decode(value: &Value, window: &Window) -> Option<Search> {
     }
     let mut rows = Vec::with_capacity(entries.len());
     let mut seen = BTreeSet::new();
+    let mut mixed = false;
     for entry in entries {
+        match entry.get("__typename")?.as_str()? {
+            "Issue" => {}
+            "PullRequest" => {
+                mixed = true;
+                continue;
+            }
+            _ => return None,
+        }
         let row = Entry::deserialize(entry).ok()?;
         if !row.valid() || !seen.insert(row.id.clone()) {
             return None;
@@ -70,11 +92,14 @@ fn decode(value: &Value, window: &Window) -> Option<Search> {
     }
     let next = if info.more {
         let cursor = info.cursor.filter(|value| advance(value, window))?;
-        Some((!rows.is_empty()).then_some(cursor)?)
+        Some((!entries.is_empty()).then_some(cursor)?)
     } else {
         None
     };
-    Some(Search { total, rows, next })
+    if mixed {
+        return Some(Err(Cause::Mixed));
+    }
+    Some(Ok(Search { total, rows, next }))
 }
 
 fn advance(value: &str, window: &Window) -> bool {
