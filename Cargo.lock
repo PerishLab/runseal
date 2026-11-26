@@ -1501,6 +1501,7 @@ dependencies = [
  "libc",
  "p256",
  "path-absolutize",
+ "radicula-config",
  "radicula-http",
  "radicula-lock",
  "radicula-oidc",

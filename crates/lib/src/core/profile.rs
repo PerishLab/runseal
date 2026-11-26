@@ -5,9 +5,17 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use path_absolutize::Absolutize;
+use radicula_config::section;
 use serde::Deserialize;
 
 use super::config::Config;
+
+const DEFAULTS: [(&str, &str); 3] = [
+    ("RUNSEAL_REPO_LOCAL_DIR", "local://"),
+    ("RUNSEAL_REPO_SECRETS_DIR", "local://secrets"),
+    ("RUNSEAL_REPO_TMP_DIR", "local://tmp"),
+];
+const SECTION: &str = "runseal";
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -34,6 +42,11 @@ pub struct Symlink {
 impl Profile {
     pub fn load(config: &Config) -> Result<Self> {
         let mut profile = match config.path.as_deref() {
+            Some(path) if config.manifest() => {
+                let mut profile = section::<Self>(path, SECTION)?.unwrap_or_default();
+                profile.defaults();
+                profile
+            }
             Some(path) => {
                 let text = std::fs::read_to_string(path)
                     .with_context(|| format!("cannot read {}", path.display()))?;
@@ -43,6 +56,18 @@ impl Profile {
         };
         profile.normalize(&config.root)?;
         Ok(profile)
+    }
+
+    fn defaults(&mut self) {
+        for (key, value) in DEFAULTS {
+            if self.env.vars.contains_key(key) {
+                continue;
+            }
+            if self.env.unset.iter().any(|name| name == key) {
+                continue;
+            }
+            self.env.vars.insert(key.to_string(), value.to_string());
+        }
     }
 
     fn normalize(&mut self, root: &Path) -> Result<()> {

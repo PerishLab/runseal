@@ -1,9 +1,17 @@
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result, bail};
 use path_absolutize::Absolutize;
+use radicula_config::section;
 
 use super::symbol;
+
+const MANIFEST: &str = "plumb.toml";
+const SECTION: &str = "runseal";
+const STANDALONE: &str = "runseal.toml";
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -42,8 +50,22 @@ impl Config {
         })
     }
 
+    pub fn home(cwd: &Path) -> Result<PathBuf> {
+        let cwd = absolute(cwd, cwd, "current directory")?;
+        home(&cwd)
+    }
+
     pub fn label(&self) -> &str {
         self.name.as_deref().unwrap_or("default")
+    }
+
+    pub fn manifest(&self) -> bool {
+        self.name.is_none()
+            && self
+                .path
+                .as_deref()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == OsStr::new(MANIFEST))
     }
 }
 
@@ -91,15 +113,50 @@ impl Seek<'_> {
     }
 
     fn walk(&self) -> Result<Option<PathBuf>> {
-        let file = match self.name {
-            None => "runseal.toml".to_string(),
-            Some(name) => format!("runseal.{name}.toml"),
-        };
+        match self.name {
+            None => self.default(),
+            Some(name) => self.named(name),
+        }
+    }
+
+    fn named(&self, name: &str) -> Result<Option<PathBuf>> {
+        let file = format!("runseal.{name}.toml");
         for root in self.cwd.ancestors() {
             let path = root.join(&file);
             if path.is_file() {
                 return absolute(&path, self.cwd, "profile file").map(Some);
             }
+        }
+        Ok(None)
+    }
+
+    fn default(&self) -> Result<Option<PathBuf>> {
+        for dir in self.cwd.ancestors() {
+            if let Some(path) = self.inspect(dir)? {
+                return absolute(&path, self.cwd, "profile file").map(Some);
+            }
+        }
+        Ok(None)
+    }
+
+    fn inspect(&self, dir: &Path) -> Result<Option<PathBuf>> {
+        let standalone = dir.join(STANDALONE);
+        let manifest = dir.join(MANIFEST);
+        let direct = standalone.is_file();
+        if manifest.is_file() {
+            let present = section::<toml::Table>(&manifest, SECTION)?.is_some();
+            if present && direct {
+                bail!(
+                    "conflicting default profile in {}: both {MANIFEST} [{SECTION}] and {STANDALONE} exist",
+                    dir.display()
+                );
+            }
+            if !direct {
+                return Ok(Some(manifest));
+            }
+        }
+        if direct {
+            return Ok(Some(standalone));
         }
         Ok(None)
     }

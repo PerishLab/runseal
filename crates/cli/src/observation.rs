@@ -7,8 +7,8 @@ use std::path::Path;
 mod command;
 
 pub(crate) fn start(cwd: &Path, command: &str) -> Option<Run> {
-    let home = match runseal::core::config::Config::build(None, Vec::new(), cwd) {
-        Ok(config) => config.home,
+    let home = match runseal::core::config::Config::home(cwd) {
+        Ok(home) => home,
         Err(error) => {
             eprintln!("runseal locus: {error}");
             return None;
