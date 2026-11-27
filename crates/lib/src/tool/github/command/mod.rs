@@ -45,6 +45,13 @@ struct Input {
     stdin: bool,
     #[arg(long, global = true, help = "Per-request timeout in seconds (1..=300)")]
     timeout: Option<u64>,
+    #[arg(
+        long = "root-ca-file",
+        global = true,
+        value_name = "FILE",
+        help = "Absolute private PEM bundle replacing GitHub API WebPKI roots (up to 64 KiB)"
+    )]
+    bundle: Option<PathBuf>,
     #[arg(long, global = true, help = "Write structured provider receipts")]
     json: bool,
     #[command(subcommand)]

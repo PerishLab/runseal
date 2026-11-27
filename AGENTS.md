@@ -746,3 +746,16 @@ SDK error and the CLI's `--json` error. Runseal never
 follows the Location or projects its raw text or redirect body. The receipt
 establishes neither destination access nor node identity. `Client::ticket`
 retains its existing exact-record contract.
+
+## GitHub API root trust
+
+Issue #284 adds `github::Client::roots` for a PEM bundle and
+`github::Client::bundle` for an absolute private PEM file. The equivalent
+`@github --root-ca-file FILE` option uses the same custody rules. A bundle
+contains one or more PEM certificates and is limited to 64 KiB. The
+certificates replace WebPKI roots for that client's requests to
+`https://api.github.com`. TLS still verifies the certificate chain and hostname.
+Ordinary clients use bundled WebPKI roots. Ambient certificate variables have
+no effect. Separate credential-free artifact storage downloads use their
+existing transport trust. Unreadable files and invalid certificates refuse
+locally before a request.

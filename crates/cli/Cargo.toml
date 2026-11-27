@@ -23,5 +23,6 @@ serde_json = "1.0"
 locus = { version = "0", registry = "perish" }
 
 [dev-dependencies]
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 plumb = { version = "0", registry = "perish", default-features = false, features = ["testing"] }
 tempfile = "3.12"

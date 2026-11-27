@@ -29,6 +29,7 @@ sha2 = "0.10"
 ssh-key = { version = "0.6", default-features = false, features = ["std"] }
 tempfile = "3.12"
 ureq = "3"
+rustls = { version = "0.23", default-features = false, features = ["std"] }
 time = { version = "0.3", features = ["parsing"] }
 url = "2"
 
