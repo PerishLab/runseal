@@ -55,6 +55,7 @@ use std::path::Path;
 use wire::{Call, Wire};
 use zeroize::Zeroizing;
 
+const ORIGIN: &str = "https://api.github.com";
 const PROJECT: &str = "query RunsealProject($owner: String!, $number: Int!) { organization(login: $owner) { login projectV2(number: $number) { id number title } } }";
 const CLOSE: &str = "mutation RunsealClose($issue: ID!) { closeIssue(input: {issueId: $issue, stateReason: COMPLETED}) { issue { id state reason: stateReason repository { id } } } }";
 
@@ -99,7 +100,7 @@ impl Client {
             return Err(Error::local(Cause::Custody));
         }
         Ok(Self {
-            wire: Wire::new("https://api.github.com".into()),
+            wire: Wire::new(ORIGIN.into()),
             bearer: Zeroizing::new(format!("Bearer {token}")),
         })
     }
@@ -119,6 +120,23 @@ impl Client {
         }
         self.wire.timeout(seconds);
         Ok(self)
+    }
+
+    pub fn roots(mut self, pem: &[u8]) -> Result<Self, Error> {
+        if self.wire.origin != ORIGIN {
+            return Err(Error::local(Cause::Input));
+        }
+        self.wire.roots(pem)?;
+        Ok(self)
+    }
+
+    pub fn bundle(self, path: &Path) -> Result<Self, Error> {
+        let pem = Zeroizing::new(
+            Private::current()
+                .read(path, wire::LIMIT)
+                .map_err(|_| Error::local(Cause::Custody))?,
+        );
+        self.roots(&pem)
     }
 
     pub fn observer(mut self, sink: Sink) -> Self {

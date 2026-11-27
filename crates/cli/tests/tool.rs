@@ -4,6 +4,9 @@ mod alibaba;
 mod cloudflare;
 #[path = "support/feishu.rs"]
 mod feishu;
+#[cfg(unix)]
+#[path = "support/github.rs"]
+mod github;
 mod support;
 
 use support::{Seat, text};

@@ -1505,6 +1505,7 @@ dependencies = [
  "radicula-http",
  "radicula-lock",
  "radicula-oidc",
+ "rustls",
  "serde",
  "serde_json",
  "sha1",
@@ -1528,6 +1529,7 @@ dependencies = [
  "locus",
  "plumb",
  "runseal",
+ "rustls",
  "serde_json",
  "tempfile",
 ]

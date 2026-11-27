@@ -50,6 +50,10 @@ pub(super) fn execute(input: Input, vars: &BTreeMap<String, String>) -> Result<V
                 .ok_or_else(|| Error::local(Cause::Custody))?,
         )?
     };
+    let client = match input.bundle {
+        Some(file) => client.bundle(&file)?,
+        None => client,
+    };
     let client = match input.timeout {
         Some(seconds) => client.timeout(seconds)?,
         None => client,

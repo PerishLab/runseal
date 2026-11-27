@@ -1,21 +1,22 @@
 mod observe;
 mod response;
+mod transport;
 
 pub use observe::{Observation, Sink, observe};
 pub(in crate::tool::github) use response::identifier;
 use response::{Mode, decode, evidence, retry, status};
 
-use super::{Cause, Error, Evidence, Outcome, Receipt};
-use crate::http::wire::{Client, Payload, Policy, Request};
+use super::{Cause, Error, Outcome, Receipt};
+use crate::http::wire::{Payload, Request};
 use serde_json::Value;
 use std::time::{Duration, Instant};
+pub(super) use transport::LIMIT;
+use transport::Transport;
 use zeroize::Zeroizing;
 
 pub(super) struct Wire {
     pub(super) origin: String,
-    client: Client,
-    source: Client,
-    survey: Client,
+    transport: Transport,
     sink: Option<Sink>,
 }
 
@@ -42,17 +43,17 @@ impl Wire {
     pub(super) fn bounded(origin: String, seconds: u64) -> Self {
         Self {
             origin,
-            client: client(1024 * 1024, seconds),
-            source: client(4 * 1024 * 1024, seconds),
-            survey: client(8 * 1024 * 1024, seconds),
+            transport: Transport::new(seconds),
             sink: None,
         }
     }
 
     pub(super) fn timeout(&mut self, seconds: u64) {
-        self.client = client(1024 * 1024, seconds);
-        self.source = client(4 * 1024 * 1024, seconds);
-        self.survey = client(8 * 1024 * 1024, seconds);
+        self.transport.timeout(seconds);
+    }
+
+    pub(super) fn roots(&mut self, pem: &[u8]) -> Result<(), Error> {
+        self.transport.roots(pem)
     }
 
     pub(super) fn observer(&mut self, sink: Sink) {
@@ -142,24 +143,26 @@ impl Wire {
         } else {
             2
         };
-        let http = match call {
-            Call::Source(_) => &self.source,
-            Call::Survey(_) => &self.survey,
-            _ => &self.client,
+        let bytes = match call {
+            Call::Source(_) => 4 * 1024 * 1024,
+            Call::Survey(_) => 8 * 1024 * 1024,
+            _ => 1024 * 1024,
         };
         let mut number = 1;
         loop {
-            let answer = request(
-                http,
-                Request {
-                    method,
-                    url: &url,
-                    headers: &headers,
-                    body: body.as_deref().map(str::as_bytes),
-                },
-                number,
-            )
-            .and_then(|payload| decode(payload, number, mode, &parse));
+            let answer = self
+                .transport
+                .request(
+                    Request {
+                        method,
+                        url: &url,
+                        headers: &headers,
+                        body: body.as_deref().map(str::as_bytes),
+                    },
+                    number,
+                    bytes,
+                )
+                .and_then(|payload| decode(payload, number, mode, &parse));
             match answer {
                 Err(error) if number < limit && retry(&error) => {
                     std::thread::sleep(Duration::from_millis(120));
@@ -185,8 +188,7 @@ impl Wire {
     fn locate(&self, bearer: &str, path: &str) -> Result<Receipt<Zeroizing<String>>, Error> {
         let headers = headers(bearer, "2022-11-28");
         let url = format!("{}{path}", self.origin);
-        let payload = request(
-            &self.client,
+        let payload = self.transport.request(
             Request {
                 method: "GET",
                 url: &url,
@@ -194,6 +196,7 @@ impl Wire {
                 body: None,
             },
             1,
+            1024 * 1024,
         )?;
         let evidence = evidence(&payload, 1);
         if payload.status != 302 {
@@ -227,8 +230,7 @@ impl Wire {
     fn post(&self, bearer: &str, path: &str, body: &str) -> Result<Receipt<()>, Error> {
         let headers = headers(bearer, "2022-11-28");
         let url = format!("{}{path}", self.origin);
-        let payload = request(
-            &self.client,
+        let payload = self.transport.request(
             Request {
                 method: "POST",
                 url: &url,
@@ -236,6 +238,7 @@ impl Wire {
                 body: Some(body.as_bytes()),
             },
             1,
+            1024 * 1024,
         )?;
         let evidence = evidence(&payload, 1);
         if payload.status == 204 && payload.body.is_empty() {
@@ -254,33 +257,6 @@ impl Wire {
         }
         Err(status(&payload, evidence))
     }
-}
-
-fn request(client: &Client, request: Request<'_>, attempts: u8) -> Result<Payload, Error> {
-    let evidence = Evidence {
-        attempts,
-        ..Evidence::default()
-    };
-    let reply = client.send(request).map_err(|_| Error {
-        outcome: Outcome::Unknown,
-        cause: Cause::Network,
-        evidence: evidence.clone(),
-    })?;
-    let status = Some(reply.status);
-    reply.collect().map_err(|_| Error {
-        outcome: Outcome::Unknown,
-        cause: Cause::Read,
-        evidence: Evidence { status, ..evidence },
-    })
-}
-
-fn client(limit: u64, seconds: u64) -> Client {
-    Client::new(Policy {
-        redirects: 0,
-        overall: Some(Duration::from_secs(seconds)),
-        connect: Some(Duration::from_secs(seconds.min(3))),
-        limit,
-    })
 }
 
 fn headers<'a>(bearer: &'a str, version: &'static str) -> [(&'static str, &'a str); 5] {
